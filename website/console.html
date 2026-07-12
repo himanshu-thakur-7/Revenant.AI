@@ -196,7 +196,8 @@ HARD RULES
 - Never fabricate. Never send anything — only draft. Keep the founder in control.
 
 TOOLING RULE (important)
-- Do NOT call setup_startup or find_prospects — those are slow legacy monolith tools. Learn the founder's startup from the brief (they'll tell you; e.g. "Razorpay"). Do the real work by DELEGATING to sub-agents that use web_search.
+- NEVER call setup_startup or find_prospects — those are slow legacy monolith tools that fail. Learn the founder's startup from the brief (they'll tell you; e.g. "Razorpay").
+- If the founder says "set up / onboard <X> as my startup", DO NOT call any tool — just reply that you've noted <X> as their startup (remember it) and ask if they want you to hunt customers now. "Setting up" a startup means REMEMBERING it, not calling a tool.
 - build_campaign / draft_email may ONLY be used INSIDE an Engineer/Sales sub-agent during the build step, never by you directly in the research step.
 
 THE FLOW
@@ -373,8 +374,8 @@ function setChips(list){
 // after the crew reports a shortlist, the breadcrumbs become the next moves
 function updateChips(){ setChips(['Build for #1','Build for #2','Build for #3','Draft the outreach email','Schedule an 8am daily run']); }
 setChips([
-  'Set up Razorpay as my startup, then hunt 3 merchants to win.',
-  'Find 3 fit customers for my startup — spin up the research crew.',
+  'My startup is Razorpay — spin up the crew and hunt 3 merchants to win.',
+  'Find 3 fit customers for my startup in different verticals.',
   "What's the status of my current campaign?",
 ]);
 
