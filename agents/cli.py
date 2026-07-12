@@ -505,6 +505,38 @@ def sales_cmd(
     )
 
 
+# ── hermes status ─────────────────────────────────────────────
+@app.command("hermes")
+def hermes_cmd() -> None:
+    """Show the Hermes framework status + Revenant skill registration."""
+    from .hermes_link import detect
+
+    h = detect()
+    ui.render_banner(console, model=settings.llm_model, ctx_source="hermes")
+    console.print()
+    ui.boot_line(console, "Hermes Agent installed",
+                 f"v{h.version}" if h.installed else "no",
+                 ok=h.installed)
+    ui.boot_line(console, "framework model",
+                 h.model or "?", ok=bool(h.model))
+    ui.boot_line(console, "provider",
+                 h.provider or "?", ok=bool(h.provider))
+    ui.boot_line(console, "revenant-outbound skill",
+                 "registered ✓" if h.skill_registered else "MISSING",
+                 ok=h.skill_registered)
+    ui.boot_line(console, "total skills installed",
+                 str(h.skill_count), ok=h.skill_count > 0)
+    console.print()
+    console.print(Text(
+        "  Revenant is a Hermes-native fleet: the Nous Hermes-4-405B model\n"
+        "  powers every agent's reasoning, and the fleet is exposed to the\n"
+        "  Hermes Agent framework as the `revenant-outbound` skill — Hermes\n"
+        "  can invoke it via `hermes chat` and it shows up in `hermes skills\n"
+        "  list`. The Telegram gateway is a UI adapter around the same fleet.",
+        style=ui.MUTED))
+    console.print()
+
+
 # ── gmail one-time consent ─────────────────────────────────────
 @app.command("gmail-auth")
 def gmail_auth_cmd() -> None:
@@ -548,6 +580,20 @@ def telegram_cmd(
     with console.status("[dim]briefing…[/dim]", spinner="dots"):
         _ = ctx.summary()
     ui.boot_line(console, "founder", f"{settings.founder_name} · {settings.founder_company or '—'}")
+
+    # Hermes framework — reported prominently because the whole fleet is
+    # registered with it as `revenant-outbound`.
+    from .hermes_link import detect as _hermes_detect
+    h = _hermes_detect()
+    if h.installed:
+        ui.boot_line(console, "Hermes framework",
+                     f"v{h.version} · {h.model or 'Hermes-4-405B'} · skill "
+                     f"{'registered ✓' if h.skill_registered else 'MISSING'}",
+                     ok=h.skill_registered)
+    else:
+        ui.boot_line(console, "Hermes framework",
+                     "not installed — running skill-agnostic", ok=False)
+
     ui.boot_line(console, "telegram gateway", "online — open the chat on your phone")
     ui.boot_line(console, "lip-sync", "D-ID" if lipsync else "off (macOS say)")
     ui.boot_ready(console)

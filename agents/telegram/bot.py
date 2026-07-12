@@ -315,7 +315,12 @@ class RevenantBot:
         cmd = parts[0].lstrip("/").lower()
         arg = parts[1].strip() if len(parts) > 1 else ""
         if cmd in ("start", "help"):
-            self.api.send_message(chat_id, _WELCOME.format(
+            from ..hermes_link import detect as _hd
+            h = _hd()
+            hermes_tag = (f"<i>Powered by Hermes Agent v{h.version} · "
+                          f"{h.model or 'Hermes-4-405B'}</i>\n\n"
+                          if h.installed else "")
+            self.api.send_message(chat_id, hermes_tag + _WELCOME.format(
                 founder=html.escape(settings.founder_name),
                 company=html.escape(settings.founder_company or "your startup")))
         elif cmd == "setup":
