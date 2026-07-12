@@ -547,6 +547,125 @@ async def build_prototype(startup: str, merchant: str, merchant_domain: str = ""
 
 
 @mcp.tool()
+async def film_walkthrough(prototype_url: str, merchant: str, startup: str = "Razorpay",
+                           pain: str = "", startup_summary: str = "",
+                           mcp_ctx: "Context | None" = None) -> str:
+    """Film an AI walkthrough VIDEO of a deployed prototype (the Director agent).
+
+    Use this INSIDE a **Director sub-agent**, after the Engineer has returned a
+    live prototype URL. It records the page with a presenter narrating on-screen
+    (Playwright + AI voice + avatar bottom-right), deploys the MP4, and returns
+    the live video URL. Takes ~60-90s.
+
+    Args:
+        prototype_url: the LIVE prototype URL the Engineer just deployed.
+        merchant: the target company the prototype was built for.
+        startup: the founder's company being sold (default "Razorpay").
+        pain: one line on the prospect's pain (helps the narration).
+        startup_summary: what `startup` does — only for non-Razorpay startups.
+    """
+    _log_call("film_walkthrough", f"{startup} -> {merchant} @ {prototype_url}")
+
+    async def _tick(msg: str) -> None:
+        if mcp_ctx is None:
+            return
+        try:
+            await mcp_ctx.info(msg)
+        except Exception:
+            pass
+
+    if not prototype_url or prototype_url.startswith("file:"):
+        return "I need a live prototype URL to film — build the prototype first."
+
+    await _tick(f"🎬 Filming a walkthrough for {merchant}…")
+
+    from ghost.config import get_settings
+    get_settings.cache_clear()
+
+    # Context + prospect (mirror build_prototype).
+    if "razorpay" in (startup or "").lower():
+        from agents import demo_razorpay
+        ctx = demo_razorpay.razorpay_context()  # noqa: F841 (parity; Director uses prospect)
+    prospect = {
+        "company_name": merchant,
+        "industry": "",
+        "contact": {"name": "", "title": "", "email_candidates": [], "linkedin_url": None},
+        "pain_evidence": [{"source_url": "", "excerpt": pain}] if pain else [],
+        "fit_rationale": pain or "hand-supplied prospect",
+    }
+
+    import os as _os
+    import anyio
+    # Fast path for the console: skip the ~130s D-ID poll (Fiona fallback clip +
+    # natural OpenAI voice instead) and skip the DEAD ElevenLabs key (401 on every
+    # beat) so TTS goes straight to OpenAI. Mutate the shared settings singleton
+    # the Director already holds. Set REVENANT_DIRECTOR_LIPSYNC=1 to force D-ID.
+    from ghost.config import settings as _settings
+    try:
+        if _os.getenv("REVENANT_DIRECTOR_LIPSYNC", "0") in ("", "0", "false", "no"):
+            _settings.skip_lipsync = True
+        _settings.elevenlabs_api_key = None
+    except Exception:
+        pass
+
+    _phase_names = {
+        "read_prototype_url":     "🔗 Loading the prototype…",
+        "read_prospect_context":  "📎 Reading the prospect context…",
+        "render_walkthrough":     "🎥 Recording + narrating the walkthrough…",
+        "finalize_walkthrough":   "☁️  Publishing the video…",
+    }
+    _last = {"v": ""}
+
+    def _on_event(kind: str, payload: Any) -> None:
+        if mcp_ctx is None or kind != "tool_call":
+            return
+        msg = _phase_names.get((payload or {}).get("name") or "")
+        if not msg or msg == _last["v"]:
+            return
+        _last["v"] = msg
+        try:
+            from anyio.from_thread import run_sync
+            run_sync(lambda m=msg: mcp_ctx.info(m))
+        except Exception:
+            pass
+
+    try:
+        from agents.director.agent import Director
+
+        def _do_film():
+            with _quiet_stdout():
+                d = Director(prototype_url=prototype_url, prospect=prospect)
+                return d.film(on_event=_on_event)
+
+        res = await anyio.to_thread.run_sync(_do_film)
+        url = (res or {}).get("video_url", "")
+        # Fallback: host the local mp4 via ngrok if the deploy returned nothing.
+        if (not url or url.startswith("file:")) and (res or {}).get("mp4_path"):
+            mp4 = Path(res["mp4_path"])
+            if mp4.exists():
+                await _tick("🌐 CF unavailable — serving the video via ngrok…")
+                import re as _re
+                slug = "walkthrough-" + (_re.sub(r"[^a-z0-9]+", "-", merchant.lower()).strip("-") or "merchant")
+                try:
+                    from agents.engineer import local_host
+                    # publish expects html; for a binary mp4 we just copy it in
+                    d2 = local_host.PROTO_ROOT / slug
+                    d2.mkdir(parents=True, exist_ok=True)
+                    (d2 / "walkthrough.mp4").write_bytes(mp4.read_bytes())
+                    port = await anyio.to_thread.run_sync(local_host._ensure_server)
+                    public = await anyio.to_thread.run_sync(lambda: local_host._ensure_tunnel(port))
+                    url = f"{public.rstrip('/')}/{slug}/walkthrough.mp4"
+                except Exception:
+                    pass
+    except Exception as exc:  # noqa: BLE001
+        return f"Filming failed for {merchant}: {exc}"
+
+    if not url or url.startswith("file:"):
+        return f"Filmed a walkthrough for {merchant}, but publishing didn't return a public URL."
+    return f"🎬 {merchant}: AI walkthrough filmed → {url}"
+
+
+@mcp.tool()
 def draft_email(to_email: str = "") -> str:
     """Save the last built campaign's email as a Gmail draft (deck + video attached).
 
