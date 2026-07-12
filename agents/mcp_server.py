@@ -680,6 +680,187 @@ async def film_walkthrough(prototype_url: str, merchant: str, startup: str = "Ra
 
 
 @mcp.tool()
+async def draft_outreach(startup: str, merchant: str, prototype_url: str,
+                         walkthrough_url: str = "", pain: str = "",
+                         merchant_domain: str = "", startup_summary: str = "",
+                         recipient_email: str = "", contact_name: str = "",
+                         contact_title: str = "",
+                         mcp_ctx: "Context | None" = None) -> str:
+    """Draft the sales pitch email + deck for one completed prototype.
+
+    Use this INSIDE a Sales sub-agent after the Engineer has produced a
+    prototype URL. A walkthrough URL is strongly preferred but optional. The
+    tool creates a local review draft + deck and, when `recipient_email` is
+    supplied and Gmail is authorized, also creates a Gmail draft. It never sends.
+
+    Args:
+        startup: the founder's company being sold.
+        merchant: the target company/prospect.
+        prototype_url: the live prototype URL from build_prototype.
+        walkthrough_url: the video URL from film_walkthrough, if available.
+        pain: one line on the prospect's pain / why this fits.
+        merchant_domain: the merchant's domain if known.
+        startup_summary: what `startup` does — only needed for non-Razorpay.
+        recipient_email: optional recipient for a Gmail draft.
+        contact_name: optional buyer name.
+        contact_title: optional buyer title.
+    """
+    _log_call("draft_outreach", f"{startup} -> {merchant}")
+
+    async def _tick(msg: str) -> None:
+        if mcp_ctx is None:
+            return
+        try:
+            await mcp_ctx.info(msg)
+        except Exception:
+            pass
+
+    if not prototype_url or prototype_url.startswith("file:"):
+        return "I need a live prototype URL before Sales can draft outreach."
+
+    await _tick(f"✉️ Drafting sales pitch for {merchant}…")
+
+    from ghost.config import get_settings
+    get_settings.cache_clear()
+
+    if "razorpay" in (startup or "").lower():
+        from agents import demo_razorpay
+        ctx = demo_razorpay.razorpay_context()
+    else:
+        from agents.context import FounderContext
+        summary = startup_summary or f"{startup}. {pain}".strip()
+        ctx = FounderContext(source=startup or "startup", root=Path("/tmp"),
+                             files={"README.md": f"# {startup}\n\n{summary}"})
+        try:
+            ctx._summary_cache = summary
+        except Exception:
+            pass
+
+    dom = (merchant_domain or "").lower().replace("https://", "").replace("http://", "").strip("/")
+    prospect = {
+        "company_name": merchant,
+        "company_domain": dom,
+        "industry": "",
+        "contact": {
+            "name": contact_name,
+            "title": contact_title or "Buyer",
+            "email_candidates": [recipient_email] if recipient_email else [],
+            "linkedin_url": "",
+        },
+        "pain_evidence": [{"source_url": f"https://{dom}" if dom else "", "excerpt": pain}] if pain else [],
+        "fit_rationale": pain or "hand-supplied prospect",
+        "fit_score": 0.82,
+    }
+
+    import anyio
+    try:
+        from agents.sales.agent import Sales
+        from agents.sales.gmail_draft import create_draft
+
+        _phase_names = {
+            "read_prospect_brief":  "📎 Reading prospect brief…",
+            "read_prototype_url":   "🔗 Reading prototype URL…",
+            "read_walkthrough_url": "🎬 Reading walkthrough URL…",
+            "read_founder_pitch":   "📚 Reading founder pitch…",
+            "write_pitch_deck":     "📊 Writing pitch deck…",
+            "deploy_deck":          "☁️  Publishing deck…",
+            "save_draft":           "✉️ Saving review draft…",
+            "finalize_sales":       "✅ Finalising sales artifacts…",
+        }
+        _last = {"v": ""}
+
+        def _on_event(kind: str, payload: Any) -> None:
+            if mcp_ctx is None or kind != "tool_call":
+                return
+            msg = _phase_names.get((payload or {}).get("name") or "")
+            if not msg or msg == _last["v"]:
+                return
+            _last["v"] = msg
+            try:
+                from anyio.from_thread import run_sync
+                run_sync(lambda m=msg: mcp_ctx.info(m))
+            except Exception:
+                pass
+
+        def _do_sales():
+            with _quiet_stdout():
+                sales = Sales(
+                    founder_context=ctx,
+                    prospect=prospect,
+                    prototype_url=prototype_url,
+                    walkthrough_url=walkthrough_url,
+                )
+                return sales.draft(on_event=_on_event)
+
+        res = await anyio.to_thread.run_sync(_do_sales)
+        subject = (res or {}).get("email_subject", "")
+        email_md = (res or {}).get("email_md_path", "")
+        deck_url = (res or {}).get("deck_url", "")
+        deck_pptx = (res or {}).get("deck_pptx_path", "")
+
+        gmail_msg = ""
+        if recipient_email and subject and email_md and Path(email_md).exists():
+            body = Path(email_md).read_text(encoding="utf-8")
+            # Keep Gmail body focused on the email copy below the markdown
+            # metadata when possible.
+            marker = "**Subject:**"
+            if marker in body:
+                body = body.split(marker, 1)[-1]
+                body = body.split("\n\n", 1)[-1] if "\n\n" in body else body
+            attachments = [p for p in [deck_pptx] if p and Path(p).exists()]
+            gmail = await anyio.to_thread.run_sync(lambda: create_draft(
+                to_email=recipient_email,
+                subject=subject,
+                body=body.strip(),
+                attachments=attachments,
+            ))
+            if gmail.get("ok"):
+                gmail_msg = f"\nGmail draft: {gmail.get('gmail_url','')}"
+            else:
+                gmail_msg = f"\nGmail draft not created: {gmail.get('error','unknown error')}"
+
+    except Exception as exc:  # noqa: BLE001
+        return f"Sales draft failed for {merchant}: {exc}"
+
+    if not subject and not email_md:
+        return f"Sales draft for {merchant} did not produce an email draft."
+
+    REV.mkdir(parents=True, exist_ok=True)
+    CAMPAIGN_PATH.write_text(json.dumps({
+        "company": merchant,
+        "domain": dom,
+        "recipient_email": recipient_email,
+        "contact_name": contact_name,
+        "prototype_url": prototype_url,
+        "walkthrough_url": walkthrough_url,
+        "walkthrough_mp4": "",
+        "deck_url": deck_url,
+        "deck_pptx": deck_pptx,
+        "email_subject": subject,
+        "email_body": Path(email_md).read_text(encoding="utf-8") if email_md and Path(email_md).exists() else "",
+        "campaign_id": (res or {}).get("campaign_id", ""),
+    }), encoding="utf-8")
+
+    out = [
+        f"✉️ {merchant}: sales pitch drafted.",
+        f"Subject: {subject or '(see draft)'}",
+    ]
+    if deck_url:
+        out.append(f"Deck: {deck_url}")
+    if email_md:
+        out.append(f"Email draft: {email_md}")
+    if walkthrough_url:
+        out.append(f"Walkthrough: {walkthrough_url}")
+    if prototype_url:
+        out.append(f"Prototype: {prototype_url}")
+    if gmail_msg:
+        out.append(gmail_msg.strip())
+    elif not recipient_email:
+        out.append("Gmail draft: not created yet — provide a recipient email to create one.")
+    return "\n".join(out)
+
+
+@mcp.tool()
 def draft_email(to_email: str = "") -> str:
     """Save the last built campaign's email as a Gmail draft (deck + video attached).
 

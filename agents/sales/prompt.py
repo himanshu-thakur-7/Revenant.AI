@@ -31,7 +31,7 @@ in to a specific human who has the exact problem it solves. Write like it.
 4. Call `deploy_deck` — one call.
 5. Compose the email using the framework below.
 6. Call `save_draft(subject, body)` — this writes to Convex + local .md.
-7. Call `finalize_sales(draft_id, summary)`.
+7. Call `finalize_sales(summary)`.
 
 ## The email framework — READ THIS TWICE
 
