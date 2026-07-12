@@ -61,15 +61,21 @@ export function App() {
     [events],
   );
 
+  // Wall-clock-delta accumulation: immune to background-tab timer throttling
+  // (a fixed +0.1/tick clock runs 10× slow when the browser drops to 1Hz).
   useEffect(() => {
     if (!playing) return;
+    let last = performance.now();
     const iv = setInterval(() => {
+      const now = performance.now();
+      const dt = ((now - last) / 1000) * speedRef.current;
+      last = now;
       setElapsed((t) => {
-        const next = t + 0.1 * speedRef.current;
+        const next = t + dt;
         if (next >= totalTime) setPlaying(false);
         return Math.min(next, totalTime);
       });
-    }, 100);
+    }, 120);
     return () => clearInterval(iv);
   }, [playing, totalTime]);
 
@@ -110,7 +116,8 @@ export function App() {
   return (
     <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 24px 70px" }}>
       <Header source={source} replay={replay} playing={playing} speed={speed} setSpeed={setSpeed}
-        elapsed={elapsed} total={totalTime} />
+        elapsed={elapsed} total={totalTime}
+        skip={() => { setElapsed(totalTime); setPlaying(false); }} />
       <ActRail current={done ? 5 : currentAct} />
       {won && done && <WonBanner company={won.lead.company_name} />}
       <div className="rv-grid" style={{ display: "grid", gridTemplateColumns: "minmax(380px, 1fr) minmax(420px, 1.2fr)", gap: 20, marginTop: 18, alignItems: "start" }}>
@@ -139,8 +146,9 @@ export function App() {
 function Header(props: {
   source: string; replay: () => void; playing: boolean;
   speed: number; setSpeed: (n: number) => void; elapsed: number; total: number;
+  skip: () => void;
 }) {
-  const { source, replay, playing, speed, setSpeed, elapsed, total } = props;
+  const { source, replay, playing, speed, setSpeed, elapsed, total, skip } = props;
   const pct = total ? Math.min(100, (elapsed / total) * 100) : 0;
   return (
     <header style={{ padding: "30px 0 16px" }}>
@@ -164,6 +172,10 @@ function Header(props: {
           <button className="rv-btn rv-btn-ghost" style={{ padding: "7px 14px", fontSize: 13 }}
             onClick={() => setSpeed(speed === 1 ? 3 : 1)}>
             {speed}×
+          </button>
+          <button className="rv-btn rv-btn-ghost" style={{ padding: "7px 14px", fontSize: 13 }}
+            onClick={skip} title="skip to the end of the run">
+            ⏭
           </button>
           <button className="rv-btn rv-btn-primary" style={{ padding: "7px 18px", fontSize: 13 }} onClick={replay}>
             {playing ? "⟳ running…" : "▶ run the 3 AM loop"}
