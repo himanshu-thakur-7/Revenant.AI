@@ -398,6 +398,69 @@ def build_campaign(choice: str = "1") -> str:
 
 
 @mcp.tool()
+def build_prototype(startup: str, merchant: str, merchant_domain: str = "",
+                    pain: str = "", startup_summary: str = "") -> str:
+    """Build & DEPLOY a real, working prototype for ONE merchant, selling `startup`.
+
+    Use this INSIDE an Engineer sub-agent once a merchant is chosen — or run
+    several in parallel (one Engineer sub-agent per merchant) to build all the
+    shortlisted merchants at once. Returns the LIVE Cloudflare Pages URL.
+    Takes ~1-2 minutes. Unlike build_campaign, this takes the merchant EXPLICITLY
+    (no prior shortlist needed), so a crew that researched from knowledge can build.
+
+    Args:
+        startup: the founder's company you sell FOR (e.g. "Razorpay").
+        merchant: the target company to build the prototype for (e.g. "BigBasket").
+        merchant_domain: the merchant's domain if known (e.g. "bigbasket.com").
+        pain: one line on why this merchant fits / the pain the prototype addresses.
+        startup_summary: what `startup` does — only needed for non-Razorpay startups.
+    """
+    _log_call("build_prototype", f"{startup} -> {merchant}")
+    from ghost.config import get_settings
+    get_settings.cache_clear()
+
+    # 1. Founder context — canned (instant) for Razorpay, else a minimal context.
+    if "razorpay" in (startup or "").lower():
+        from agents import demo_razorpay
+        ctx = demo_razorpay.razorpay_context()
+    else:
+        from agents.context import FounderContext
+        summary = startup_summary or f"{startup}. {pain}".strip()
+        ctx = FounderContext(source=startup or "startup", root=Path("/tmp"),
+                             files={"README.md": f"# {startup}\n\n{summary}"})
+        try:
+            ctx._summary_cache = summary
+        except Exception:
+            pass
+
+    # 2. Prospect from the explicit args.
+    dom = (merchant_domain or "").lower().replace("https://", "").replace("http://", "").strip("/")
+    prospect = {
+        "company_name": merchant,
+        "company_domain": dom,
+        "industry": "",
+        "contact": {"name": "", "title": "", "email_candidates": [], "linkedin_url": ""},
+        "pain_evidence": [{"source_url": f"https://{dom}" if dom else "", "excerpt": pain}],
+        "fit_rationale": pain,
+    }
+
+    # 3. Build + deploy via the Engineer only (fast; the 20x "real output" proof).
+    try:
+        from agents.engineer import Engineer
+        with _quiet_stdout():
+            eng = Engineer(founder_context=ctx, prospect=prospect)
+            res = eng.build()
+        url = (res or {}).get("url", "")
+    except Exception as exc:  # noqa: BLE001
+        return f"Build failed for {merchant}: {exc}"
+
+    if not url or url.startswith("file:"):
+        return (f"Built a prototype for {merchant}, but the deploy didn't return a "
+                f"public URL ({url or 'none'}).")
+    return f"✅ {merchant}: live prototype deployed → {url}"
+
+
+@mcp.tool()
 def draft_email(to_email: str = "") -> str:
     """Save the last built campaign's email as a Gmail draft (deck + video attached).
 
