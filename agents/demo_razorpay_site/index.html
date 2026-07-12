@@ -1,0 +1,305 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Razorpay Magic Checkout × boAt — 1-click checkout that recovers every drop-off</title>
+<style>
+  :root{
+    --rzp:#3395FF; --rzp-dark:#0B63CE; --navy:#0D2366; --ink:#0a1f44;
+    --bg:#ffffff; --soft:#f4f7fc; --card:#ffffff; --muted:#5b6b8c;
+    --line:#e4ebf5; --ok:#1aab5a; --shadow:0 18px 50px rgba(13,35,102,.14);
+    --card2:#eef3fb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+  a{color:var(--rzp)}
+  nav{display:flex;align-items:center;justify-content:space-between;padding:20px 0}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:19px;color:var(--navy)}
+  .rzp-logo{display:inline-flex;align-items:center;gap:7px}
+  .rzp-mark{width:26px;height:26px;border-radius:6px;background:var(--rzp);position:relative;display:inline-block}
+  .rzp-mark::after{content:"";position:absolute;left:9px;top:5px;width:5px;height:16px;background:#fff;
+    transform:skewX(-12deg);border-radius:1px}
+  .brand .x{color:#94a3c4;font-weight:500;margin:0 2px}
+  .navcta{font-size:13px;font-weight:700;color:var(--rzp);letter-spacing:.04em;text-transform:uppercase}
+  .eyebrow{color:var(--rzp);font-weight:800;letter-spacing:.14em;text-transform:uppercase;font-size:12.5px}
+  h1{font-size:52px;line-height:1.04;letter-spacing:-.022em;margin:14px 0 0;font-weight:850;color:var(--navy)}
+  h1 .g{background:linear-gradient(90deg,var(--rzp),#6db3ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  h2{font-size:30px;letter-spacing:-.018em;margin:6px 0 0;font-weight:820;color:var(--navy)}
+  .sub{color:var(--muted);font-size:19px;max-width:640px;margin-top:18px}
+  section{padding:44px 0;border-bottom:1px solid var(--line)}
+  .stats{display:flex;gap:38px;flex-wrap:wrap;margin-top:30px}
+  .stat b{display:block;font-size:34px;font-weight:850;color:var(--navy);letter-spacing:-.02em}
+  .stat span{color:var(--muted);font-size:13.5px}
+  /* live checkout demo */
+  .demo-grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:26px;align-items:start}
+  @media(max-width:820px){.demo-grid{grid-template-columns:1fr}}
+  .pdp{background:var(--soft);border:1px solid var(--line);border-radius:20px;padding:24px}
+  .pdp .thumb{height:190px;border-radius:14px;background:
+     radial-gradient(120% 90% at 30% 20%,#1a2340,#05070f);display:grid;place-items:center;font-size:74px}
+  .pdp h3{margin:16px 0 3px;font-size:19px;color:var(--navy)}
+  .pdp .rate{color:#f5a623;font-size:14px}
+  .pdp .price{margin-top:10px;font-size:26px;font-weight:850;color:var(--navy)}
+  .pdp .price s{color:#9aa8c4;font-weight:500;font-size:16px;margin-left:8px}
+  .buy{margin-top:16px;width:100%;border:0;border-radius:12px;background:var(--rzp);color:#fff;
+    font-weight:800;font-size:16px;padding:15px;cursor:pointer;box-shadow:0 10px 24px rgba(51,149,255,.34);transition:.15s}
+  .buy:hover{background:var(--rzp-dark)}
+  .buy:disabled{opacity:.6;cursor:default}
+  /* magic checkout modal (simulated) */
+  .checkout{background:var(--card);border:1px solid var(--line);border-radius:20px;
+    box-shadow:var(--shadow);overflow:hidden;min-height:430px;display:flex;flex-direction:column}
+  .co-head{background:var(--navy);color:#fff;padding:15px 18px;display:flex;align-items:center;justify-content:space-between}
+  .co-head .m{display:flex;align-items:center;gap:9px;font-weight:800;font-size:15px}
+  .co-head .m .dot{width:22px;height:22px;border-radius:6px;background:#fff;color:var(--navy);display:grid;place-items:center;font-size:13px;font-weight:900}
+  .co-head .sec{font-size:11.5px;color:#b9c6ea;display:flex;align-items:center;gap:5px}
+  .co-body{padding:18px;display:flex;flex-direction:column;gap:12px;flex:1}
+  .co-step{opacity:0;transform:translateY(8px);transition:.35s;display:none}
+  .co-step.show{opacity:1;transform:none;display:block}
+  .co-label{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+  .field{border:1.5px solid var(--line);border-radius:11px;padding:12px 14px;font-size:15px;color:var(--navy);
+    display:flex;align-items:center;justify-content:space-between;background:#fbfdff}
+  .field.on{border-color:var(--rzp);box-shadow:0 0 0 3px rgba(51,149,255,.13)}
+  .field .edit{color:var(--rzp);font-size:12px;font-weight:700}
+  .addr{border:1.5px solid var(--rzp);border-radius:11px;padding:12px 14px;background:#f2f8ff;font-size:13.5px;color:var(--navy)}
+  .addr .who{font-weight:800;margin-bottom:2px}
+  .offer{display:flex;align-items:center;gap:8px;background:#eafaf0;border:1px dashed #7fd3a1;border-radius:10px;
+    padding:9px 12px;font-size:13px;color:#127a42;font-weight:700}
+  .pays{display:flex;flex-direction:column;gap:8px}
+  .pay{border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:11px;font-size:14px;font-weight:600;color:var(--navy)}
+  .pay.sel{border-color:var(--rzp);background:#f2f8ff}
+  .pay .ico{width:30px;height:30px;border-radius:7px;background:var(--card2);display:grid;place-items:center;font-size:15px}
+  .pay .rec{margin-left:auto;font-size:10.5px;font-weight:800;color:var(--rzp);background:#e8f2ff;padding:2px 7px;border-radius:99px}
+  .co-foot{border-top:1px solid var(--line);padding:14px 18px;display:flex;align-items:center;gap:14px}
+  #s5{display:none}
+  #s5.show{display:flex}
+  .co-foot .amt{font-weight:850;font-size:19px;color:var(--navy)}
+  .co-foot .amt s{font-weight:500;font-size:13px;color:#9aa8c4;margin-left:6px}
+  .paybtn{margin-left:auto;border:0;border-radius:11px;background:var(--rzp);color:#fff;font-weight:800;font-size:15px;padding:12px 22px}
+  .success{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px;display:none}
+  .success.show{display:flex}
+  .tick{width:74px;height:74px;border-radius:50%;background:var(--ok);display:grid;place-items:center;color:#fff;font-size:40px;
+    animation:pop .4s ease}
+  @keyframes pop{0%{transform:scale(.4);opacity:0}100%{transform:scale(1);opacity:1}}
+  .success h3{margin:0;color:var(--navy);font-size:20px}
+  .success p{margin:0;color:var(--muted);font-size:14px}
+  .type{font-size:11.5px;color:var(--muted);text-align:center;padding:8px}
+  /* feature cards */
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:26px}
+  @media(max-width:820px){.cards{grid-template-columns:1fr 1fr}}
+  .card{background:var(--soft);border:1px solid var(--line);border-radius:15px;padding:18px}
+  .card h3{margin:0 0 6px;font-size:15.5px;color:var(--navy)}
+  .card p{margin:0;color:var(--muted);font-size:13px}
+  .logos{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:16px;color:var(--muted);font-size:13.5px}
+  .logos b{color:var(--navy)}
+  pre.code{background:#0b1430;color:#cdd8f0;border-radius:14px;padding:18px;overflow:auto;font-size:13px;line-height:1.6}
+  .code .k{color:#6db3ff}.code .s{color:#8be0a6}
+  /* agent section (reused pattern) */
+  .agent-slot{margin-top:22px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px;overflow:hidden;box-shadow:var(--shadow)}
+  .agent-stage{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;padding:12px 0}
+  .agent-avatar{position:relative;width:120px;height:120px;display:grid;place-items:center}
+  .agent-face{font-size:60px;z-index:2}
+  .agent-avatar.speaking .agent-face{animation:talk .5s ease-in-out infinite}
+  @keyframes talk{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.04)}}
+  .agent-ring{position:absolute;inset:0;border-radius:50%;border:3px solid var(--rzp);opacity:.35}
+  .agent-avatar.speaking .agent-ring{animation:pulse 1.1s ease-out infinite}
+  @keyframes pulse{0%{transform:scale(.85);opacity:.55}100%{transform:scale(1.25);opacity:0}}
+  .agent-caption{max-width:560px;min-height:48px;color:var(--navy);font-size:15.5px}
+  .agent-progress{width:min(420px,90%);height:5px;background:var(--line);border-radius:99px;overflow:hidden}
+  .agent-progress>div{height:100%;width:0;background:var(--rzp);transition:width .3s linear}
+  .agent-video{width:min(560px,100%);border-radius:14px;border:1px solid var(--line)}
+  .run{border:0;border-radius:12px;background:var(--rzp);color:#fff;font-weight:800;font-size:15px;padding:13px 22px;cursor:pointer;text-decoration:none;display:inline-block}
+  .run:hover{background:var(--rzp-dark)}
+  .agent-tabs{display:flex;gap:8px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
+  .ag-tab{background:var(--card);border:1px solid var(--line);color:var(--muted);border-radius:99px;padding:9px 16px;font-size:14px;font-weight:700;cursor:pointer}
+  .ag-tab.on{background:var(--rzp);border-color:var(--rzp);color:#fff}
+  .ag-log{display:flex;flex-direction:column;gap:10px;max-height:280px;overflow:auto;padding:4px 2px 12px;text-align:left}
+  .ag-msg{max-width:82%;padding:11px 14px;border-radius:14px;font-size:14px;line-height:1.5}
+  .ag-msg.you{align-self:flex-end;background:var(--rzp);color:#fff;border-bottom-right-radius:5px}
+  .ag-msg.bot{align-self:flex-start;background:var(--card2);color:var(--navy);border:1px solid var(--line);border-bottom-left-radius:5px}
+  .ag-suggest{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+  .ag-chip{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:99px;padding:6px 12px;font-size:13px;cursor:pointer}
+  .ag-chip:hover{border-color:var(--rzp);color:var(--rzp)}
+  .ag-input{display:flex;gap:8px;margin-top:4px}
+  .ag-input input{flex:1;padding:12px 14px;border:1px solid var(--line);border-radius:12px;font-size:14px;background:#fbfdff;color:var(--navy)}
+  .ag-input button{background:var(--rzp);color:#fff;border:0;border-radius:12px;padding:0 18px;font-weight:800;cursor:pointer}
+  .ag-slots{display:flex;flex-direction:column;gap:10px;max-width:420px;margin:6px auto 0}
+  .ag-slot{display:flex;align-items:center;justify-content:space-between;gap:12px;text-decoration:none;background:#fbfdff;border:1px solid var(--line);border-radius:12px;padding:13px 16px;color:var(--navy);font-size:14px}
+  .ag-slot:hover{border-color:var(--rzp)}
+  .ag-slot .go{color:var(--rzp);font-weight:800}
+  .cta{text-align:center;border-bottom:0}
+  footer{color:var(--muted);font-size:12.5px;padding:26px 0 50px}
+</style>
+
+<div class="wrap">
+  <nav>
+    <div class="brand">
+      <span class="rzp-logo"><span class="rzp-mark"></span>Razorpay</span>
+      <span class="x">×</span> boAt
+    </div>
+    <div class="navcta">Built for boAt</div>
+  </nav>
+
+
+  <!-- ===== HERO ===== -->
+  <section>
+    <div class="eyebrow">A working prototype for boAt</div>
+    <h1>One tap to buy.<br><span class="g">Zero drop-off at checkout.</span></h1>
+    <p class="sub">Razorpay <b>Magic Checkout</b> turns boAt's checkout into a 1-click, address-prefilled,
+      RTO-protected flow — for the 100M+ shoppers who are already saved with Razorpay.</p>
+    <div class="stats">
+      <div class="stat"><b>1-click</b><span>prefilled checkout</span></div>
+      <div class="stat"><b>+40%</b><span>conversion uplift</span></div>
+      <div class="stat"><b>100M+</b><span>pre-saved shoppers</span></div>
+      <div class="stat"><b>↓ RTO</b><span>predictive COD</span></div>
+    </div>
+  </section>
+
+  <!-- ===== LIVE CHECKOUT DEMO ===== -->
+  <section id="demo">
+    <div class="eyebrow">Live preview</div>
+    <h2>Watch a boAt shopper check out in one tap</h2>
+    <p class="sub" style="font-size:16px">A returning shopper taps <b>Buy now</b>. Magic Checkout recognises her, fills the form,
+      applies an offer, and takes the payment — no typing, no drop-off.</p>
+    <div class="demo-grid">
+      <div class="pdp">
+        <div class="thumb">🎧</div>
+        <h3>boAt Airdopes 141 — Bold Black</h3>
+        <div class="rate">★★★★★ <span style="color:var(--muted)">42,318 ratings</span></div>
+        <div class="price">₹1,299 <s>₹2,990</s></div>
+        <input id="demoInput" type="hidden" value="+91 98••• ••021">
+        <button class="buy" id="demoRun" onclick="runCheckout()">⚡ Buy now with Magic Checkout</button>
+      </div>
+
+      <div class="checkout" id="demoOutput">
+        <div class="co-head">
+          <div class="m"><span class="dot">b</span> boAt</div>
+          <div class="sec">🔒 Secured by <b style="color:#fff">Razorpay</b></div>
+        </div>
+        <div class="co-body" id="coBody">
+          <div class="type" id="coType">Tap “Buy now” to start the 1-click checkout…</div>
+
+          <div class="co-step" id="s1">
+            <div class="co-label">Contact</div>
+            <div class="field on">+91 98••• ••021 <span class="edit">Recognised ✓</span></div>
+          </div>
+          <div class="co-step" id="s2">
+            <div class="co-label">Deliver to</div>
+            <div class="addr">
+              <div class="who">Priya Sharma · Home</div>
+              402, Orchid Residency, HSR Layout, Bengaluru, Karnataka 560102
+            </div>
+          </div>
+          <div class="co-step" id="s3">
+            <div class="offer">🎁 Coupon <b>MAGIC10</b> auto-applied — you saved ₹130</div>
+          </div>
+          <div class="co-step" id="s4">
+            <div class="co-label">Pay using</div>
+            <div class="pays">
+              <div class="pay sel"><span class="ico">🟣</span> UPI · GPay / PhonePe <span class="rec">Recommended</span></div>
+              <div class="pay"><span class="ico">💳</span> Cards</div>
+              <div class="pay"><span class="ico">📦</span> Cash on Delivery</div>
+            </div>
+          </div>
+        </div>
+        <div class="co-foot co-step" id="s5">
+          <div class="amt">₹1,169 <s>₹1,299</s></div>
+          <button class="paybtn" id="payBtn">Pay ₹1,169 →</button>
+        </div>
+        <div class="success" id="coSuccess">
+          <div class="tick">✓</div>
+          <h3>Payment successful</h3>
+          <p>Order confirmed in 11s · one tap · zero form-filling.<br>Confirmation sent on WhatsApp.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FEATURES ===== -->
+  <section>
+    <div class="eyebrow">Why it works for boAt</div>
+    <h2>Four ways Magic Checkout recovers revenue</h2>
+    <div class="cards">
+      <div class="card"><h3>⚡ 1-click, prefilled</h3><p>Address & contact auto-fill for 100M+ pre-saved shoppers. No typing, no bounce.</p></div>
+      <div class="card"><h3>📦 Smarter COD</h3><p>Predictive models nudge risky COD orders to prepay — cutting RTO losses on electronics.</p></div>
+      <div class="card"><h3>🎁 Coupon engine</h3><p>10,000+ behavioural signals pick the offer that actually converts, not one that leaks margin.</p></div>
+      <div class="card"><h3>💬 WhatsApp recovery</h3><p>Abandoned carts get a WhatsApp nudge with a one-tap pay link — revenue you were losing.</p></div>
+    </div>
+    <div class="logos">Trusted by India's biggest brands &nbsp;·&nbsp;
+      <b>Vedantu</b> · <b>BoAt</b> · <b>Tata Neu</b> · <b>Cred</b> · <b>Zomato</b> · <b>Swiggy</b> · <b>Meesho</b></div>
+  </section>
+
+  <!-- ===== INTEGRATION ===== -->
+  <section id="code">
+    <div class="eyebrow">Integration</div>
+    <h2>Live on boAt's store in a day</h2>
+    <pre class="code"><code><span class="k">&lt;script</span> src=<span class="s">"https://checkout.razorpay.com/v1/magic-checkout.js"</span><span class="k">&gt;&lt;/script&gt;</span>
+
+<span class="k">const</span> rzp = <span class="k">new</span> Razorpay({
+  key: <span class="s">"rzp_live_boAt"</span>,
+  magic: <span class="k">true</span>,            <span style="color:#7d8bb0">// 1-click, prefilled, RTO-protected</span>
+  order_id: order.id,      <span style="color:#7d8bb0">// created on your server</span>
+  prefill: { contact: shopper.phone },
+});
+rzp.open();                <span style="color:#7d8bb0">// that's the whole checkout</span></code></pre>
+  </section>
+
+  <!-- ===== CTA ===== -->
+  <section class="cta">
+    <h2>Turn boAt's checkout drop-off into recovered revenue</h2>
+    <p class="sub" style="margin:10px auto 0">A scoped 30-day Magic Checkout pilot on one boAt storefront — live this week.</p>
+    <a class="run" id="cta" href="#demo" style="margin-top:16px">Book a 30-min pilot →</a>
+  </section>
+
+  <footer>Built autonomously for <b>boAt</b> by Razorpay · Interactive preview — simulated checkout, not a live transaction.</footer>
+</div>
+
+<script>
+  /* ─────────── LIVE MAGIC CHECKOUT SIMULATION ─────────── */
+  const STEPS = [
+    ['s1', 900,  'Recognising shopper…'],
+    ['s2', 1100, 'Filling saved address…'],
+    ['s3', 900,  'Applying best offer…'],
+    ['s4', 1000, 'Loading payment options…'],
+    ['s5', 700,  'Ready to pay'],
+  ];
+  let coRunning=false;
+  function resetCheckout(){
+    ['s1','s2','s3','s4','s5'].forEach(id=>document.getElementById(id).classList.remove('show'));
+    document.getElementById('coSuccess').classList.remove('show');
+    document.getElementById('coType').style.display='block';
+  }
+  function runCheckout(){
+    if(coRunning) return; coRunning=true;
+    const btn=document.getElementById('demoRun'); btn.disabled=true; btn.textContent='● Checkout open…';
+    resetCheckout();
+    let i=0;
+    (function step(){
+      if(i>=STEPS.length){
+        document.getElementById('coType').style.display='none';
+        setTimeout(()=>{
+          const pay=document.getElementById('payBtn'); pay.textContent='Paying…';
+          setTimeout(()=>{
+            document.querySelector('.co-body').style.display='none';
+            document.getElementById('s5').style.display='none';
+            document.getElementById('coSuccess').classList.add('show');
+            btn.disabled=false; btn.textContent='⚡ Buy now with Magic Checkout'; coRunning=false;
+          }, 1100);
+        }, 500);
+        return;
+      }
+      const [id,dwell,note]=STEPS[i++];
+      document.getElementById('coType').textContent=note;
+      if(id==='s5'){ document.getElementById('s5').style.display='flex'; }
+      document.getElementById(id).classList.add('show');
+      document.querySelector('.checkout').scrollTop=9999;
+      setTimeout(step, dwell);
+    })();
+  }
+  // reset display states that success toggles, so re-runs work
+  function fullReset(){
+    document.querySelector('.co-body').style.display='';
+    document.getElementById('s5').style.display='';
+    resetCheckout();
+  }
+  window.addEventListener('load',()=>{ fullReset(); setTimeout(runCheckout, 1000); });
+</script>

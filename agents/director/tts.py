@@ -14,8 +14,10 @@ Both paths return the MP3 path and its duration in seconds (measured with
 
 from __future__ import annotations
 
+import os
 import platform
 import subprocess
+import sys
 from pathlib import Path
 
 import httpx
@@ -34,8 +36,18 @@ _DEFAULT_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 def narrate(text: str, out_path: Path, *, voice_id: str | None = None) -> tuple[Path, float]:
     """Render ``text`` to an MP3 at ``out_path``. Returns (path, duration_seconds)."""
     if settings.elevenlabs_api_key:
-        _elevenlabs_render(text, out_path, voice_id=voice_id or settings.elevenlabs_voice_id
-                            or _DEFAULT_VOICE_ID)
+        try:
+            _elevenlabs_render(text, out_path, voice_id=voice_id or settings.elevenlabs_voice_id
+                                or _DEFAULT_VOICE_ID)
+            return out_path, _measure(out_path)
+        except Exception as exc:  # quota_exceeded (401), network, etc.
+            # The docstring promises a `say` fallback — honour it on ANY
+            # ElevenLabs failure so a dead/exhausted key never kills the film.
+            if platform.system() != "Darwin":
+                raise
+            print(f"[tts] ElevenLabs failed ({str(exc)[:120]}); falling back to "
+                  f"macOS `say`.", file=sys.stderr, flush=True)
+            _say_render(text, out_path)
     elif platform.system() == "Darwin":
         _say_render(text, out_path)
     else:
@@ -74,9 +86,20 @@ def _elevenlabs_render(text: str, out_path: Path, *, voice_id: str) -> None:
 
 
 def _say_render(text: str, out_path: Path) -> None:
-    """macOS-only fallback: `say` → aiff → ffmpeg → mp3."""
+    """macOS-only fallback: `say` → aiff → ffmpeg → mp3.
+
+    Uses a natural female voice (env ``REVENANT_SAY_VOICE``, default Samantha)
+    at a slightly relaxed rate; if that voice isn't installed, falls back to the
+    system default voice so rendering never fails.
+    """
     aiff = out_path.with_suffix(".aiff")
-    subprocess.run(["say", "-o", str(aiff), text], check=True, capture_output=True)
+    voice = os.getenv("REVENANT_SAY_VOICE", "Samantha")
+    rate = os.getenv("REVENANT_SAY_RATE", "178")
+    try:
+        subprocess.run(["say", "-v", voice, "-r", rate, "-o", str(aiff), text],
+                       check=True, capture_output=True)
+    except subprocess.CalledProcessError:
+        subprocess.run(["say", "-o", str(aiff), text], check=True, capture_output=True)
     subprocess.run(
         ["ffmpeg", "-y", "-i", str(aiff), "-codec:a", "libmp3lame", "-qscale:a", "3",
          str(out_path)],
