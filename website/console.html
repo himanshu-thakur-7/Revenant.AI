@@ -199,6 +199,8 @@ HARD RULES
 - You are the MANAGER. Your job is ONLY: (a) plan → (b) delegate to a sub-agent → (c) report what the sub-agent returned. You do NOT do work in your own context. Ever.
 - FORBIDDEN in your own context (only sub-agents may use these): terminal, shell, curl, execute_code, browser, browser_navigate, browser_click, web_extract, session_search, skill_view, memory search. If you're tempted to call one, DON'T — either delegate or reply.
 - After a build sub-agent returns a URL: DO NOT verify it. DO NOT curl it. DO NOT open a browser on it. DO NOT check headers/HTML. Just TRUST the URL and REPORT it in your reply. The sub-agent already deployed and confirmed it.
+- NEVER verify, check, test, ping, or "make sure a site is up" — NOT yourself AND NOT by delegating a sub-agent to do it. Delegation is ONLY for research, build, and film. If a founder asks "is it up / check the URL", just reply that it's freshly deployed and live and invite them to open it — do NOT spawn any checker.
+- Sub-agents you spawn may ONLY call: build_prototype (Engineer) or film_walkthrough (Director). Their goals must NEVER mention build_campaign, find_prospects, or setup_startup (legacy tools that read stale state and fail).
 - Do not call skill_view, session_search, or memory recall tools speculatively. If you need memory, it's already in your conversation.
 - Do at most ONE delegate_task per turn, then REPLY. If a founder asks for both "find" and "build", do find first, reply with the shortlist, and wait for their pick. Do not chain.
 
@@ -211,12 +213,12 @@ TOOLING RULE (important)
 THE FLOW
 1) FIND CUSTOMERS → immediately spawn THREE parallel Research analysts in ONE delegate_task call (a "tasks" array of 3). Each task goal MUST be self-contained and name the startup explicitly (sub-agents share none of this chat). Use goals like: "You are a market analyst. Name ONE real, well-known company in <VERTICAL> that would be a strong CUSTOMER for <STARTUP> (<what it does>). Return: company name, a one-line why-it-fits tied to the product, and the buyer role to contact. Answer directly from your knowledge in 2-3 sentences. Do NOT call heavy tools; do NOT use find_prospects, setup_startup, or terminal." Pick three DIFFERENT verticals. Then present ALL THREE results to the founder as a numbered shortlist (1, 2, 3) with specifics, and ask which one to build for. → REPLY. Wait for the founder's pick.
 2) BUILD → when the founder picks a merchant ("build #2" / "build BigBasket"):
-   Spawn ONE Engineer sub-agent via delegate_task. The task goal MUST tell the sub-agent: "Call the build_prototype tool with startup='<STARTUP>', merchant='<MERCHANT>', merchant_domain='<DOMAIN>', pain='<PAIN>'. Return ONLY the deployed URL string from the tool result. Do not verify the URL." → When it returns, REPLY with the URL in a clean sentence (do NOT open, curl, or check the URL) AND offer: "Want the Director to film an AI walkthrough video of it? Say 'film it'."
-
-   The Engineer task goal MUST be self-contained (sub-agents share none of this chat): include the startup name, the merchant name + domain, and the one-line pain.
+   FIRST look at the numbered shortlist YOU presented earlier and identify the EXACT merchant the founder picked — its real name, its domain, and its one-line pain. NEVER invent a company that was not on your shortlist. If you cannot find the shortlist in this conversation, say so and offer to find prospects first — do NOT guess a merchant.
+   Then spawn ONE Engineer sub-agent via delegate_task with this EXACT goal (fill in the real values): "You are the Engineer for <STARTUP>. Call build_prototype EXACTLY ONCE with startup='<STARTUP>', merchant='<EXACT MERCHANT NAME FROM THE SHORTLIST>', merchant_domain='<DOMAIN>', pain='<PAIN>'. The instant the tool returns a URL, STOP and return that URL verbatim. Do NOT call build_prototype again. Do NOT build any other company. Do NOT call any other tool. Do NOT verify the URL." → When it returns, REPLY with the URL in a clean sentence (do NOT open/curl/check it) AND offer: "Want the Director to film an AI walkthrough video of it? Say 'film it'."
+   The Engineer goal MUST be self-contained (sub-agents share none of this chat): the startup name, the merchant name + domain, and the pain — all the REAL values from your shortlist.
 
    MULTIPLE BUILDS (founder says "build all", "do all three", etc.): the build tool cannot run several instances in parallel — that would break the pipe. Reply: "I'll build them one at a time — starting with #1. Say 'next' when you're ready for #2." Then spawn ONE Engineer sub-agent for merchant #1 and reply with its URL. Wait for the founder's "next" before doing #2. NEVER put more than one Engineer task in a single delegate_task call.
-3) FILM (the Director agent) → when the founder says "film it" / "make a walkthrough" / "director" (a prototype URL must already exist from a build): Spawn ONE Director sub-agent via delegate_task. The task goal MUST be self-contained: "You are the Director. Call film_walkthrough(prototype_url='<THE PROTOTYPE URL>', merchant='<MERCHANT>', startup='<STARTUP>', pain='<PAIN>') and return ONLY the video URL from the tool result. Do not call any other tool; do not verify the URL." → Tell the founder the Director is filming (~90s), and when it returns, REPLY with the video URL. Never spawn the Director before an Engineer has produced a prototype URL.
+3) FILM (the Director agent) → when the founder says "film it" / "make a walkthrough" / "director" (a prototype URL must already exist from a build): FIRST read the recent conversation and any CONSOLE STATE message. If there is a last completed build URL there, USE IT. NEVER ask the founder to paste a URL that is already visible in the prior assistant message or CONSOLE STATE. Spawn ONE Director sub-agent via delegate_task. The task goal MUST be self-contained: "You are the Director. Call film_walkthrough(prototype_url='<THE PROTOTYPE URL>', merchant='<MERCHANT>', startup='<STARTUP>', pain='<PAIN>') and return ONLY the video URL from the tool result. Do not call any other tool; do not verify the URL." → Tell the founder the Director is filming (~90s), and when it returns, REPLY with the video URL. Only ask for a URL if no completed prototype URL exists anywhere in the provided conversation/context.
 
 STYLE: narrate crisply what the crew is doing. Present results richly and specifically — real names, real URLs, real rationale. Never return a thin one-liner. You have exactly TWO manager tools: delegate_task (to spawn a specialist) and replying to the founder. Everything else is off-limits for you.`;
 
@@ -224,6 +226,38 @@ STYLE: narrate crisply what the crew is doing. Present results richly and specif
 const $=s=>document.querySelector(s);
 const chat=$('#chat'), trace=$('#trace'), input=$('#input'), form=$('#form'), sendBtn=$('#send');
 let busy=false, runStart=0, elapsedTimer=null, toolCount=0, agentCount=1;
+const transcript=[];
+let lastBuild=CFG.lastBuild||null;
+function recentHistory(){
+  // Hermes /v1/runs accepts explicit history in the body. Keep this bounded:
+  // enough for the shortlist/prototype URL, small enough to stay snappy.
+  const h=transcript.slice(-10).map(m=>({
+    role:m.role,
+    content:(m.content||'').slice(-6000)
+  }));
+  if(lastBuild){
+    h.push({role:'assistant',content:
+      'CONSOLE STATE: Last completed build is for '+lastBuild.merchant+
+      ' selling '+lastBuild.startup+'. Prototype URL: '+lastBuild.url+
+      (lastBuild.pain?'. Pain: '+lastBuild.pain:'')+
+      '. If the founder says "film it", use this URL; do not ask them to paste it.'});
+  }
+  return h;
+}
+function rememberBuild(text){
+  const url=(text.match(/https:\/\/[^\s<>"')]+revenant-prototypes\.pages\.dev[^\s<>"')]*/)||[])[0];
+  if(!url) return;
+  let merchant='the prospect';
+  const tailored=text.match(/Razorpay['’]s tailored\s+([^:\n]+?)\s+prototype/i);
+  const m=tailored || text.match(/(?:deployed|built)(?:\s+and\s+deployed)?\s+([^:\n]+?)(?:'s|’s|\s+tailored|\s+Razorpay|\s+prototype|:)/i)
+    || text.match(/✅\s*([^:\n]+):\s*live prototype/i);
+  if(m && m[1]) merchant=m[1].replace(/^Razorpay’s tailored\s+/i,'').trim();
+  lastBuild={startup:'Razorpay',merchant,url,pain:''};
+  CFG.lastBuild=lastBuild; setCfg(CFG);
+}
+function forgetBuild(){
+  lastBuild=null; delete CFG.lastBuild; setCfg(CFG);
+}
 
 /* ---------------- connection check ---------------- */
 async function checkConn(){
@@ -351,6 +385,21 @@ function evDone(ev){
   const subEl = el.querySelector('[data-phase]');
   if(subEl && !ev.error){ subEl.textContent = 'done in ' + dt + 's'; }
 }
+function finishRunningEvents(failed=false){
+  Object.keys(runningEv).forEach(tool=>{
+    const stack=runningEv[tool]||[];
+    while(stack.length){
+      const {el,t0,ticker}=stack.pop();
+      if(ticker) clearInterval(ticker);
+      const dt=((performance.now()-t0)/1000).toFixed(1);
+      el.classList.remove('run'); el.classList.add(failed?'sys':'done');
+      const ic=el.querySelector('.ic'); if(ic) ic.innerHTML=failed?'⚠':'✓';
+      const rt=el.querySelector('.rt'); if(rt) rt.textContent=failed?'stopped':dt+'s';
+      const subEl=el.querySelector('[data-phase]');
+      if(subEl && !failed) subEl.textContent='done in '+dt+'s';
+    }
+  });
+}
 function sysEv(text){
   traceEmpty();
   const el=document.createElement('div'); el.className='ev sys';
@@ -361,6 +410,7 @@ function sysEv(text){
 /* ---------------- run a turn ---------------- */
 async function runTurn(text){
   busy=true; sendBtn.disabled=true; input.value=''; autosize();
+  const history=recentHistory();
   addMsg('you', text);
   const bodyEl=addMsg('rev',''); const cur=document.createElement('span'); cur.className='cursor'; bodyEl.appendChild(cur);
   $('#connDot').className='dot busy'; $('#connTxt').textContent='working…'; $('#stState').textContent='running';
@@ -376,7 +426,7 @@ async function runTurn(text){
   let acc='';
   try{
     const r=await fetch(base+'/v1/runs',{method:'POST',headers:H,
-      body:JSON.stringify({input:text, instructions:SYSTEM, session_id:CFG.sid})});
+      body:JSON.stringify({input:text, instructions:SYSTEM, session_id:CFG.sid, conversation_history:history})});
     if(!r.ok){ throw new Error('run failed: '+r.status+' '+(await r.text()).slice(0,120)); }
     const run_id=(await r.json()).run_id;
     sysEv('run '+run_id.slice(0,12)+' started');
@@ -396,16 +446,24 @@ async function runTurn(text){
         else if(et==='tool.started'){ evStart(ev); }
         else if(et==='tool.completed'){ evDone(ev); }
         else if(et==='run.completed'||et==='response.completed'){
+          finishRunningEvents(false);
           if(!acc.trim() && ev.output){ acc=ev.output; cur.remove(); bodyEl.textContent=acc; chat.scrollTop=chat.scrollHeight; }
+          rememberBuild(acc);
           sysEv('run complete · '+toolCount+' tool calls · '+agentCount+' agents this turn');
           updateChips();
         }
-        else if(et==='run.failed'){ sysEv('run failed'); }
+        else if(et==='run.failed'){ finishRunningEvents(true); sysEv('run failed'); }
       }
     }
+    transcript.push({role:'user',content:text});
+    if(acc.trim()){
+      transcript.push({role:'assistant',content:acc.trim()});
+      rememberBuild(acc);
+    }
+    if(transcript.length>12) transcript.splice(0, transcript.length-12);
   }catch(err){
     cur.remove(); if(!acc) bodyEl.textContent='⚠ '+err.message;
-    sysEv('error: '+err.message);
+    finishRunningEvents(true); sysEv('error: '+err.message);
   }finally{
     cur.remove(); clearInterval(elapsedTimer);
     busy=false; sendBtn.disabled=false; input.focus();
@@ -426,7 +484,10 @@ function setChips(list){
     b.onclick=()=>{ input.value=c; autosize(); input.focus(); }; wrap.appendChild(b); });
 }
 // after the crew reports a shortlist, the breadcrumbs become the next moves
-function updateChips(){ setChips(['Build for #1','Build for #2','Build for #3','Draft the outreach email','Schedule an 8am daily run']); }
+function updateChips(){
+  const build=['Build for #1','Build for #2','Build for #3'];
+  setChips([...(lastBuild?['Film it']:[]),...build,'Draft the outreach email','Schedule an 8am daily run']);
+}
 setChips([
   'My startup is Razorpay — spin up the crew and hunt 3 merchants to win.',
   'Find 3 fit customers for my startup in different verticals.',

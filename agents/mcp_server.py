@@ -188,7 +188,21 @@ def _resolve_choice(choice: str, prospects: list[dict]) -> dict | None:
 
 
 # ── tools ─────────────────────────────────────────────────────────────────────
-@mcp.tool()
+# The slow legacy monoliths (setup_startup / find_prospects / build_campaign)
+# are NOT exposed by default: the Hermes crew misuses them — it calls
+# build_campaign DIRECTLY (bypassing the Engineer sub-agent), which reads stale
+# ~/.revenant state and runs the ~4-min campaign. The console flow uses
+# build_prototype + film_walkthrough. Set REVENANT_MCP_LEGACY=1 to re-expose.
+_LEGACY = os.getenv("REVENANT_MCP_LEGACY", "0").lower() in ("1", "true", "yes", "on")
+
+
+def _legacy_tool():
+    def deco(fn):
+        return mcp.tool()(fn) if _LEGACY else fn
+    return deco
+
+
+@_legacy_tool()
 def setup_startup(sources: str) -> str:
     """Onboard the founder's startup so every later campaign sells on its behalf.
 
@@ -251,7 +265,7 @@ def setup_startup(sources: str) -> str:
     return msg
 
 
-@mcp.tool()
+@_legacy_tool()
 def find_prospects(brief: str, want: int = 3) -> str:
     """Find a shortlist of real, verified prospects for a vertical or ICP.
 
@@ -299,7 +313,7 @@ def find_prospects(brief: str, want: int = 3) -> str:
     )
 
 
-@mcp.tool()
+@_legacy_tool()
 def build_campaign(choice: str = "1") -> str:
     """Build the full campaign for one prospect from the last shortlist.
 
