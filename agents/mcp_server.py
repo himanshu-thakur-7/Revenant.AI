@@ -1,0 +1,478 @@
+#!/usr/bin/env python3
+"""Revenant AI as an MCP server — the Hermes front door (v2 integration).
+
+Exposes Revenant's outbound pipeline as Model Context Protocol tools so Hermes
+(or any MCP host) drives it with structured, typed tool calls instead of the
+brittle shell-skill / SOUL.md-routing approach that failed before. The host LLM
+picks the tool; we return structured results — no natural-language route
+guessing, no context loss between "find" and "build", no tool-timeout
+hallucination (the host waits on the tool and gets the real artifacts).
+
+Tools
+-----
+  setup_startup(sources)   onboard the founder's startup (github / site / folder,
+                           one or many) — persists the active-context pointer.
+  find_prospects(brief)    verified shortlist (real decision-maker + addressable
+                           email + a specific fit rationale) for a vertical/ICP.
+  build_campaign(choice)   Engineer→Director→Sales for one picked prospect:
+                           live prototype + AI walkthrough video + pitch deck +
+                           drafted email. Returns artifact URLs + MEDIA: lines.
+  draft_email(to_email)    create a Gmail draft from the built campaign.
+  status()                 what's currently loaded (context / shortlist / campaign).
+
+State (shared with the standalone bot + hermes_run.py, so front-ends interop):
+  ~/.revenant/active_context.json   which startup we sell for
+  ~/.revenant/last_shortlist.json   the last find_prospects result
+  ~/.revenant/last_campaign.json    the last build_campaign result
+
+Run (stdio):  <venv-python> agents/mcp_server.py
+Register:     hermes mcp add revenant --command <venv-python> --args <abs path>
+"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Any
+
+# ── Bootstrap: make the repo importable whether launched as `-m agents.mcp_server`
+# or by absolute path (Hermes spawns us with its own cwd). ────────────────────
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+# Everything downstream assumes live mode (real Apollo / deploys / Gmail).
+os.environ.setdefault("REVENANT_MODE", "live")
+
+from mcp.server.fastmcp import FastMCP  # noqa: E402
+
+REV = Path.home() / ".revenant"
+ACTIVE_CTX_PATH = REV / "active_context.json"
+SHORTLIST_PATH = REV / "last_shortlist.json"
+CAMPAIGN_PATH = REV / "last_campaign.json"
+
+mcp = FastMCP(
+    "revenant",
+    instructions=(
+        "Revenant is an autonomous outbound-sales engineer. Typical flow: "
+        "setup_startup (once, to point it at the founder's company) → "
+        "find_prospects (get a shortlist for a vertical) → build_campaign "
+        "(pick one; produces a live prototype, an AI walkthrough video, a "
+        "pitch deck, and a drafted email) → draft_email (save it to Gmail). "
+        "When a tool result contains lines beginning with 'MEDIA:', relay them "
+        "verbatim in your reply — the gateway turns them into file attachments "
+        "for the user."
+    ),
+)
+
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+def _log_call(name: str, detail: str = "") -> None:
+    """Append a timestamped line whenever a tool is invoked — diagnostics for
+    confirming the host actually called us (vs. narrating intent)."""
+    try:
+        import time
+        REV.mkdir(parents=True, exist_ok=True)
+        with (REV / "mcp_calls.log").open("a", encoding="utf-8") as fh:
+            fh.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {name}  {detail}\n")
+    except Exception:
+        pass
+
+
+def _looks_like_repo(src: str) -> bool:
+    return src.startswith(("http://", "https://", "git@")) or (
+        "/" in src and not src.startswith(("~", "/", ".")))
+
+
+@contextlib.contextmanager
+def _quiet_stdout():
+    """Redirect the pipeline's prints to stderr.
+
+    MCP stdio speaks JSON-RPC over *stdout*; any stray print from the agents /
+    ghost layer would corrupt the framing. The MCP transport captured the real
+    stdout when the server started, so swapping ``sys.stdout`` here only affects
+    the pipeline's own prints (which we route to stderr → visible in gateway
+    logs, harmless to the protocol).
+    """
+    with contextlib.redirect_stdout(sys.stderr):
+        yield
+
+
+def _split_sources(raw: str) -> list[str]:
+    """Parse one or many sources from a free-text arg.
+
+    Accepts commas, whitespace, or 'and' between sources; tolerates the founder
+    pasting a whole sentence ("set up github.com/x/y and acme.com").
+    """
+    import re
+    txt = (raw or "").strip()
+    # normalise separators, drop obvious filler words that aren't sources
+    parts = re.split(r"[,\s]+|\band\b", txt)
+    out: list[str] = []
+    for p in parts:
+        p = p.strip().rstrip("/").strip()
+        if not p:
+            continue
+        if _looks_like_repo(p) or p.startswith(("~", "/", ".")):
+            out.append(p)
+    # if nothing looked like a source, fall back to the last token
+    if not out and txt:
+        out = [txt.split()[-1].rstrip("/")]
+    return out
+
+
+def _load_ctx():
+    """Ingest the founder's startup (from the /setup pointer, else ~/shroud).
+
+    Mirrors scripts/hermes_run.py:_load_ctx so the MCP path and the standalone
+    bot resolve the same active context.
+    """
+    from agents.context import FounderContext
+    repo = os.getenv("REVENANT_REPO")
+    if not repo and ACTIVE_CTX_PATH.exists():
+        try:
+            repo = json.loads(ACTIVE_CTX_PATH.read_text()).get("source")
+        except Exception:
+            repo = None
+    repo = os.path.expanduser(repo or "~/shroud")
+    if repo.startswith(("http://", "https://", "git@")) or (
+            "/" in repo and not repo.startswith(("~", "/", "."))):
+        return FounderContext.from_github(repo), repo
+    return FounderContext.from_folder(repo), repo
+
+
+def _first_gist(briefing: str) -> str:
+    for ln in briefing.splitlines():
+        s = ln.strip("*-# ").strip()
+        if s and not s.startswith("#"):
+            return s
+    return ""
+
+
+def _prospect_line(i: int, p: dict[str, Any]) -> str:
+    name = p.get("company_name", "?")
+    contact = p.get("contact", {}) or {}
+    who = contact.get("name", "")
+    title = contact.get("title", "")
+    emails = contact.get("email_candidates") or []
+    email = emails[0] if emails else ""
+    fit = p.get("fit_rationale", "")
+    who_line = " · ".join(x for x in [who, title] if x)
+    return (
+        f"{i}. **{name}** ({p.get('company_domain','')})\n"
+        f"   {who_line}{(' — ' + email) if email else ''}\n"
+        f"   {fit}"
+    )
+
+
+def _resolve_choice(choice: str, prospects: list[dict]) -> dict | None:
+    """Map 'build 1' / '2' / 'Plaid' / 'the first one' → a prospect dict."""
+    import re
+    c = (choice or "").strip().lower()
+    m = re.search(r"\b([123])\b", c)
+    if m:
+        idx = int(m.group(1)) - 1
+        if 0 <= idx < len(prospects):
+            return prospects[idx]
+    for word, idx in (("first", 0), ("second", 1), ("third", 2), ("last", -1)):
+        if word in c and abs(idx) < len(prospects):
+            return prospects[idx]
+    for p in prospects:
+        name = (p.get("company_name") or "").lower()
+        if name and name in c:
+            return p
+    return prospects[0] if prospects else None
+
+
+# ── tools ─────────────────────────────────────────────────────────────────────
+@mcp.tool()
+def setup_startup(sources: str) -> str:
+    """Onboard the founder's startup so every later campaign sells on its behalf.
+
+    Call this once (or whenever the founder switches companies). Point it at any
+    mix of a GitHub repo, a product/marketing website, a docs site, or a local
+    folder — separate multiple with commas or spaces. Private repos that can't
+    be read are skipped, not fatal, as long as at least one source is readable.
+
+    Args:
+        sources: One or more sources, e.g. "github.com/acme/api and acme.com".
+
+    Returns a short confirmation of what the startup does.
+    """
+    _log_call("setup_startup", sources)
+    from ghost.config import get_settings
+    get_settings.cache_clear()
+    from agents.context import FounderContext
+
+    srcs = _split_sources(sources)
+    if not srcs:
+        return ("Point me at your startup: a GitHub repo, a website, or a local "
+                "path — e.g. `github.com/you/your-startup` or `yourcompany.com`.")
+
+    try:
+        with _quiet_stdout():
+            ctx = (FounderContext.from_sources(srcs) if len(srcs) > 1
+                   else (FounderContext.from_github(srcs[0])
+                         if _looks_like_repo(srcs[0])
+                         else FounderContext.from_folder(os.path.expanduser(srcs[0]))))
+            briefing = ctx.summary()
+    except Exception as exc:  # noqa: BLE001
+        return (f"I couldn't read {', '.join(srcs)} — {exc}. Double-check the "
+                "repo is public (or the path exists) and try again.")
+
+    report = getattr(ctx, "source_report", None)
+    skipped = []
+    if isinstance(report, dict):
+        skipped = report.get("skipped") or []
+
+    REV.mkdir(parents=True, exist_ok=True)
+    ACTIVE_CTX_PATH.write_text(json.dumps({
+        "source": srcs[0],
+        "sources": srcs,
+        "kind": "github" if _looks_like_repo(srcs[0]) else "folder",
+        "product_name": getattr(ctx, "product_name", "") or "",
+        "n_files": len(ctx.files),
+    }), encoding="utf-8")
+
+    gist = _first_gist(briefing)
+    product = getattr(ctx, "product_name", "") or "your startup"
+    msg = (f"✅ Locked onto **{product}** — read {len(ctx.files)} files from "
+           f"{', '.join(srcs)}.")
+    if skipped:
+        msg += f"\n(Skipped, couldn't read: {', '.join(skipped)}.)"
+    if gist:
+        msg += f"\n\n_{gist[:280]}_"
+    msg += ("\n\nWhen you're ready, say **find a <vertical> customer** and I'll "
+            "build the whole campaign — verified prospect, live prototype, AI "
+            "walkthrough video, pitch deck, and a drafted email.")
+    return msg
+
+
+@mcp.tool()
+def find_prospects(brief: str, want: int = 3) -> str:
+    """Find a shortlist of real, verified prospects for a vertical or ICP.
+
+    Each prospect is Apollo-verified, has a named decision-maker with an
+    addressable email, and carries a specific two-sentence fit rationale
+    grounded in the founder's product. Nothing is built or sent yet — this just
+    returns choices. Follow with build_campaign to act on one.
+
+    Args:
+        brief: What to hunt, e.g. "healthcare startups handling patient data"
+               or "Series A fintech".
+        want: How many prospects to return (default 3).
+
+    Returns a numbered shortlist; the founder then picks one to build for.
+    """
+    _log_call("find_prospects", brief)
+    from ghost.config import get_settings
+    get_settings.cache_clear()
+    from agents.runner import find_shortlist
+
+    try:
+        with _quiet_stdout():
+            ctx, repo = _load_ctx()
+            shortlist = find_shortlist(brief, ctx, want=max(1, min(int(want or 3), 5)))
+    except Exception as exc:  # noqa: BLE001
+        return f"Search failed: {exc}. Try a different vertical or a looser signal."
+
+    if not shortlist:
+        return ("I couldn't lock in verified prospects with a real, addressable "
+                "contact for that brief. Try a different vertical or a looser "
+                "signal — e.g. \"any B2B SaaS handling sensitive customer data\".")
+
+    REV.mkdir(parents=True, exist_ok=True)
+    SHORTLIST_PATH.write_text(
+        json.dumps({"ask": brief, "repo": repo, "prospects": shortlist}),
+        encoding="utf-8")
+
+    lines = [_prospect_line(i, p) for i, p in enumerate(shortlist, 1)]
+    return (
+        f"Found {len(shortlist)} verified fit"
+        f"{'s' if len(shortlist) != 1 else ''} for _{brief}_:\n\n"
+        + "\n\n".join(lines)
+        + "\n\nSay **build 1** (or 2 / 3, or the company name) and I'll produce "
+          "the prototype, walkthrough video, deck, and email for that one."
+    )
+
+
+@mcp.tool()
+def build_campaign(choice: str = "1") -> str:
+    """Build the full campaign for one prospect from the last shortlist.
+
+    Runs Engineer → Director → Sales: a live, deployed prototype tailored to the
+    prospect, an AI-narrated walkthrough video, a pitch deck, and a drafted
+    outreach email. Takes a few minutes. Requires a prior find_prospects call.
+
+    Args:
+        choice: Which prospect — "1"/"2"/"3", "the first one", or a company name.
+
+    Returns the artifact URLs, the drafted email, and MEDIA: lines (walkthrough
+    video + deck) for the gateway to attach. Relay MEDIA: lines verbatim.
+    """
+    _log_call("build_campaign", choice)
+    if not SHORTLIST_PATH.exists():
+        return ("I don't have a shortlist to build from — ask me to "
+                "\"find a customer\" first.")
+
+    from ghost.config import get_settings
+    get_settings.cache_clear()
+    from agents.runner import build_campaign_for
+
+    saved = json.loads(SHORTLIST_PATH.read_text())
+    prospects = saved.get("prospects") or []
+    picked = _resolve_choice(choice, prospects)
+    if picked is None:
+        return (f"I couldn't match \"{choice}\" to the shortlist. "
+                "Reply build 1, build 2, or build 3.")
+
+    if saved.get("repo"):
+        os.environ["REVENANT_REPO"] = saved["repo"]
+
+    # D-ID credits are exhausted by default; skip lip-sync unless explicitly on.
+    skip_lipsync = os.getenv("REVENANT_SKIP_LIPSYNC", "1") not in ("0", "false", "")
+
+    try:
+        with _quiet_stdout():
+            ctx, _repo = _load_ctx()
+            art = build_campaign_for(picked, ctx, skip_lipsync=skip_lipsync)
+    except Exception as exc:  # noqa: BLE001
+        return f"Build failed: {exc}"
+
+    if not getattr(art, "ok", False):
+        return f"Build failed: {getattr(art, 'error', 'unknown error')}"
+
+    # Persist for draft_email / interop with the standalone bot.
+    REV.mkdir(parents=True, exist_ok=True)
+    CAMPAIGN_PATH.write_text(json.dumps({
+        "company": art.company,
+        "domain": art.domain,
+        "recipient_email": art.recipient_email,
+        "contact_name": art.contact_name,
+        "prototype_url": art.prototype_url,
+        "walkthrough_url": art.walkthrough_url,
+        "walkthrough_mp4": art.walkthrough_mp4,
+        "deck_url": art.deck_url,
+        "deck_pptx": art.deck_pptx,
+        "email_subject": art.email_subject,
+        "email_body": art.email_body,
+        "campaign_id": art.campaign_id,
+    }), encoding="utf-8")
+
+    parts = [f"🎯 **{art.company}** campaign is ready."]
+    if art.contact_name:
+        parts.append(f"Contact: {art.contact_name}"
+                     + (f" <{art.recipient_email}>" if art.recipient_email else ""))
+    links = []
+    if art.prototype_url:
+        links.append(f"• Prototype: {art.prototype_url}")
+    if art.walkthrough_url:
+        links.append(f"• Walkthrough: {art.walkthrough_url}")
+    if art.deck_url:
+        links.append(f"• Deck: {art.deck_url}")
+    if links:
+        parts.append("\n".join(links))
+    if art.email_subject:
+        parts.append(f"**Draft email — {art.email_subject}**\n\n{art.email_body}")
+    if art.warnings:
+        parts.append("_Notes: " + "; ".join(art.warnings) + "_")
+    parts.append(f"_Cost this run: ${art.cost_usd:.2f}._")
+    parts.append("Say **draft it** (optionally with a recipient email) to save "
+                 "this as a Gmail draft with the deck + video attached.")
+
+    # MEDIA lines — the Hermes gateway extracts these from the reply and
+    # delivers them as native attachments to the current chat.
+    media = []
+    if art.walkthrough_mp4 and Path(art.walkthrough_mp4).exists():
+        media.append(f"MEDIA:{art.walkthrough_mp4}")
+    if art.deck_pptx and Path(art.deck_pptx).exists():
+        media.append(f"MEDIA:{art.deck_pptx}")
+
+    out = "\n\n".join(parts)
+    if media:
+        out += "\n\n" + "\n".join(media)
+    return out
+
+
+@mcp.tool()
+def draft_email(to_email: str = "") -> str:
+    """Save the last built campaign's email as a Gmail draft (deck + video attached).
+
+    Args:
+        to_email: Recipient. If omitted, uses the prospect's verified email.
+
+    Returns the Gmail draft link.
+    """
+    _log_call("draft_email", to_email)
+    if not CAMPAIGN_PATH.exists():
+        return ("No campaign to draft yet — run build_campaign first.")
+    camp = json.loads(CAMPAIGN_PATH.read_text())
+
+    recipient = (to_email or camp.get("recipient_email") or "").strip()
+    if not recipient:
+        return ("I don't have a recipient email for this prospect. "
+                "Give me an address to draft to.")
+
+    from agents.sales.gmail_draft import create_draft
+    attachments = [p for p in (camp.get("walkthrough_mp4"), camp.get("deck_pptx"))
+                   if p and Path(p).exists()]
+    try:
+        with _quiet_stdout():
+            res = create_draft(
+                to_email=recipient,
+                subject=camp.get("email_subject", ""),
+                body=camp.get("email_body", ""),
+                attachments=attachments,
+            )
+    except Exception as exc:  # noqa: BLE001
+        return f"Couldn't create the draft: {exc}"
+
+    if not res.get("ok"):
+        return (f"Couldn't create the draft: {res.get('error','unknown error')}. "
+                "You may need to authorize Gmail (`revenant gmail-auth`).")
+    url = res.get("gmail_url", "")
+    skipped = res.get("skipped") or []
+    msg = f"✉️ Draft saved to Gmail for {recipient} — {url}"
+    if skipped:
+        msg += f"\n(Not attached: {', '.join(skipped)}.)"
+    return msg
+
+
+@mcp.tool()
+def status() -> str:
+    """Report what Revenant currently has loaded: active startup, last shortlist,
+    last built campaign."""
+    _log_call("status")
+    lines = []
+    if ACTIVE_CTX_PATH.exists():
+        try:
+            c = json.loads(ACTIVE_CTX_PATH.read_text())
+            lines.append(f"Selling for: {c.get('product_name') or c.get('source','?')} "
+                         f"(from {', '.join(c.get('sources', [c.get('source','?')]))})")
+        except Exception:
+            pass
+    else:
+        lines.append("No startup loaded yet — call setup_startup.")
+    if SHORTLIST_PATH.exists():
+        try:
+            s = json.loads(SHORTLIST_PATH.read_text())
+            ps = s.get("prospects") or []
+            names = ", ".join(p.get("company_name", "?") for p in ps)
+            lines.append(f"Last shortlist ({s.get('ask','')}): {names}")
+        except Exception:
+            pass
+    if CAMPAIGN_PATH.exists():
+        try:
+            camp = json.loads(CAMPAIGN_PATH.read_text())
+            lines.append(f"Last campaign built: {camp.get('company','?')} "
+                         f"→ {camp.get('prototype_url','')}")
+        except Exception:
+            pass
+    return "\n".join(lines) if lines else "Nothing loaded yet."
+
+
+if __name__ == "__main__":
+    mcp.run()  # stdio transport
