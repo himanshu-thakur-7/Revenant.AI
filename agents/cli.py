@@ -560,11 +560,18 @@ def telegram_cmd(
                              help="Founder's startup — local folder or owner/repo."),
     chat_id: int = typer.Option(None, "--chat-id",
                                 help="Lock the bot to one chat id (recommended for demo)."),
-    lipsync: bool = typer.Option(False, "--lipsync",
-                                 help="Use D-ID lip-sync avatar (burns credits)."),
+    lipsync: bool = typer.Option(None, "--lipsync/--no-lipsync",
+                                 help="Use D-ID lip-sync avatar (burns credits). "
+                                      "Default: honor DIRECTOR_SKIP_LIPSYNC env."),
 ) -> None:
     """Launch the Telegram gateway — command Revenant from your phone."""
     from .telegram import RevenantBot
+
+    # Honor the env (DIRECTOR_SKIP_LIPSYNC) when the flag isn't given, so the
+    # launchd service / .env controls the avatar without a CLI flag. Explicit
+    # --lipsync / --no-lipsync still overrides.
+    if lipsync is None:
+        lipsync = not settings.skip_lipsync
 
     token = settings.telegram_bot_token
     if not token:

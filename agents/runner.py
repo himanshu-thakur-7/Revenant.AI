@@ -53,16 +53,21 @@ _VERTICAL_TAGS: dict[str, list[str]] = {
 def _classify_vertical(brief: str) -> tuple[str, list[str]]:
     """Extract a canonical vertical and Apollo keyword tags from the founder's
     brief. Rule-based first (fast, free); LLM fallback for anything odd."""
-    b = brief.lower()
+    # Normalise so "fin-tech", "fin tech", "FinTech" all match "fintech".
+    b = re.sub(r"[-\s]+", "", brief.lower())
     for name, tags in _VERTICAL_TAGS.items():
-        if name in b or any(t in b for t in tags):
+        nkey = name.replace(" ", "")
+        if nkey in b or any(t.replace("-", "").replace(" ", "") in b for t in tags):
             return name, tags
 
-    # LLM fallback — extract vertical + suggest Apollo tags
-    from ghost.llm import complete_json
-    result = complete_json(
-        "Extract a target vertical + 3-4 Apollo.io industry/keyword tags from "
-        f"this founder brief:\n\n{brief}\n\n"
+    # LLM fallback — use the STRONG model; the weak model was returning
+    # "ai" for a fintech brief. Research tone-setting deserves gpt-4o.
+    from ghost.llm import complete_strong_json
+    result = complete_strong_json(
+        "Extract the target industry vertical the founder wants to sell INTO, "
+        "plus 3-4 Apollo.io industry/keyword tags, from this brief:\n\n"
+        f"{brief}\n\n"
+        "The vertical is the CUSTOMER's industry, not the seller's. "
         'Respond: {"vertical": "<name>", "tags": ["tag1", "tag2", ...]}',
         agent="runner.vertical",
         offline={"vertical": "b2b saas", "tags": ["saas", "b2b software"]},
