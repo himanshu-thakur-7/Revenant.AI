@@ -180,16 +180,18 @@
 /* ---------------- config (localStorage, never committed) ---------------- */
 const LS='revenant_console_cfg';
 // Hard-coded defaults for the live demo. The API server runs on the founder's
-// OWN laptop (localhost:8642), and this key is the API_SERVER_KEY from
-// ~/.hermes/.env — it only grants access to localhost, so shipping it is safe
-// (a visitor's localhost is their own machine, not the founder's). Override any
-// time via the ⚙ settings; localStorage wins over these defaults.
-const DEFAULT_BASE='http://127.0.0.1:8642';
+// laptop and is exposed through a temporary ngrok tunnel. This key is the
+// API_SERVER_KEY from ~/.hermes/.env, so treat the tunnel as demo-only and
+// rotate/disable it after the floor run. Override any time via the ⚙ settings;
+// localStorage wins over these defaults unless it still points at localhost.
+const DEFAULT_BASE='https://1b82-121-242-131-242.ngrok-free.app';
 const DEFAULT_KEY='hermes_spike_f1036e4a227595efb064bac2';
 function cfg(){ try{return JSON.parse(localStorage.getItem(LS))||{}}catch{ return {} } }
 function setCfg(c){ localStorage.setItem(LS, JSON.stringify(c)) }
 let CFG = cfg();
-CFG.base = CFG.base || DEFAULT_BASE;
+if(!CFG.base || CFG.base==='http://127.0.0.1:8642' || CFG.base==='http://localhost:8642'){
+  CFG.base = DEFAULT_BASE;
+}
 CFG.key  = CFG.key  || DEFAULT_KEY;
 // stable session for memory + continuity across turns in this browser
 if(!CFG.sid){ CFG.sid = 'web-'+Math.random().toString(36).slice(2,12); }
