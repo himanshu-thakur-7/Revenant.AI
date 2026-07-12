@@ -18,6 +18,7 @@ export type Campaign = {
   tier?: string;
   combined_score?: number;
   microsite_url: string;
+  microsite_html?: string;
   walkthrough_url: string;
   voice_memo_ref: string;
   email_subject: string;
@@ -41,6 +42,7 @@ export type Campaign = {
 const CONVEX_URL = (import.meta as any).env?.VITE_CONVEX_URL as string | undefined;
 
 export async function loadCampaigns(): Promise<Campaign[]> {
+  // 1. live Convex (realtime) if configured
   if (CONVEX_URL) {
     try {
       const res = await fetch(`${CONVEX_URL}/api/query`, {
@@ -49,14 +51,25 @@ export async function loadCampaigns(): Promise<Campaign[]> {
         body: JSON.stringify({ path: "campaigns:list", args: {} }),
       });
       const json = await res.json();
-      return (json.value ?? json) as Campaign[];
+      const rows = (json.value ?? json) as Campaign[];
+      if (rows?.length) return rows;
     } catch {
-      /* fall through to offline */
+      /* fall through */
     }
   }
-  const res = await fetch("/ledger.json", { cache: "no-store" });
-  const snap = await res.json();
-  return (snap.campaigns ?? []) as Campaign[];
+  // 2. locally-synced ledger (dev)
+  try {
+    const res = await fetch("/ledger.json", { cache: "no-store" });
+    if (res.ok) {
+      const snap = await res.json();
+      if (snap.campaigns?.length) return snap.campaigns as Campaign[];
+    }
+  } catch {
+    /* fall through */
+  }
+  // 3. baked-in demo dataset (static deploy — Vercel)
+  const { DEMO_CAMPAIGNS } = await import("./demoData");
+  return DEMO_CAMPAIGNS;
 }
 
 export const TIER_COLOR: Record<string, string> = {

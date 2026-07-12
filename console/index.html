@@ -3,10 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Revenant · Review Console</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Revenant — Séance Console</title>
+    <meta
+      name="description"
+      content="Revenant · the autonomous outbound engineer. It rises at 3 AM, hunts pain, ships a working prototype, and follows up while they sleep."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;900&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
-  <body class="bg-[#0a0a0f]">
+  <body>
+    <!-- spectral background layers -->
+    <div class="rv-bg" aria-hidden="true">
+      <div class="rv-fog rv-fog-1"></div>
+      <div class="rv-fog rv-fog-2"></div>
+      <div class="rv-vignette"></div>
+      <div class="rv-grain"></div>
+      <div class="rv-scanlines"></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

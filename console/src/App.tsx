@@ -1,23 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
-import { Campaign, loadCampaigns, STATE_BADGE, TIER_COLOR } from "./data";
+import { CSSProperties, useEffect, useMemo, useState } from "react";
+import { Campaign, loadCampaigns } from "./data";
+
+const MODE = ((import.meta as any).env?.VITE_CONVEX_URL ? "live" : "séance") as string;
 
 export function App() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
 
-  // Poll for realtime-ish updates (Convex live queries in prod; ledger.json here).
   useEffect(() => {
     let alive = true;
     const tick = async () => {
-      const c = await loadCampaigns().catch(() => []);
+      const c = await loadCampaigns().catch(() => [] as Campaign[]);
       if (alive && c.length) {
         setCampaigns(c);
-        setSelected((s) => s ?? c.find((x) => x.state === "awaiting_review")?.id ?? c[0]?.id ?? null);
+        setSelected(
+          (s) => s ?? c.find((x) => x.state === "awaiting_review")?.id ?? c[0]?.id ?? null,
+        );
       }
     };
     tick();
-    const iv = setInterval(tick, 2500);
+    const iv = setInterval(tick, 3000);
     return () => {
       alive = false;
       clearInterval(iv);
@@ -31,15 +34,23 @@ export function App() {
       counts[c.state] = (counts[c.state] ?? 0) + 1;
       cost += c.cost_usd ?? 0;
     }
-    return { counts, cost, total: campaigns.length };
+    return { counts, cost };
   }, [campaigns]);
 
   const active = campaigns.find((c) => c.id === selected) ?? null;
 
   return (
-    <div className="min-h-screen text-slate-100 font-sans">
-      <Header funnel={funnel} />
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 px-6 pb-16">
+    <div style={{ maxWidth: 1220, margin: "0 auto", padding: "0 24px 80px" }}>
+      <Hero funnel={funnel} total={campaigns.length} />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(300px, 380px) 1fr",
+          gap: 22,
+          alignItems: "start",
+        }}
+        className="rv-grid"
+      >
         <Queue campaigns={campaigns} selected={selected} onSelect={setSelected} sentIds={sentIds} />
         <Preview
           campaign={active}
@@ -47,41 +58,110 @@ export function App() {
           onApprove={(id) => setSentIds((s) => new Set(s).add(id))}
         />
       </div>
+      <Footer />
     </div>
   );
 }
 
-function Header({ funnel }: { funnel: { counts: Record<string, number>; cost: number; total: number } }) {
-  const order = ["awaiting_review", "warm_only", "killed", "sent", "won"];
+/* ── hero / séance banner ──────────────────────────────────── */
+function Hero({
+  funnel,
+  total,
+}: {
+  funnel: { counts: Record<string, number>; cost: number };
+  total: number;
+}) {
+  const stats: { label: string; value: string; cls?: string }[] = [
+    { label: "summoned", value: String(funnel.counts["awaiting_review"] ?? 0), cls: "t-promote" },
+    { label: "closed / won", value: String(funnel.counts["won"] ?? 0), cls: "" },
+    { label: "warm", value: String(funnel.counts["warm_only"] ?? 0), cls: "t-warm_only" },
+    { label: "laid to rest", value: String(funnel.counts["killed"] ?? 0), cls: "t-kill" },
+  ];
+
   return (
-    <header className="border-b border-white/10 mb-6">
-      <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🕯️</span>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight">Revenant · Review Console</h1>
-            <p className="text-xs text-slate-500">human-in-the-loop · nothing sends without a click</p>
+    <header style={{ padding: "44px 0 22px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: 20,
+        }}
+      >
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <span className="rv-candle" style={{ fontSize: 34 }}>
+              🕯️
+            </span>
+            <h1
+              className="rv-wordmark"
+              style={{ fontSize: "clamp(38px, 6vw, 64px)", margin: 0, lineHeight: 0.95 }}
+            >
+              REVENANT
+            </h1>
           </div>
+          <p className="rv-eyebrow" style={{ margin: "16px 0 8px" }}>
+            the autonomous outbound engineer
+          </p>
+          <p style={{ margin: 0, color: "var(--muted)", fontSize: 16, maxWidth: 560, lineHeight: 1.5 }}>
+            It rises at{" "}
+            <span style={{ color: "var(--ember)" }}>3&nbsp;AM</span>, hunts pain, ships a{" "}
+            <span style={{ color: "var(--wisp)" }}>working prototype</span>, films its own walkthrough,
+            and follows up while they sleep.
+          </p>
         </div>
-        <div className="flex items-center gap-5 text-sm">
-          {order
-            .filter((s) => funnel.counts[s])
-            .map((s) => (
-              <div key={s} className="text-center">
-                <div className="text-xl font-bold">{funnel.counts[s]}</div>
-                <div className="text-[10px] uppercase tracking-wider text-slate-500">{s.replace("_", " ")}</div>
-              </div>
-            ))}
-          <div className="text-center pl-4 border-l border-white/10">
-            <div className="text-xl font-bold text-indigo-400">${funnel.cost.toFixed(2)}</div>
-            <div className="text-[10px] uppercase tracking-wider text-slate-500">spend / {funnel.total} leads</div>
+        <RitualClock />
+      </div>
+
+      {/* ritual readouts */}
+      <div style={{ display: "flex", gap: 30, flexWrap: "wrap", marginTop: 30, alignItems: "flex-end" }}>
+        {stats.map((s) => (
+          <div key={s.label}>
+            <div className={`rv-stat-num ${s.cls ?? ""}`} style={{ fontSize: 30 }}>
+              {s.value}
+            </div>
+            <div className="rv-eyebrow" style={{ marginTop: 4 }}>
+              {s.label}
+            </div>
+          </div>
+        ))}
+        <div style={{ borderLeft: "1px solid var(--line)", paddingLeft: 30 }}>
+          <div className="rv-stat-num" style={{ fontSize: 30, color: "var(--wisp)" }}>
+            ${funnel.cost.toFixed(2)}
+          </div>
+          <div className="rv-eyebrow" style={{ marginTop: 4 }}>
+            spend · {total} souls
           </div>
         </div>
       </div>
+      <div className="rv-signal" style={{ marginTop: 26 }} />
     </header>
   );
 }
 
+function RitualClock() {
+  const [blink, setBlink] = useState(true);
+  useEffect(() => {
+    const iv = setInterval(() => setBlink((b) => !b), 700);
+    return () => clearInterval(iv);
+  }, []);
+  return (
+    <div className="rv-panel" style={{ padding: "14px 20px", textAlign: "right" }}>
+      <div className="rv-eyebrow" style={{ marginBottom: 6 }}>
+        the witching hour
+      </div>
+      <div className="rv-mono" style={{ fontSize: 26, color: "var(--ember)", letterSpacing: 2 }}>
+        03<span style={{ opacity: blink ? 1 : 0.2 }}>:</span>00
+      </div>
+      <div className="rv-eyebrow" style={{ marginTop: 6, color: "var(--wisp)" }}>
+        ● {MODE} mode
+      </div>
+    </div>
+  );
+}
+
+/* ── queue ─────────────────────────────────────────────────── */
 function Queue({
   campaigns,
   selected,
@@ -94,39 +174,56 @@ function Queue({
   sentIds: Set<string>;
 }) {
   return (
-    <aside className="space-y-2">
-      <h2 className="text-xs uppercase tracking-widest text-slate-500 mb-2">Queue</h2>
+    <aside style={{ display: "flex", flexDirection: "column", gap: 10, position: "sticky", top: 18 }}>
+      <div className="rv-eyebrow" style={{ marginBottom: 2 }}>
+        the summoning queue
+      </div>
       {campaigns.length === 0 && (
-        <div className="text-slate-500 text-sm border border-dashed border-white/10 rounded-lg p-6 text-center">
-          No campaigns yet. Run <code className="text-indigo-400">ghost run</code> and refresh.
+        <div
+          className="rv-panel"
+          style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontSize: 14 }}
+        >
+          The circle is empty. Run <span className="rv-mono" style={{ color: "var(--wisp)" }}>ghost run</span>{" "}
+          to summon.
         </div>
       )}
       {campaigns.map((c) => {
         const tier = c.tier ?? c.lead.score?.tier ?? "";
-        const isSent = sentIds.has(c.id);
+        const displayState = sentIds.has(c.id) ? "sent" : c.state;
+        const score = c.combined_score ?? c.lead.score?.combined ?? 0;
         return (
-          <button
+          <div
             key={c.id}
             onClick={() => onSelect(c.id)}
-            className={`w-full text-left rounded-lg border p-3 transition ${
-              selected === c.id
-                ? "border-indigo-500/60 bg-indigo-500/10"
-                : "border-white/10 bg-white/[0.02] hover:bg-white/5"
+            className={`rv-card spine-${c.state === "won" ? "won" : tier || c.state} ${
+              selected === c.id ? "rv-active" : ""
             }`}
           >
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium truncate">{c.lead.company_name}</span>
-              <StateBadge state={isSent ? "sent" : c.state} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <span style={{ fontWeight: 600, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {c.lead.company_name}
+              </span>
+              <StateBadge state={displayState} />
             </div>
-            <div className="flex items-center justify-between mt-1 text-xs text-slate-500">
-              <span className="truncate">{c.lead.person_name || c.lead.company_domain}</span>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: 6,
+                fontSize: 12,
+                color: "var(--muted)",
+              }}
+            >
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {c.lead.person_name || c.lead.company_domain}
+              </span>
               {tier && (
-                <span className={TIER_COLOR[tier] ?? "text-slate-400"}>
-                  {tier} · {(c.combined_score ?? c.lead.score?.combined ?? 0).toFixed(2)}
+                <span className={`rv-mono t-${tier}`}>
+                  {tier} · {score.toFixed(2)}
                 </span>
               )}
             </div>
-          </button>
+          </div>
         );
       })}
     </aside>
@@ -134,10 +231,12 @@ function Queue({
 }
 
 function StateBadge({ state }: { state: string }) {
-  const cls = STATE_BADGE[state] ?? "bg-slate-500/15 text-slate-400 border-slate-500/30";
-  return <span className={`text-[10px] px-2 py-0.5 rounded-full border ${cls}`}>{state.replace("_", " ")}</span>;
+  const known = ["awaiting_review", "won", "sent", "warm_only", "killed"];
+  const cls = known.includes(state) ? `b-${state}` : "b-default";
+  return <span className={`rv-badge ${cls}`}>{state.replace(/_/g, " ")}</span>;
 }
 
+/* ── preview ───────────────────────────────────────────────── */
 function Preview({
   campaign,
   sent,
@@ -149,92 +248,171 @@ function Preview({
 }) {
   if (!campaign)
     return (
-      <main className="border border-white/10 rounded-xl p-10 text-center text-slate-500">
-        Select a campaign to review.
+      <main
+        className="rv-panel"
+        style={{ padding: 60, textAlign: "center", color: "var(--muted)" }}
+      >
+        Select a soul from the queue to conduct the rite.
       </main>
     );
 
   const evidence = campaign.lead.score?.evidence ?? [];
   const canReview = campaign.state === "awaiting_review" && !sent;
+  const won = campaign.state === "won";
 
   return (
-    <main className="space-y-5">
-      {/* email preview */}
-      <section className="border border-white/10 rounded-xl overflow-hidden">
-        <div className="bg-white/5 px-5 py-3 border-b border-white/10">
-          <div className="text-xs text-slate-500">To: {campaign.lead.person_name} · {campaign.lead.company_name}</div>
-          <div className="font-semibold mt-0.5">{campaign.email_subject || "—"}</div>
+    <main style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {/* the missive */}
+      <section className="rv-panel" style={{ overflow: "hidden" }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--line)", background: "var(--panel)" }}>
+          <div className="rv-eyebrow">the missive · outbound draft</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
+            to <span style={{ color: "var(--ink)" }}>{campaign.lead.person_name}</span> ·{" "}
+            {campaign.lead.company_name}
+          </div>
+          <div style={{ fontWeight: 600, marginTop: 3, fontSize: 15 }}>
+            {campaign.email_subject || "—"}
+          </div>
         </div>
-        <pre className="px-5 py-4 text-sm text-slate-300 whitespace-pre-wrap font-sans leading-relaxed">
-          {campaign.email_body || "(no body — this lead didn't reach outreach)"}
+        <pre
+          style={{
+            margin: 0,
+            padding: "16px 20px",
+            fontFamily: "'Space Grotesk', sans-serif",
+            fontSize: 13.5,
+            color: "#c3cbdb",
+            whiteSpace: "pre-wrap",
+            lineHeight: 1.65,
+          }}
+        >
+          {campaign.email_body || "(this soul was laid to rest before outreach)"}
         </pre>
       </section>
 
-      <div className="grid md:grid-cols-2 gap-5">
-        {/* microsite iframe */}
-        <section className="border border-white/10 rounded-xl overflow-hidden">
-          <div className="bg-white/5 px-4 py-2 text-xs text-slate-500 flex justify-between">
-            <span>Live microsite</span>
-            {campaign.microsite_url && (
-              <a className="text-indigo-400" href={campaign.microsite_url} target="_blank" rel="noreferrer">
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }} className="rv-two">
+        {/* the apparition · live microsite */}
+        <section className="rv-panel rv-panel-glow" style={{ overflow: "hidden" }}>
+          <div style={sectionHead}>
+            <span className="rv-eyebrow">the apparition · live microsite</span>
+            {campaign.microsite_url && !campaign.microsite_url.startsWith("file:") && (
+              <a className="rv-link rv-mono" style={{ fontSize: 11 }} href={campaign.microsite_url} target="_blank" rel="noreferrer">
                 open ↗
               </a>
             )}
           </div>
-          {campaign.microsite_url ? (
-            <iframe src={campaign.microsite_url} className="w-full h-72 bg-white" title="microsite" />
+          {campaign.microsite_html ? (
+            <iframe srcDoc={campaign.microsite_html} style={frame} title="microsite" />
+          ) : campaign.microsite_url && !campaign.microsite_url.startsWith("file:") ? (
+            <iframe src={campaign.microsite_url} style={frame} title="microsite" />
           ) : (
-            <div className="h-72 flex items-center justify-center text-slate-600 text-sm">no microsite</div>
+            <div style={{ ...frame, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--faint)" }}>
+              no apparition conjured
+            </div>
           )}
         </section>
 
-        {/* evidence + artifacts */}
-        <section className="border border-white/10 rounded-xl p-4 space-y-3">
-          <h3 className="text-xs uppercase tracking-widest text-slate-500">Evidence (verbatim)</h3>
-          {evidence.length === 0 && <p className="text-slate-600 text-sm">No evidence — killed or warm-only.</p>}
-          {evidence.map((e, i) => (
-            <div key={i} className="text-sm">
-              <span className="text-indigo-400 text-xs">[{e.source}]</span>{" "}
-              <span className="text-slate-300 italic">"{e.excerpt}"</span>
+        {/* proof · evidence + artifacts */}
+        <section className="rv-panel" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
+          <span className="rv-eyebrow">proof · their own words</span>
+          {evidence.length === 0 && (
+            <p style={{ color: "var(--faint)", fontSize: 13, margin: 0 }}>
+              No proof gathered — killed or warm-only.
+            </p>
+          )}
+          {evidence.slice(0, 4).map((e, i) => (
+            <div key={i} className="rv-quote" style={{ fontSize: 12.5 }}>
+              <span className="rv-mono t-promote" style={{ fontSize: 10 }}>
+                [{e.source}]
+              </span>{" "}
+              <span style={{ color: "#c3cbdb", fontStyle: "italic" }}>"{e.excerpt}"</span>
             </div>
           ))}
-          <div className="pt-2 border-t border-white/10 text-xs text-slate-500 space-y-1">
-            <div>🎬 walkthrough: {campaign.walkthrough_url ? "ready" : "—"}</div>
-            <div>🎙️ voice memo: {campaign.voice_memo_ref ? "ready" : "—"}</div>
-            <div>💳 pilot link: {campaign.payment_link ? "ready" : "—"}</div>
-            <div>💰 all-in cost: ${campaign.cost_usd.toFixed(2)}</div>
+          <div style={{ marginTop: "auto", paddingTop: 12, borderTop: "1px solid var(--line)", fontSize: 12, color: "var(--muted)", display: "grid", gap: 5 }}>
+            <Relic icon="🎬" label="walkthrough" ready={!!campaign.walkthrough_url} />
+            <Relic icon="🎙️" label="voice memo" ready={!!campaign.voice_memo_ref} />
+            <Relic icon="💳" label="pilot link" ready={!!campaign.payment_link} />
+            <div className="rv-mono" style={{ color: "var(--wisp)", marginTop: 2 }}>
+              ${campaign.cost_usd.toFixed(2)} all-in
+            </div>
           </div>
         </section>
       </div>
 
-      {/* action bar */}
-      <section className="flex items-center gap-3">
+      {/* the rite · action bar */}
+      <section style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <button
+          className="rv-btn rv-btn-primary"
           disabled={!canReview}
           onClick={() => onApprove(campaign.id)}
-          className={`px-5 py-2.5 rounded-lg font-semibold transition ${
-            canReview
-              ? "bg-indigo-500 hover:bg-indigo-400 text-white"
-              : "bg-white/5 text-slate-600 cursor-not-allowed"
-          }`}
         >
-          {sent ? "✓ Approved & sent" : "Approve & Send"}
+          {sent ? "✓ sent — the rite is done" : "Approve & Send"}
         </button>
-        <button className="px-4 py-2.5 rounded-lg border border-white/10 text-slate-300 hover:bg-white/5" disabled={!canReview}>
+        <button className="rv-btn rv-btn-ghost" disabled={!canReview}>
           Edit copy
         </button>
-        <button className="px-4 py-2.5 rounded-lg border border-white/10 text-slate-300 hover:bg-white/5" disabled={!canReview}>
+        <button className="rv-btn rv-btn-ghost" disabled={!canReview}>
           Regenerate
         </button>
-        <button className="px-4 py-2.5 rounded-lg border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 ml-auto" disabled={!canReview}>
-          Kill
+        <button className="rv-btn rv-btn-danger" disabled={!canReview} style={{ marginLeft: "auto" }}>
+          Lay to rest
         </button>
       </section>
-      {sent && (
-        <p className="text-emerald-400 text-sm">
-          Sent (DRY_RUN honored on the backend). Prospect pays the pilot → Razorpay webhook flips this to <b>WON</b>.
-        </p>
+
+      {won && (
+        <div
+          className="rv-panel"
+          style={{ padding: "14px 18px", borderColor: "rgba(94,242,160,0.35)", color: "var(--summon)", fontSize: 13.5 }}
+        >
+          💀→💚 <b>WON.</b> The prospect paid the pilot. Razorpay's webhook flipped this deal and
+          Revenant pinged the human closer on Telegram.
+        </div>
+      )}
+      {sent && !won && (
+        <div style={{ color: "var(--wisp)", fontSize: 13 }}>
+          Sent (DRY_RUN honored). When they pay the pilot, the Razorpay webhook flips this to{" "}
+          <b>WON</b>.
+        </div>
       )}
     </main>
   );
 }
+
+function Relic({ icon, label, ready }: { icon: string; label: string; ready: boolean }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between" }}>
+      <span>
+        {icon} {label}
+      </span>
+      <span className="rv-mono" style={{ color: ready ? "var(--summon)" : "var(--faint)", fontSize: 11 }}>
+        {ready ? "conjured" : "—"}
+      </span>
+    </div>
+  );
+}
+
+function Footer() {
+  return (
+    <footer style={{ marginTop: 44, paddingTop: 20, borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+      <span className="rv-eyebrow">human-in-the-loop · nothing sends without a click</span>
+      <span className="rv-eyebrow" style={{ color: "var(--faint)" }}>
+        Hermes · OpenAI · Linkup · Cloudflare · Convex · ElevenLabs · Razorpay · Wispr Flow
+      </span>
+    </footer>
+  );
+}
+
+/* ── shared styles ─────────────────────────────────────────── */
+const sectionHead: CSSProperties = {
+  padding: "10px 16px",
+  borderBottom: "1px solid var(--line)",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  background: "var(--panel)",
+};
+const frame: CSSProperties = {
+  width: "100%",
+  height: 300,
+  border: "none",
+  background: "#0a0a0f",
+};
