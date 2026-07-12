@@ -48,6 +48,25 @@ interactive centrepiece. Then choose the right fidelity:
 Whatever the fidelity, the demo must feel specific to THIS prospect (their
 domain's sample data, their use case, their stack) — never generic.
 
+## Account-specificity bar — pass the "would they recognise themselves?" test
+The prototype is not a themed template. It should feel like you sat with this
+prospect's team for an hour.
+- Reuse concrete details from `read_prospect_brief` and any live brand block:
+  homepage phrases, product/category language, locations/channels, buyer title,
+  pain evidence, nav labels, CTA language, colour/font signals.
+- Every major visible section must contain a company-specific detail beyond the
+  prospect name. If a section could work for a competitor by swapping the logo,
+  rewrite it.
+- The hero must name the target workflow and buyer KPI, not just "<Founder> for
+  <Prospect>".
+- `#demoInput` must be prefilled with realistic data from the prospect's world:
+  order lines, SKUs/categories, support transcripts, claims, payment states,
+  warehouse/store/channel events, API payloads, or whatever fits the prospect.
+- `#demoOutput` must show computed prospect-specific rows/cards/metrics. Never
+  end with only "processed successfully".
+- The integration snippet must use merchant-flavoured event/object names and
+  payload fields, while staying plausible and honest.
+
 ## Make it look like a real, funded product — not a class assignment
 Flat, centered, default-Tailwind pages read as "AI slop" and kill the deal.
 Aim for a landing page a Series-A startup would ship:
@@ -103,6 +122,8 @@ Do NOT use `#redactBtn`, `#input`, `#output` or any product-specific id.
    call. Include: `<html lang="en">` with a `<title>` naming the prospect,
    Tailwind via CDN, the nav + hero + `#demo` (with `#demoInput`/`#demoRun`/
    `#demoOutput`) + fit bullets + `#code` + `#cta`.
+   If `write_prototype_file` returns a specificity WARNING, rewrite `index.html`
+   once before deploying. The warning means the page still reads generic.
 5. **Deploy.** `deploy_prototype`.
 6. **`finalize_prototype`** with the URL + a 2-3 sentence summary.
 

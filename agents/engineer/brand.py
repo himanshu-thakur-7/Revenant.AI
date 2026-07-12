@@ -9,6 +9,7 @@ failure degrades to an empty/partial brief, never raises.
 
 from __future__ import annotations
 
+import html as _html
 import re
 from collections import Counter
 
@@ -21,7 +22,11 @@ _CSSVAR_COLOR = re.compile(r"(--[\w-]*(?:color|bg|brand|accent|primary)[\w-]*)\s
 _TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
 _META_DESC = re.compile(r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)', re.I)
 _H1 = re.compile(r"<h1[^>]*>(.*?)</h1>", re.I | re.S)
+_H2H3 = re.compile(r"<h[23][^>]*>(.*?)</h[23]>", re.I | re.S)
+_ANCHOR = re.compile(r"<a\b[^>]*>(.*?)</a>", re.I | re.S)
+_BUTTON = re.compile(r"<button\b[^>]*>(.*?)</button>", re.I | re.S)
 _TAG = re.compile(r"<[^>]+>")
+_SCRIPT_STYLE = re.compile(r"<(script|style|noscript)\b[^>]*>.*?</\1>", re.I | re.S)
 
 
 def _norm_hex(h: str) -> str:
@@ -43,6 +48,38 @@ def _is_interesting(hexv: str) -> bool:
     if mx - mn < 16:               # grey (low saturation)
         return False
     return True
+
+
+def _clean_text(raw: str, *, max_len: int = 140) -> str:
+    txt = _SCRIPT_STYLE.sub(" ", raw or "")
+    txt = _TAG.sub(" ", txt)
+    txt = _html.unescape(txt)
+    txt = re.sub(r"\s+", " ", txt).strip()
+    return txt[:max_len].strip()
+
+
+def _unique_chunks(chunks: list[str], *, limit: int, min_len: int = 3,
+                   max_len: int = 90) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in chunks:
+        txt = _clean_text(raw, max_len=max_len)
+        if len(txt) < min_len:
+            continue
+        key = re.sub(r"[^a-z0-9]+", "", txt.lower())
+        if not key or key in seen:
+            continue
+        # Skip cookie/legal cruft; keep commercial/product language.
+        if any(bad in key for bad in (
+            "cookie", "privacy", "terms", "copyright", "login", "signin",
+            "subscribe", "javascript", "browser"
+        )):
+            continue
+        seen.add(key)
+        out.append(txt)
+        if len(out) >= limit:
+            break
+    return out
 
 
 def fetch_brand(domain: str, *, timeout: float = 12.0) -> str:
@@ -97,14 +134,20 @@ def fetch_brand(domain: str, *, timeout: float = 12.0) -> str:
         if len(fonts) >= 4:
             break
     # copy
-    title = _TAG.sub("", (_TITLE.search(html) or [None, ""])[1]).strip()[:120] if _TITLE.search(html) else ""
+    title = _clean_text((_TITLE.search(html) or [None, ""])[1], max_len=120) if _TITLE.search(html) else ""
     desc = (_META_DESC.search(html).group(1).strip()[:200]) if _META_DESC.search(html) else ""
-    h1 = _TAG.sub("", (_H1.search(html) or [None, ""])[1]).strip()[:140] if _H1.search(html) else ""
+    h1 = _clean_text((_H1.search(html) or [None, ""])[1], max_len=140) if _H1.search(html) else ""
+    headings = _unique_chunks(_H2H3.findall(html), limit=8, min_len=6, max_len=100)
+    nav_terms = _unique_chunks(_ANCHOR.findall(html), limit=10, min_len=3, max_len=44)
+    ctas = _unique_chunks(_BUTTON.findall(html), limit=5, min_len=3, max_len=44)
 
     parts = [f"Source: {url}"]
     if title:      parts.append(f"Wordmark/title: {title}")
     if h1:         parts.append(f"Hero headline: {h1}")
     if desc:       parts.append(f"Tagline: {desc}")
+    if headings:   parts.append("Visible homepage phrases: " + " · ".join(headings))
+    if nav_terms:  parts.append("Nav/category signals: " + " · ".join(nav_terms))
+    if ctas:       parts.append("CTA/button language: " + " · ".join(ctas))
     if brand_vars: parts.append("Brand CSS variables: " + " · ".join(brand_vars))
     if accents:    parts.append("Accent colours (hex): " + ", ".join(accents))
     if fonts:      parts.append("Fonts: " + ", ".join(fonts))
