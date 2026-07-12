@@ -60,6 +60,18 @@ def sellers():
 
 
 @app.command()
+def followup():
+    """Run the persistence engine — re-open campaigns whose re-ping window is due."""
+    from . import followup as fu
+
+    reopened = fu.scan()
+    if not reopened:
+        console.print("[dim]nothing due for re-engagement[/dim]")
+    for c in reopened:
+        console.print(f"[green]re-engaged[/green] {c.lead.company_name}")
+
+
+@app.command()
 def approve(
     campaign_id: str = typer.Argument(...),
     to: str = typer.Option(..., "--to", help="Recipient (team-owned inbox during buildathon)."),

@@ -27,6 +27,7 @@ class Ledger:
     def __init__(self) -> None:
         self._sellers: dict[str, SellerProfile] = {}
         self._campaigns: dict[str, Campaign] = {}
+        self._memories: list[dict[str, Any]] = []
         self._live = settings.require_live("convex_url")
         if self._live:
             log.dim("[ledger] live → Convex")
@@ -49,9 +50,34 @@ class Ledger:
         log.dim(f"[ledger] {camp.id} → {state.value if hasattr(state,'value') else state}")
         self.upsert_campaign(camp)
 
+    def remember(
+        self, campaign: Campaign, kind: str, body: str, re_ping_at: float | None = None
+    ) -> None:
+        """Write a long-term memory row — the persistence engine's fuel."""
+        row = {
+            "campaign_id": campaign.id,
+            "person_name": campaign.lead.person_name,
+            "kind": kind,
+            "body": body,
+            "re_ping_at": re_ping_at,
+        }
+        self._memories.append(row)
+        self._convex("memories:add", row)
+        self._flush()
+
+    def due_memories(self, now: float) -> list[dict[str, Any]]:
+        """Memories whose deferral window has closed."""
+        return [
+            m for m in self._memories
+            if m.get("re_ping_at") is not None and m["re_ping_at"] <= now
+        ]
+
     # ── reads ─────────────────────────────────────────────────
     def campaigns(self) -> list[Campaign]:
         return list(self._campaigns.values())
+
+    def memories(self) -> list[dict[str, Any]]:
+        return list(self._memories)
 
     def sellers(self) -> list[SellerProfile]:
         return list(self._sellers.values())
@@ -74,6 +100,7 @@ class Ledger:
         snapshot = {
             "sellers": [s.model_dump() for s in self._sellers.values()],
             "campaigns": [_campaign_row(c) for c in self._campaigns.values()],
+            "memories": self._memories,
         }
         _LEDGER_FILE.write_text(json.dumps(snapshot, indent=2, default=str))
 
