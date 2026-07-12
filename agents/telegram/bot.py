@@ -504,8 +504,10 @@ class RevenantBot:
         sess = self.session(chat_id)
 
         # ── on-stage Razorpay demo: canned context, no repo/site fetch ──
+        # Onboarding "Razorpay" self-arms the demo — no env flag / restart needed.
         from .. import demo_razorpay
-        if demo_razorpay.demo_active() and "razorpay" in source.lower():
+        if "razorpay" in source.lower():
+            demo_razorpay.activate()
             ctx = demo_razorpay.razorpay_context()
             sess.ctx = ctx
             sess.ctx_label = "razorpay.com"

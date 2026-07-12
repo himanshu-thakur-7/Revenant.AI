@@ -41,8 +41,24 @@ WALKTHROUGH_URL = os.getenv(
 WALKTHROUGH_MP4 = Path(__file__).parent / "demo_razorpay_assets" / "boat-walkthrough.mp4"
 
 
+# Runtime switch: flipped on the moment the founder onboards "Razorpay" (see
+# bot._do_setup), so the demo self-activates with zero env fiddling / restart.
+# The REVENANT_DEMO env var still works as an alternative pre-arm.
+_RUNTIME_ACTIVE = False
+
+
+def activate() -> None:
+    """Arm the on-stage demo for the rest of this process (called when the
+    founder onboards Razorpay)."""
+    global _RUNTIME_ACTIVE
+    _RUNTIME_ACTIVE = True
+
+
 def demo_active() -> bool:
-    """True only when the on-stage demo is explicitly enabled."""
+    """True when the on-stage demo is armed — either at runtime (founder typed
+    Razorpay in setup) or via REVENANT_DEMO=1."""
+    if _RUNTIME_ACTIVE:
+        return True
     return os.getenv("REVENANT_DEMO", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
