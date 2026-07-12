@@ -445,22 +445,25 @@ def build_prototype(startup: str, merchant: str, merchant_domain: str = "",
     }
 
     # 3. Build via the Engineer (already deploys to Cloudflare Pages as its
-    #    finalize step — that's our sponsor URL). Then a VISION QA pass; we
-    #    ONLY redeploy if polish actually changed the HTML. Ngrok stays as a
-    #    fallback if CF is unreachable.
+    #    finalize step — that's our sponsor URL). Optional VISION QA pass.
+    #    With the planner+author architecture producing clean 22kB pages,
+    #    polish usually returns +0 → opt-in via REVENANT_POLISH=1 to save ~9s.
+    #    Ngrok stays as a fallback if CF is unreachable.
     try:
+        import os as _os
         from agents.engineer import Engineer
-        from agents.engineer import polish as _polish
         from agents.engineer.prototype import _harden_html
         from agents.engineer.cf_pages import deploy_dir
         import re as _re
+        _run_polish = _os.getenv("REVENANT_POLISH", "0") not in ("", "0", "false", "no")
         with _quiet_stdout():
             eng = Engineer(founder_context=ctx, prospect=prospect)
             res = eng.build()
             url = (res or {}).get("url", "")          # Engineer's own CF Pages URL
             ws = Path(res.get("workspace") or eng._state.workspace)
             idx = ws / "index.html"
-            if idx.exists():
+            if idx.exists() and _run_polish:
+                from agents.engineer import polish as _polish
                 original = idx.read_text(encoding="utf-8")
                 polished = _polish.polish_html(
                     original, startup=startup, merchant=merchant, passes=1)
@@ -472,15 +475,15 @@ def build_prototype(startup: str, merchant: str, merchant_domain: str = "",
                     idx.write_text(improved, encoding="utf-8")
                     redeploy = deploy_dir(ws)
                     url = redeploy.get("url") or url
-                # If the Engineer's CF deploy fell back to file:// (no CF creds
-                # / wrangler failure), publish via local + ngrok as a safety net.
-                if not url or url.startswith("file:"):
-                    slug = _re.sub(r"[^a-z0-9]+", "-", merchant.lower()).strip("-") or "merchant"
-                    try:
-                        from agents.engineer import local_host
-                        url = local_host.publish(slug, idx.read_text(encoding="utf-8"))
-                    except Exception:
-                        pass
+            # If the Engineer's CF deploy fell back to file:// (no CF creds
+            # / wrangler failure), publish via local + ngrok as a safety net.
+            if idx.exists() and (not url or url.startswith("file:")):
+                slug = _re.sub(r"[^a-z0-9]+", "-", merchant.lower()).strip("-") or "merchant"
+                try:
+                    from agents.engineer import local_host
+                    url = local_host.publish(slug, idx.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
     except Exception as exc:  # noqa: BLE001
         return f"Build failed for {merchant}: {exc}"
 
