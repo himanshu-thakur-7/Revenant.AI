@@ -444,13 +444,26 @@ def build_prototype(startup: str, merchant: str, merchant_domain: str = "",
         "fit_rationale": pain,
     }
 
-    # 3. Build + deploy via the Engineer only (fast; the 20x "real output" proof).
+    # 3. Build via the Engineer, then a VISION QA pass (render → spot visual
+    #    bugs → fix) so the single prototype is foolproof, then (re)deploy.
     try:
         from agents.engineer import Engineer
+        from agents.engineer import polish as _polish
+        from agents.engineer.prototype import _harden_html
+        from agents.engineer.cf_pages import deploy_dir
         with _quiet_stdout():
             eng = Engineer(founder_context=ctx, prospect=prospect)
             res = eng.build()
-        url = (res or {}).get("url", "")
+            url = (res or {}).get("url", "")
+            ws = Path(res.get("workspace") or eng._state.workspace)
+            idx = ws / "index.html"
+            if idx.exists():
+                improved = _polish.polish_html(
+                    idx.read_text(encoding="utf-8"),
+                    startup=startup, merchant=merchant, passes=1)
+                idx.write_text(_harden_html(improved), encoding="utf-8")
+                dep = deploy_dir(ws)
+                url = dep.get("url") or url
     except Exception as exc:  # noqa: BLE001
         return f"Build failed for {merchant}: {exc}"
 
