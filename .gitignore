@@ -25,6 +25,8 @@ console/.vite/
 # Generated demo data (produced by scripts/sync_console.py)
 console/public/ledger.json
 console/public/sites/
+console/public/voice/
+console/public/walkthroughs/
 
 # Convex
 convex/_generated/

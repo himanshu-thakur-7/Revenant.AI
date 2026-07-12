@@ -12,18 +12,18 @@ install:  ## create venv + install python deps and console deps
 test:  ## run the python test suite (offline, no network)
 	. .venv/bin/activate && python -m pytest -q
 
-run:  ## run the full loop for the default seller (echodesk), offline
-	. .venv/bin/activate && ghost run --seller echodesk --limit 3
+run:  ## run the full loop for the default seller (queuepilot), offline
+	. .venv/bin/activate && PYTHONPATH=. python -m ghost.cli run --seller queuepilot --limit 3
 
 demo:  ## run the loop + publish results for the console
-	. .venv/bin/activate && ghost run --seller echodesk --limit 3 && python scripts/sync_console.py
+	. .venv/bin/activate && PYTHONPATH=. python -m ghost.cli run --seller queuepilot --limit 3 && PYTHONPATH=. python scripts/sync_console.py
 	@echo "→ now run 'make console' and open http://localhost:5175"
 
 sync:  ## publish out/ledger.json + sites into the console
-	. .venv/bin/activate && python scripts/sync_console.py
+	. .venv/bin/activate && PYTHONPATH=. python scripts/sync_console.py
 
 console:  ## start the review console dev server
 	cd console && npm run dev
 
 clean:  ## remove generated artifacts
-	rm -rf out console/public/ledger.json console/public/sites
+	rm -rf out console/public/ledger.json console/public/sites console/public/walkthroughs console/public/voice

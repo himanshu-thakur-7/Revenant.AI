@@ -16,6 +16,7 @@ const ACTS = [
 ];
 
 const AGENT_META: Record<string, { icon: string; cls: string }> = {
+  "Human SDR": { icon: "SDR", cls: "ag-human" },
   Detective: { icon: "🔍", cls: "ag-detective" },
   "Truth Ledger": { icon: "📜", cls: "ag-ledger" },
   Gatekeeper: { icon: "⚖️", cls: "ag-gate" },
@@ -52,7 +53,7 @@ export function App() {
       setCampaigns(campaigns);
       setEvents(events);
       setSource(source);
-      setPlaying(true); // the séance starts on arrival
+      setPlaying(true); // replay starts on arrival
     });
   }, []);
 
@@ -263,7 +264,7 @@ function Board({ campaigns, liveState, selected, onSelect, sentIds }: {
 }) {
   return (
     <section>
-      <div className="rv-eyebrow" style={{ marginBottom: 8 }}>the board · souls in the circle</div>
+      <div className="rv-eyebrow" style={{ marginBottom: 8 }}>the board · prospects in pipeline</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
         {campaigns.length === 0 && (
           <div className="rv-panel" style={{ padding: 18, color: "var(--faint)", fontSize: 13, gridColumn: "1/-1", textAlign: "center" }}>
@@ -314,7 +315,7 @@ function Detail({ campaign, liveState, sent, onApprove }: {
       <div style={{ display: "flex", borderBottom: "1px solid var(--line)" }}>
         {(["missive", "site", "proof"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`rv-tab ${tab === t ? "rv-tab-on" : ""}`}>
-            {t === "missive" ? "✉ the missive" : t === "site" ? "👁 the apparition" : "📜 the proof"}
+            {t === "missive" ? "✉ outreach" : t === "site" ? "👁 live prototype" : "📜 proof"}
           </button>
         ))}
         <div style={{ marginLeft: "auto", padding: "8px 14px" }}><StateBadge state={st} /></div>
@@ -329,7 +330,7 @@ function Detail({ campaign, liveState, sent, onApprove }: {
             <div style={{ fontWeight: 600, marginTop: 3, fontSize: 14 }}>{campaign.email_subject || "—"}</div>
           </div>
           <pre style={{ margin: 0, padding: "14px 18px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#c3cbdb", whiteSpace: "pre-wrap", lineHeight: 1.6, maxHeight: 240, overflowY: "auto" }}>
-            {campaign.email_body || "(this soul was laid to rest before outreach)"}
+            {campaign.email_body || "(this campaign stopped before outreach)"}
           </pre>
         </div>
       )}
@@ -339,7 +340,7 @@ function Detail({ campaign, liveState, sent, onApprove }: {
           ? <iframe srcDoc={campaign.microsite_html} style={frame} title="microsite" />
           : campaign.microsite_url && !campaign.microsite_url.startsWith("file:")
             ? <iframe src={campaign.microsite_url} style={frame} title="microsite" />
-            : <div style={{ ...frame, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--faint)" }}>no apparition conjured for this one</div>
+            : <div style={{ ...frame, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--faint)" }}>no prototype generated for this one</div>
       )}
 
       {tab === "proof" && (
@@ -364,7 +365,7 @@ function Detail({ campaign, liveState, sent, onApprove }: {
           {sent ? "✓ sent" : "Approve & Send"}
         </button>
         <button className="rv-btn rv-btn-ghost" style={{ padding: "9px 14px", fontSize: 13 }} disabled={!canReview}>Edit</button>
-        <button className="rv-btn rv-btn-danger" style={{ padding: "9px 14px", fontSize: 13, marginLeft: "auto" }} disabled={!canReview}>Lay to rest</button>
+        <button className="rv-btn rv-btn-danger" style={{ padding: "9px 14px", fontSize: 13, marginLeft: "auto" }} disabled={!canReview}>Suppress</button>
       </div>
     </section>
   );
@@ -373,7 +374,7 @@ function Detail({ campaign, liveState, sent, onApprove }: {
 function WonBanner({ company }: { company: string }) {
   return (
     <div className="rv-won-banner">
-      <span style={{ fontSize: 22 }}>💀→💚</span>
+      <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: 0 }}>WON</span>
       <div>
         <b>{company} — WON.</b>{" "}
         <span style={{ color: "var(--muted)" }}>

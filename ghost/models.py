@@ -57,7 +57,14 @@ class CampaignState(str, Enum):
     KILLED = "killed"
 
 
-ArtifactKind = Literal["benchmark", "diagnostic", "reference_impl", "config_diff", "voice_demo"]
+ArtifactKind = Literal[
+    "benchmark",
+    "diagnostic",
+    "reference_impl",
+    "config_diff",
+    "voice_demo",
+    "support_triage",
+]
 
 
 class SellerProfile(BaseModel):

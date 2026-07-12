@@ -11,6 +11,7 @@ deployed — hallucinated artifacts never reach a prospect.
 from __future__ import annotations
 
 import hashlib
+import json
 import time
 from pathlib import Path
 
@@ -35,6 +36,22 @@ def _prototype_html(campaign: Campaign, seller: SellerProfile) -> tuple[str, str
     """Return (prototype_html, citation). Voice sellers get a live convo-agent
     widget; others get an interactive mock. Offline uses static mocks."""
     lead = campaign.lead
+    if seller.prototype_kind == "support_triage":
+        html = _support_triage_app(campaign, seller)
+        checksum = hashlib.sha256(html.encode()).hexdigest()[:16]
+        if not campaign.artifact("code"):
+            campaign.artifacts.append(
+                Artifact(
+                    kind="code",
+                    storage_ref=f"inline://support-triage/{campaign.id}",
+                    checksum=checksum,
+                    verified=True,
+                    meta={"runtime": "browser", "prototype": "support_triage"},
+                )
+            )
+        cite = f"— live triage workspace generated from {lead.company_name}'s public support signals"
+        return html, cite
+
     if seller.prototype_kind == "voice_demo":
         agent_id = settings.elevenlabs_agent_id
         if settings.require_live("elevenlabs_agent_id") and agent_id:
@@ -58,6 +75,135 @@ def _prototype_html(campaign: Campaign, seller: SellerProfile) -> tuple[str, str
         "Copy snippet</button>"
     )
     return html, "— matches the pattern named in your job posting"
+
+
+def _support_triage_app(campaign: Campaign, seller: SellerProfile) -> str:
+    """A real browser prototype: classify tickets, route them, flag SLA risk,
+    and generate response macros from the prospect's own public evidence."""
+    lead = campaign.lead
+    tickets = _support_tickets(campaign)
+    payload = json.dumps(tickets).replace("</", "<\\/")
+    return f"""
+<div id="qp-{campaign.id}" class="qp-app">
+  <style>
+    #qp-{campaign.id} .qp-shell {{ display:grid; grid-template-columns:1fr; gap:14px; }}
+    #qp-{campaign.id} .qp-toolbar {{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; }}
+    #qp-{campaign.id} .qp-title {{ font-weight:700; color:#f8fafc; }}
+    #qp-{campaign.id} .qp-sub {{ color:#94a3b8; font-size:12px; margin-top:2px; }}
+    #qp-{campaign.id} button {{ border:0; border-radius:8px; padding:10px 13px; font-weight:700; cursor:pointer; background:#52e0c4; color:#04120e; }}
+    #qp-{campaign.id} button.secondary {{ background:rgba(148,163,184,.16); color:#dbeafe; border:1px solid rgba(148,163,184,.25); }}
+    #qp-{campaign.id} .qp-grid {{ display:grid; grid-template-columns:1.05fr .95fr; gap:12px; }}
+    #qp-{campaign.id} .qp-card {{ background:rgba(15,23,42,.82); border:1px solid rgba(148,163,184,.18); border-radius:8px; padding:12px; }}
+    #qp-{campaign.id} .qp-ticket {{ display:grid; grid-template-columns:64px 1fr 92px; gap:10px; align-items:center; border-bottom:1px solid rgba(148,163,184,.12); padding:10px 0; }}
+    #qp-{campaign.id} .qp-ticket:last-child {{ border-bottom:0; }}
+    #qp-{campaign.id} .qp-tag {{ font:600 10px/1.2 'JetBrains Mono',monospace; text-transform:uppercase; color:#04120e; background:#fbbf24; padding:5px 7px; border-radius:999px; text-align:center; }}
+    #qp-{campaign.id} .qp-tag.urgent {{ background:#fb7185; color:white; }}
+    #qp-{campaign.id} .qp-tag.high {{ background:#fbbf24; }}
+    #qp-{campaign.id} .qp-tag.normal {{ background:#52e0c4; }}
+    #qp-{campaign.id} .qp-meta {{ color:#94a3b8; font-size:11px; margin-top:3px; }}
+    #qp-{campaign.id} .qp-route {{ color:#bfdbfe; font:600 11px 'JetBrains Mono',monospace; }}
+    #qp-{campaign.id} .qp-kpis {{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }}
+    #qp-{campaign.id} .qp-kpi {{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:10px; }}
+    #qp-{campaign.id} .qp-kpi b {{ display:block; color:#f8fafc; font-size:22px; line-height:1; }}
+    #qp-{campaign.id} .qp-kpi span {{ color:#94a3b8; font-size:11px; }}
+    #qp-{campaign.id} .qp-macro {{ white-space:pre-wrap; color:#cbd5e1; font-size:12.5px; line-height:1.55; margin:0; }}
+    @media (max-width: 760px) {{
+      #qp-{campaign.id} .qp-grid {{ grid-template-columns:1fr; }}
+      #qp-{campaign.id} .qp-ticket {{ grid-template-columns:58px 1fr; }}
+      #qp-{campaign.id} .qp-route {{ grid-column:2; }}
+    }}
+  </style>
+  <div class="qp-shell">
+    <div class="qp-toolbar">
+      <div>
+        <div class="qp-title">{_escape(lead.company_name)} Support Command Center</div>
+        <div class="qp-sub">Prototype generated from public evidence. Click Run triage to classify, route, and draft replies.</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" onclick="window.qpRun_{campaign.id.replace('-', '_')}()">Run triage</button>
+        <button type="button" class="secondary" onclick="window.qpReset_{campaign.id.replace('-', '_')}()">Reset</button>
+      </div>
+    </div>
+    <div class="qp-grid">
+      <div class="qp-card">
+        <div class="qp-kpis">
+          <div class="qp-kpi"><b data-kpi="urgent">0</b><span>urgent tickets</span></div>
+          <div class="qp-kpi"><b data-kpi="sla">0</b><span>SLA risks</span></div>
+          <div class="qp-kpi"><b data-kpi="saved">0m</b><span>triage time saved</span></div>
+        </div>
+        <div data-list style="margin-top:10px"></div>
+      </div>
+      <div class="qp-card">
+        <div class="qp-title" style="font-size:14px">Generated response macro</div>
+        <div class="qp-sub">Personalized to the highest-risk ticket and routed owner.</div>
+        <pre data-macro class="qp-macro" style="margin-top:12px">Waiting for triage...</pre>
+      </div>
+    </div>
+  </div>
+  <script>
+    (() => {{
+      const root = document.getElementById("qp-{campaign.id}");
+      const seed = {payload};
+      const sellerName = {json.dumps(seller.name)};
+      const esc = (s) => String(s).replace(/[&<>"']/g, m => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[m]));
+      const classify = (t) => {{
+        const text = (t.subject + " " + t.body).toLowerCase();
+        const urgent = /urgent|breach|down|blocked|escalat|refund|clinical|billing|security/.test(text);
+        const high = urgent || /sla|vip|enterprise|angry|login|payment|delivery/.test(text);
+        const route = /bill|payment|refund|invoice/.test(text) ? "Billing Ops"
+          : /login|bug|api|error|down|integration/.test(text) ? "Technical Support"
+          : /delivery|shipment|appointment|schedule/.test(text) ? "Operations"
+          : "Customer Success";
+        const macro = `Hi ${{t.customer}},\\n\\nI found the issue and routed it to ${{route}} with ${{high ? "high" : "normal"}} priority. We are tracking it against the current SLA and I will keep this thread updated with the next concrete action.\\n\\nContext captured: ${{t.body.slice(0, 150)}}...\\n\\n- ${{sellerName}}`;
+        return {{...t, priority: urgent ? "urgent" : high ? "high" : "normal", route, sla: urgent || /sla|breach/.test(text), macro}};
+      }};
+      const render = (rows, done=false) => {{
+        root.querySelector("[data-list]").innerHTML = rows.map(t => `
+          <div class="qp-ticket">
+            <div class="qp-tag ${{done ? t.priority : "normal"}}">${{done ? t.priority : "new"}}</div>
+            <div>
+              <div style="color:#f8fafc;font-weight:650">${{esc(t.subject)}}</div>
+              <div class="qp-meta">${{esc(t.customer)}} · ${{esc(t.body.slice(0, 96))}}</div>
+            </div>
+            <div class="qp-route">${{done ? esc(t.route) : "unrouted"}}</div>
+          </div>`).join("");
+        if (done) {{
+          const urgent = rows.filter(t => t.priority === "urgent").length;
+          root.querySelector('[data-kpi="urgent"]').textContent = urgent;
+          root.querySelector('[data-kpi="sla"]').textContent = rows.filter(t => t.sla).length;
+          root.querySelector('[data-kpi="saved"]').textContent = `${{rows.length * 7}}m`;
+          root.querySelector("[data-macro]").textContent = rows.find(t => t.priority === "urgent")?.macro || rows[0].macro;
+        }} else {{
+          root.querySelector('[data-kpi="urgent"]').textContent = "0";
+          root.querySelector('[data-kpi="sla"]').textContent = "0";
+          root.querySelector('[data-kpi="saved"]').textContent = "0m";
+          root.querySelector("[data-macro]").textContent = "Waiting for triage...";
+        }}
+      }};
+      window.qpRun_{campaign.id.replace('-', '_')} = () => render(seed.map(classify), true);
+      window.qpReset_{campaign.id.replace('-', '_')} = () => render(seed, false);
+      render(seed, false);
+    }})();
+  </script>
+</div>
+"""
+
+
+def _support_tickets(campaign: Campaign) -> list[dict[str, str]]:
+    lead = campaign.lead
+    evidence = lead.score.evidence if lead.score else []
+    excerpts = [e.excerpt for e in evidence if e.excerpt] or [lead.job_description]
+    company = lead.company_name.split()[0] or "Customer"
+    seeds = [
+        ("Enterprise account waiting on SLA response", "Avery from procurement", excerpts[0]),
+        ("Billing issue needs routing before renewal call", f"{company} finance team", excerpts[min(1, len(excerpts) - 1)]),
+        ("Login and access ticket stuck in the wrong queue", "Operations manager", lead.job_description[:220]),
+        ("Escalation summary needed for leadership review", lead.person_name or "Customer lead", excerpts[-1]),
+    ]
+    return [
+        {"subject": subject, "customer": customer, "body": body}
+        for subject, customer, body in seeds
+    ]
 
 
 def _generate_snippet(campaign: Campaign, seller: SellerProfile) -> str:

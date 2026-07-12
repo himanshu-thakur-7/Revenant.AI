@@ -3,7 +3,8 @@
 A ``SellerProfile`` is the single swap point that re-targets the whole pipeline
 at a new vertical. Two configs ship in-repo:
 
-* ``echodesk`` — voice AI for healthcare (the rehearsed buildathon default).
+* ``queuepilot`` — support-triage AI for any team drowning in tickets.
+* ``echodesk`` — voice AI for healthcare.
 * ``ledgerloop`` — a generic dev-tools seller, to prove "configurable" live.
 
 :func:`onboard` turns a free-text dictated blurb (Wispr Flow → Hermes) into a
@@ -17,6 +18,28 @@ from .llm import complete_json
 from .models import SellerProfile
 
 _BUILTINS: dict[str, SellerProfile] = {
+    "queuepilot": SellerProfile(
+        slug="queuepilot",
+        name="QueuePilot AI",
+        one_liner="AI support triage that turns messy inbound tickets into routed, prioritized work.",
+        product="A support-ops copilot that reads public symptoms from job posts, issues, "
+        "and support queues, then builds a live ticket triage workspace with SLA risk, "
+        "routing, summaries, and suggested response macros.",
+        icp="B2B SaaS, marketplaces, healthcare ops, fintech, devtools, and ecommerce "
+        "teams with growing customer support volume, manual ticket routing, SLA risk, "
+        "or Zendesk/Intercom backlog pressure.",
+        pain_keywords=[
+            "support backlog",
+            "ticket triage",
+            "SLA breach",
+            "manual routing",
+            "Zendesk backlog",
+            "customer escalation",
+        ],
+        prototype_kind="support_triage",
+        value_prop="Cut first-response time and escalation chaos by auto-routing every inbound issue with evidence, priority, and a ready-to-send reply.",
+        pilot_price_inr=7999,
+    ),
     "echodesk": SellerProfile(
         slug="echodesk",
         name="EchoDesk AI",

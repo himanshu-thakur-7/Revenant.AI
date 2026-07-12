@@ -14,7 +14,7 @@ console at `localhost:5175` and one microsite open in a second tab.
 > delete. We built the agency that ships **working software** instead."
 
 Open Hermes on Telegram. Dictate the seller identity with **Wispr Flow**:
-> *"We sell EchoDesk AI — voice AI that answers every patient call for busy clinics."*
+> *"We sell QueuePilot AI — AI support triage that routes tickets, flags SLA risk, and drafts replies for teams drowning in support backlog."*
 
 Hermes fires `ghost-onboard` → `ghost-hunt`.
 
@@ -22,19 +22,20 @@ Hermes fires `ghost-onboard` → `ghost-hunt`.
 
 Switch to the **console**. As it fills:
 
-- **Linkup** surfaced a clinic chain with 4 open front-desk roles and an 8-minute
-  hold time. Point at the **verbatim evidence** panel — *their own words*, cited.
-- One lead (Cloudleaf) turns **red / killed**: *"Boilerplate posting — the gate
+- The live public recon sweep surfaces support backlog and routing pain from job
+  posts or GitHub issues. Point at the **verbatim evidence** panel — *their own
+  words*, cited.
+- One lead turns **red / killed**: *"Boilerplate posting — the gate
   rejected it for a tenth of a cent, before we spent a token."*
-- One (BrightSmile) is **amber / warm** — real but thin, queued as a soft touch.
-- Meridian is **promoted**. "Watch what it does with a real signal."
+- One is **amber / warm** — real but thin, queued as a soft touch.
+- The strongest support-ops signal is **promoted**. "Watch what it does with a real signal."
 
 ## Act III — Just-in-time engineering (35s)
 
-Open Meridian's **live microsite**. Scroll it:
+Open the promoted company's **live microsite**. Scroll it:
 - Their name, their pain quoted verbatim with a **"— per your careers page"** cite.
-- The **working prototype**: an AI receptionist. *Talk to it on stage* (live
-  ElevenLabs convo agent in live mode).
+- The **working prototype**: a support command center. Click **Run triage** and
+  watch tickets get prioritized, routed, SLA-flagged, and turned into a response macro.
 
 ## Act IV — The AI-made walkthrough (50s) ⭐
 
@@ -42,7 +43,7 @@ Open Meridian's **live microsite**. Scroll it:
 > just built — narration, screen capture, and all. **No human touched this.**"
 
 Play the walkthrough. The presenter bubble pulses; the narration explains what
-was built and why it fits *this clinic*, in a voice tuned to the exec's vibe.
+was built and why it fits *this company*, in a voice tuned to the exec's vibe.
 
 ## Act V — The conversion loop (40s)
 
@@ -61,7 +62,7 @@ Back in the console:
 ## Fallbacks (if the venue wifi dies)
 
 - Whole pipeline runs **offline** (`REVENANT_MODE=offline`) — recon, gate,
-  build, walkthrough storyboard, all from fixtures.
+  build, and playable walkthrough, all from fixtures.
 - Pre-rendered walkthrough MP4 + a screen-recorded backup of the full demo.
 - The console reads `out/ledger.json`, no Convex needed.
 

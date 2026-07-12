@@ -29,7 +29,7 @@ def main() -> None:
 
     snap = json.loads(ledger_src.read_text())
 
-    # copy sites and rewrite URLs to relative paths
+    # copy sites/walkthroughs/voice and rewrite URLs to relative paths
     sites_src = OUT / "sites"
     sites_dst = PUBLIC / "sites"
     if sites_dst.exists():
@@ -37,11 +37,38 @@ def main() -> None:
     if sites_src.exists():
         shutil.copytree(sites_src, sites_dst)
 
+    walkthroughs_src = OUT / "walkthroughs"
+    walkthroughs_dst = PUBLIC / "walkthroughs"
+    if walkthroughs_dst.exists():
+        shutil.rmtree(walkthroughs_dst)
+    if walkthroughs_src.exists():
+        shutil.copytree(walkthroughs_src, walkthroughs_dst)
+
+    voice_src = OUT / "voice"
+    voice_dst = PUBLIC / "voice"
+    if voice_dst.exists():
+        shutil.rmtree(voice_dst)
+    if voice_src.exists():
+        shutil.copytree(voice_src, voice_dst)
+
     for camp in snap.get("campaigns", []):
         url = camp.get("microsite_url", "")
         if url.startswith("file://") and "/sites/" in url:
             rel = "/sites/" + url.split("/sites/", 1)[1]
             camp["microsite_url"] = rel
+        walk = camp.get("walkthrough_url", "")
+        if walk.startswith("file://") and "/walkthroughs/" in walk:
+            rel = "/walkthroughs/" + walk.split("/walkthroughs/", 1)[1]
+            camp["walkthrough_url"] = rel
+        voice = camp.get("voice_memo_ref", "")
+        if "/voice/" in voice:
+            camp["voice_memo_ref"] = "/voice/" + voice.split("/voice/", 1)[1]
+        html = camp.get("microsite_html", "")
+        if html:
+            root = OUT.resolve().as_uri()
+            html = html.replace(f"{root}/walkthroughs/", "/walkthroughs/")
+            html = html.replace(str(OUT.resolve() / "voice") + "/", "/voice/")
+            camp["microsite_html"] = html
 
     (PUBLIC / "ledger.json").write_text(json.dumps(snap, indent=2))
     n = len(snap.get("campaigns", []))

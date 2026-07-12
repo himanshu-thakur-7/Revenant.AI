@@ -5,212 +5,274 @@ import type { Campaign, MissionEvent } from './data';
 
 export const DEMO_CAMPAIGNS: Campaign[] = [
   {
-    "id": "camp_01KX0VPSXXZT404",
-    "seller_id": "sel_01KX0VPSJ5EK7RB",
+    "id": "camp_01KX146FB9RC4FV",
+    "seller_id": "sel_01KX146FB6AH5E0",
     "lead": {
-      "id": "lead_01KX0VPSXXD05MJ",
-      "seller_id": "sel_01KX0VPSJ5EK7RB",
-      "company_name": "Meridian Health Group",
-      "company_domain": "meridianhealth.example",
-      "person_name": "Dr. Priya Nair",
-      "person_title": "VP of Patient Operations",
-      "job_description": "Hiring 4 front-desk coordinators across our clinics. Our patient call volume has doubled and average phone hold time is now over 8 minutes, driving a 22% call drop rate. Appointment scheduling backlog is causing no-shows. Experience with Twilio-based IVR and reducing wait time a strong plus.",
+      "id": "lead_01KX146FB8ZV664",
+      "seller_id": "sel_01KX146FB6AH5E0",
+      "company_name": "Northstar Commerce",
+      "company_domain": "northstarcommerce.example",
+      "person_name": "Avery Chen",
+      "person_title": "VP of Customer Operations",
+      "job_description": "Hiring a Support Operations Lead to reduce our Zendesk backlog. Manual ticket triage across billing, delivery, and account issues is causing SLA breach risk and high-priority customer escalations. Experience building routing rules, macros, and first-response dashboards for 1,000+ weekly tickets is required.",
       "score": {
         "jd_confidence": 0.8,
-        "careers_score": 0.82,
+        "careers_score": 0.86,
         "github_score": 0.0,
-        "status_score": 0.55,
-        "eng_blog_score": 0.3,
-        "combined": 0.5975,
+        "status_score": 0.35,
+        "eng_blog_score": 0.45,
+        "combined": 0.5925,
         "tier": "corroborate",
         "evidence": [
           {
-            "id": "ev_01KX0VPTCW5TZBX",
+            "id": "ev_01KX146FBAWS40B",
             "source": "jd",
             "url": "",
-            "excerpt": "ross our clinics. Our patient call volume has doubled and average phone",
+            "excerpt": "Hiring a Support Operations Lead to reduce our Zendesk ba",
             "weight": 0.3
           },
           {
-            "id": "ev_01KX0VPTCW9Z198",
+            "id": "ev_01KX146FBA2WE68",
             "source": "jd",
             "url": "",
-            "excerpt": "ing no-shows. Experience with Twilio-based IVR and reducing wait t",
+            "excerpt": "Operations Lead to reduce our Zendesk backlog. Manual ticket triage",
             "weight": 0.2
           },
           {
-            "id": "ev_01KX0VPSXXZ3EJ2",
+            "id": "ev_01KX146FB8B37MK",
             "source": "careers",
-            "url": "https://meridianhealth.example/careers",
-            "excerpt": "Hiring 4 front-desk coordinators across our clinics",
+            "url": "https://northstarcommerce.example/jobs/support-ops",
+            "excerpt": "reduce our Zendesk backlog",
             "weight": 0.25
           },
           {
-            "id": "ev_01KX0VPSXXPBENT",
+            "id": "ev_01KX146FB892YDJ",
             "source": "jd",
-            "url": "https://meridianhealth.example/careers/fd-1",
-            "excerpt": "average phone hold time is now over 8 minutes, driving a 22% call drop rate",
-            "weight": 0.3
+            "url": "https://northstarcommerce.example/jobs/support-ops",
+            "excerpt": "Manual ticket triage across billing, delivery, and account issues is causing SLA breach risk",
+            "weight": 0.35
           }
         ]
       }
     },
     "persona": {
-      "name": "Dr. Priya Nair",
-      "title": "VP of Patient Operations",
-      "casual_formal": 0.7,
+      "name": "Avery Chen",
+      "title": "VP of Customer Operations",
+      "casual_formal": 0.65,
       "technical_strategic": 0.6,
-      "warm_blunt": 0.4,
+      "warm_blunt": 0.45,
       "references": [
-        "Your recent article in Healthcare Today about optimizing patient access through technology",
-        "Meridian's initiative to reduce appointment no-shows by 15% this quarter",
-        "The challenges of scaling patient operations with 40% growth in new patients"
+        "their public push to fix support backlog"
       ],
       "vocabulary": [
-        "patient access",
-        "appointment scheduling",
-        "no-show rate",
-        "call volume",
-        "hold time",
-        "IVR",
-        "Twilio",
-        "patient experience"
+        "support backlog",
+        "ticket triage",
+        "SLA breach",
+        "manual routing",
+        "Zendesk backlog"
       ]
     },
     "state": "won",
     "artifacts": [
       {
-        "id": "art_01KX0VQ2K760Q5K",
-        "kind": "site",
-        "storage_ref": "out/sites/meridianhealth_example/index.html",
-        "checksum": "efddc914f79cdd9c",
+        "id": "art_01KX146FBCWP0BX",
+        "kind": "code",
+        "storage_ref": "inline://support-triage/camp_01KX146FB9RC4FV",
+        "checksum": "7df334c19b39efeb",
         "verified": true,
         "meta": {
-          "headline": "Here's a concise 8-word headline for the EchoDesk AI microsite for Meridian Health Group:\n\nCut Hold Times, Drop Rates with AI Coordinators",
-          "url": "file:///Users/little_beast/Revenant.AI/out/sites/meridianhealth_example/index.html"
+          "runtime": "browser",
+          "prototype": "support_triage"
         }
       },
       {
-        "id": "art_01KX0VQAJXEPVXC",
+        "id": "art_01KX146FBJGCKYF",
+        "kind": "site",
+        "storage_ref": "out/sites/northstarcommerce_example/index.html",
+        "checksum": "98653f21a6aba491",
+        "verified": true,
+        "meta": {
+          "headline": "We built QueuePilot AI into Northstar Commerce's front desk.",
+          "url": "file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/sites/northstarcommerce_example/index.html"
+        }
+      },
+      {
+        "id": "art_01KX146FBRVBC8A",
         "kind": "walkthrough",
-        "storage_ref": "file:///Users/little_beast/Revenant.AI/out/walkthroughs/camp_01KX0VPSXXZT404.storyboard.json",
+        "storage_ref": "file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/walkthroughs/camp_01KX146FB9RC4FV.walkthrough.html",
         "checksum": "",
         "verified": true,
         "meta": {
           "beats": 5,
-          "seconds": 38.0
+          "seconds": 31.6
         }
       },
       {
-        "id": "art_01KX0VQJKXCV4R9",
+        "id": "art_01KX146FBVD66D7",
         "kind": "site",
-        "storage_ref": "out/sites/meridianhealth_example/index.html",
-        "checksum": "0d8f6a9edb575be9",
+        "storage_ref": "out/sites/northstarcommerce_example/index.html",
+        "checksum": "d8753eaa5a24efaa",
         "verified": true,
         "meta": {
-          "headline": "Here are a few punchy 8-word headline options for the EchoDesk AI microsite:\n\n\"Cut Hold Times, Boost Patient Satisfaction with AI\"\n\n\"Slash Call Drops 22% with EchoDesk Scheduling AI\" \n\n\"Double Call Volume? AI Coordinators to the Rescue!\"\n\n\"Hire Smart, Not Hard - AI Front Desk Coordinators\"\n\n\"8 Min Hold Times? AI Slices Scheduling Backlogs\"\n\n\"EchoDesk AI: The Cure for Long Clinic Hold Times\"\n\n\"Meridian Health Doubles Down on AI Patient Scheduling\"\n\n\"AI-Powered Coordinators Prescribe Relief for Scheduling Headaches"
+          "headline": "We built QueuePilot AI into Northstar Commerce's front desk."
         }
       }
     ],
-    "microsite_url": "file:///Users/little_beast/Revenant.AI/out/sites/meridianhealth_example/index.html",
-    "walkthrough_url": "file:///Users/little_beast/Revenant.AI/out/walkthroughs/camp_01KX0VPSXXZT404.storyboard.json",
-    "voice_memo_ref": "/Users/little_beast/Revenant.AI/out/voice/camp_01KX0VPSXXZT404.txt",
-    "email_subject": "EchoDesk AI: Transforming Patient Operations at Meridian Health Group",
-    "email_body": "Dear Dr. Nair,\n\nI'm reaching out to introduce EchoDesk AI, a solution designed to revolutionize patient operations. We've created a tailored walkthrough video and live prototype specifically for Meridian Health Group, showcasing how our technology can streamline processes and enhance patient care.\n\nWalkthrough Video: file:///Users/little_beast/Revenant.AI/out/walkthroughs/camp_01KX0VPSXXZT404.storyboard.json\nLive Prototype: file:///Users/little_beast/Revenant.AI/out/sites/meridianhealth_example/index.html\n\nI'd be delighted to arrange a brief call to discuss how EchoDesk AI can support your goals at Meridian Health Group. Please let me know a convenient time for you.\n\nWarm regards,\nThe EchoDesk AI Team\n\nP.S. If you'd prefer not to receive future updates, please let us know by replying to this email.",
-    "payment_link": "https://rzp.io/i/demo-SXXZT404",
+    "microsite_url": "file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/sites/northstarcommerce_example/index.html",
+    "walkthrough_url": "file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/walkthroughs/camp_01KX146FB9RC4FV.walkthrough.html",
+    "voice_memo_ref": "/Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/voice/camp_01KX146FB9RC4FV.txt",
+    "email_subject": "Built QueuePilot AI into Northstar Commerce's front desk (2-min look)",
+    "email_body": "Hi Avery Chen,\n\nI saw their public push to fix support backlog. Rather than pitch you, I had our system build a working prototype for Northstar Commerce and record a quick walkthrough of it.\n\n\u25b6 Watch the 60-sec walkthrough: file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/walkthroughs/camp_01KX146FB9RC4FV.walkthrough.html\n\ud83d\udd17 Try the live prototype: file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/sites/northstarcommerce_example/index.html\n\nCut first-response time and escalation chaos by auto-routing every inbound issue with evidence, priority, and a ready-to-send reply.\n\nIf it's useful, there's a one-click pilot on the page. If not, just reply STOP and you'll never hear from us again.\n\n\u2014 The QueuePilot AI team",
+    "payment_link": "https://rzp.io/i/demo-FB9RC4FV",
     "cost_cents": 37,
     "notes": [
-      "voice params {'stability': 0.65, 'style': 0.5, 'similarity_boost': 0.75}"
+      "voice params {'stability': 0.62, 'style': 0.48, 'similarity_boost': 0.75}"
     ],
     "cost_usd": 0.37,
     "tier": "corroborate",
-    "combined_score": 0.598,
-    "microsite_html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n  <title>EchoDesk AI \u00d7 Meridian Health Group \u2014 a working prototype</title>\n  <meta name=\"description\" content=\"Voice AI that answers every patient call so no appointment slips.\" />\n  <script src=\"https://cdn.tailwindcss.com\"></script>\n  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\" />\n  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin />\n  <link href=\"https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap\" rel=\"stylesheet\" />\n  <style>\n    :root { color-scheme: dark; --wisp:#52e0c4; --ember:#f5a623; }\n    * { font-family: 'Space Grotesk', system-ui, sans-serif; }\n    body {\n      background:\n        radial-gradient(900px 600px at 80% -10%, rgba(82,224,196,.12), transparent 60%),\n        radial-gradient(700px 500px at 0% 100%, rgba(245,166,35,.06), transparent 55%),\n        #06070d;\n      min-height: 100vh;\n    }\n    .glow { box-shadow: 0 0 90px -20px rgba(82,224,196,.45); }\n    .cite { font-size:.72rem; color:var(--wisp); font-style:italic; font-family:'JetBrains Mono',monospace; }\n    .mono { font-family:'JetBrains Mono', monospace; }\n    .grad { background:linear-gradient(180deg,#fff 0%,#cfe9e2 60%,var(--wisp) 100%); -webkit-background-clip:text; background-clip:text; color:transparent; }\n    @keyframes rise { from {opacity:0; transform:translateY(14px)} to {opacity:1; transform:none} }\n    .rise { animation: rise .7s ease both; }\n    .rise:nth-child(2){animation-delay:.08s} .rise:nth-child(3){animation-delay:.16s}\n  </style>\n</head>\n<body class=\"text-slate-100 antialiased\">\n  <!-- anonymized engagement beacon (copy / CTA / play) -->\n  <script>\n    window.__revenant = { campaign: \"camp_01KX0VPSXXZT404\" };\n    function beacon(ev){ try{ navigator.sendBeacon(\"https://perceptive-lapwing-508.convex.cloud/beacon\", JSON.stringify({c:\"camp_01KX0VPSXXZT404\",e:ev,t:Date.now()})); }catch(_){} }\n    window.addEventListener(\"load\", ()=>beacon(\"view\"));\n  </script>\n\n  <main class=\"max-w-3xl mx-auto px-6 py-16\">\n    <!-- Hero -->\n    <section class=\"rise\">\n      <p class=\"mono text-xs mb-4\" style=\"color:var(--wisp)\">\u25c6 built for Meridian Health Group \u00b7 Jul 08, 2026</p>\n      <h1 class=\"grad text-4xl md:text-6xl font-bold tracking-tight leading-[1.05]\">\n        Here are a few punchy 8-word headline options for the EchoDesk AI microsite:\n\n&#34;Cut Hold Times, Boost Patient Satisfaction with AI&#34;\n\n&#34;Slash Call Drops 22% with EchoDesk Scheduling AI&#34; \n\n&#34;Double Call Volume? AI Coordinators to the Rescue!&#34;\n\n&#34;Hire Smart, Not Hard - AI Front Desk Coordinators&#34;\n\n&#34;8 Min Hold Times? AI Slices Scheduling Backlogs&#34;\n\n&#34;EchoDesk AI: The Cure for Long Clinic Hold Times&#34;\n\n&#34;Meridian Health Doubles Down on AI Patient Scheduling&#34;\n\n&#34;AI-Powered Coordinators Prescribe Relief for Scheduling Headaches\n      </h1>\n      <p class=\"mt-6 text-lg text-slate-300 max-w-2xl\">Cut hold times to zero and recover no-show revenue with an AI receptionist that never sleeps.</p>\n    </section>\n\n    <!-- The pain, in their own words -->\n    <section class=\"mt-12 rise\">\n      <h2 class=\"text-xs uppercase tracking-widest text-slate-500 mb-3\">What we noticed</h2>\n      <blockquote class=\"pl-5 py-3 text-slate-200 italic bg-white/5 rounded-r-lg\" style=\"border-left:3px solid var(--wisp)\">\n        \u201cross our clinics. Our patient call volume has doubled and average phone\u201d\n        <div class=\"cite mt-2\">\u2014 per your job posting</div>\n      </blockquote>\n    </section>\n\n    <!-- The agent-recorded walkthrough (Loom-style) -->\n    \n    <section class=\"mt-12 rise\">\n      <h2 class=\"text-xs uppercase tracking-widest text-slate-500 mb-3\">\n        A 60-second walkthrough \u2014 recorded by an AI, not a human\n      </h2>\n      <div class=\"rounded-xl overflow-hidden glow border border-white/10 aspect-video\">\n        <iframe src=\"file:///Users/little_beast/Revenant.AI/out/walkthroughs/camp_01KX0VPSXXZT404.storyboard.json\" class=\"w-full h-full\" allow=\"autoplay; fullscreen\"\n          onclick=\"beacon('play_video')\"></iframe>\n      </div>\n    </section>\n    \n\n    <!-- The working prototype -->\n    <section class=\"mt-12 rise\">\n      <h2 class=\"text-xs uppercase tracking-widest text-slate-500 mb-3\">The prototype, live</h2>\n      <div class=\"rounded-xl border border-white/10 bg-white/5 p-6\">\n        <div class=\"text-center\"><div class=\"text-5xl mb-3\">\ud83d\udcde</div><p class=\"text-slate-200 font-medium\">Meridian Health Group \u2014 AI Front Desk</p><p class=\"text-slate-400 text-sm mt-1\">\"Thanks for calling Meridian Health Group. I can book, reschedule, or triage \u2014 how can I help?\"</p><button onclick=\"beacon('call_click')\" class=\"mt-4 bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-3 rounded-lg font-semibold\">\u25b6 Talk to the agent</button><p class=\"text-xs text-slate-600 mt-2\">answers 24/7 \u00b7 0s hold time</p></div>\n      </div>\n      <div class=\"cite mt-2\">\u2014 configured live for Meridian Health Group&#39;s front desk</div>\n    </section>\n\n    <!-- Voice memo -->\n    \n    <section class=\"mt-12 rise\">\n      <h2 class=\"text-xs uppercase tracking-widest text-slate-500 mb-3\">A note for you</h2>\n      <audio controls preload=\"none\" class=\"w-full\" onplay=\"beacon('play_audio')\">\n        <source src=\"/Users/little_beast/Revenant.AI/out/voice/camp_01KX0VPSXXZT404.txt\" type=\"audio/mpeg\" />\n      </audio>\n    </section>\n    \n\n    <!-- CTA: book a paid pilot (Razorpay) -->\n    <section class=\"mt-16 rise text-center\">\n      <a href=\"https://rzp.io/i/demo-SXXZT404\" onclick=\"beacon('cta_click')\"\n         class=\"inline-block transition font-semibold px-9 py-4 rounded-xl glow\"\n         style=\"background:linear-gradient(135deg,var(--wisp),#34b8a0);color:#04120e\">\n        Book a paid pilot \u2014 \u20b94999\n      </a>\n      <p class=\"mt-4 text-sm text-slate-500\">\n        Cut hold times to zero and recover no-show revenue with an AI receptionist that never sleeps.\n      </p>\n    </section>\n\n    <footer class=\"mt-20 pt-8 border-t border-white/10 text-xs text-slate-600\">\n      <p>Prototype auto-generated by EchoDesk AI via Revenant. Every claim above cites a\n         public source. Not affiliated with or endorsed by Meridian Health Group.</p>\n      <p class=\"mt-2\">Reply STOP to opt out \u00b7 EchoDesk AI, built with Revenant.AI</p>\n    </footer>\n  </main>\n</body>\n</html>"
+    "combined_score": 0.593,
+    "microsite_html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n  <title>QueuePilot AI \u00d7 Northstar Commerce \u2014 a working prototype</title>\n  <meta name=\"description\" content=\"AI support triage that turns messy inbound tickets into routed, prioritized work.\" />\n  <script src=\"https://cdn.tailwindcss.com\"></script>\n  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\" />\n  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin />\n  <link href=\"https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap\" rel=\"stylesheet\" />\n  <style>\n    :root { color-scheme: dark; --wisp:#52e0c4; --ember:#f5a623; }\n    * { font-family: 'Space Grotesk', system-ui, sans-serif; }\n    body {\n      background:\n        radial-gradient(900px 600px at 80% -10%, rgba(82,224,196,.12), transparent 60%),\n        radial-gradient(700px 500px at 0% 100%, rgba(245,166,35,.06), transparent 55%),\n        #06070d;\n      min-height: 100vh;\n    }\n    .glow { box-shadow: 0 0 90px -20px rgba(82,224,196,.45); }\n    .cite { font-size:.72rem; color:var(--wisp); font-style:italic; font-family:'JetBrains Mono',monospace; }\n    .mono { font-family:'JetBrains Mono', monospace; }\n    .grad { background:linear-gradient(180deg,#fff 0%,#cfe9e2 60%,var(--wisp) 100%); -webkit-background-clip:text; background-clip:text; color:transparent; }\n    @keyframes rise { from {opacity:0; transform:translateY(14px)} to {opacity:1; transform:none} }\n    .rise { animation: rise .7s ease both; }\n    .rise:nth-child(2){animation-delay:.08s} .rise:nth-child(3){animation-delay:.16s}\n  </style>\n</head>\n<body class=\"text-slate-100 antialiased\">\n  <!-- anonymized engagement beacon (copy / CTA / play) -->\n  <script>\n    window.__revenant = { campaign: \"camp_01KX146FB9RC4FV\" };\n    function beacon(ev){ try{ navigator.sendBeacon(\"/beacon\", JSON.stringify({c:\"camp_01KX146FB9RC4FV\",e:ev,t:Date.now()})); }catch(_){} }\n    window.addEventListener(\"load\", ()=>beacon(\"view\"));\n  </script>\n\n  <main class=\"max-w-3xl mx-auto px-6 py-16\">\n    <!-- Hero -->\n    <section class=\"rise\">\n      <p class=\"mono text-xs mb-4\" style=\"color:var(--wisp)\">\u25c6 built for Northstar Commerce \u00b7 Jul 08, 2026</p>\n      <h1 class=\"grad text-4xl md:text-6xl font-bold tracking-tight leading-[1.05]\">\n        We built QueuePilot AI into Northstar Commerce&#39;s front desk.\n      </h1>\n      <p class=\"mt-6 text-lg text-slate-300 max-w-2xl\">Cut first-response time and escalation chaos by auto-routing every inbound issue with evidence, priority, and a ready-to-send reply.</p>\n    </section>\n\n    <!-- The pain, in their own words -->\n    <section class=\"mt-12 rise\">\n      <h2 class=\"text-xs uppercase tracking-widest text-slate-500 mb-3\">What we noticed</h2>\n      <blockquote class=\"pl-5 py-3 text-slate-200 italic bg-white/5 rounded-r-lg\" style=\"border-left:3px solid var(--wisp)\">\n        \u201cManual ticket triage across billing, delivery, and account issues is causing SLA breach risk\u201d\n        <div class=\"cite mt-2\">\u2014 per your job posting</div>\n      </blockquote>\n    </section>\n\n    <!-- The agent-recorded walkthrough (Loom-style) -->\n    \n    <section class=\"mt-12 rise\">\n      <h2 class=\"text-xs uppercase tracking-widest text-slate-500 mb-3\">\n        A 60-second walkthrough \u2014 recorded by an AI, not a human\n      </h2>\n      <div class=\"rounded-xl overflow-hidden glow border border-white/10 aspect-video\">\n        <iframe src=\"file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/walkthroughs/camp_01KX146FB9RC4FV.walkthrough.html\" class=\"w-full h-full\" allow=\"autoplay; fullscreen\"\n          onclick=\"beacon('play_video')\"></iframe>\n      </div>\n    </section>\n    \n\n    <!-- The working prototype -->\n    <section class=\"mt-12 rise\">\n      <h2 class=\"text-xs uppercase tracking-widest text-slate-500 mb-3\">The prototype, live</h2>\n      <div class=\"rounded-xl border border-white/10 bg-white/5 p-6\">\n        \n<div id=\"qp-camp_01KX146FB9RC4FV\" class=\"qp-app\">\n  <style>\n    #qp-camp_01KX146FB9RC4FV .qp-shell { display:grid; grid-template-columns:1fr; gap:14px; }\n    #qp-camp_01KX146FB9RC4FV .qp-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; }\n    #qp-camp_01KX146FB9RC4FV .qp-title { font-weight:700; color:#f8fafc; }\n    #qp-camp_01KX146FB9RC4FV .qp-sub { color:#94a3b8; font-size:12px; margin-top:2px; }\n    #qp-camp_01KX146FB9RC4FV button { border:0; border-radius:8px; padding:10px 13px; font-weight:700; cursor:pointer; background:#52e0c4; color:#04120e; }\n    #qp-camp_01KX146FB9RC4FV button.secondary { background:rgba(148,163,184,.16); color:#dbeafe; border:1px solid rgba(148,163,184,.25); }\n    #qp-camp_01KX146FB9RC4FV .qp-grid { display:grid; grid-template-columns:1.05fr .95fr; gap:12px; }\n    #qp-camp_01KX146FB9RC4FV .qp-card { background:rgba(15,23,42,.82); border:1px solid rgba(148,163,184,.18); border-radius:8px; padding:12px; }\n    #qp-camp_01KX146FB9RC4FV .qp-ticket { display:grid; grid-template-columns:64px 1fr 92px; gap:10px; align-items:center; border-bottom:1px solid rgba(148,163,184,.12); padding:10px 0; }\n    #qp-camp_01KX146FB9RC4FV .qp-ticket:last-child { border-bottom:0; }\n    #qp-camp_01KX146FB9RC4FV .qp-tag { font:600 10px/1.2 'JetBrains Mono',monospace; text-transform:uppercase; color:#04120e; background:#fbbf24; padding:5px 7px; border-radius:999px; text-align:center; }\n    #qp-camp_01KX146FB9RC4FV .qp-tag.urgent { background:#fb7185; color:white; }\n    #qp-camp_01KX146FB9RC4FV .qp-tag.high { background:#fbbf24; }\n    #qp-camp_01KX146FB9RC4FV .qp-tag.normal { background:#52e0c4; }\n    #qp-camp_01KX146FB9RC4FV .qp-meta { color:#94a3b8; font-size:11px; margin-top:3px; }\n    #qp-camp_01KX146FB9RC4FV .qp-route { color:#bfdbfe; font:600 11px 'JetBrains Mono',monospace; }\n    #qp-camp_01KX146FB9RC4FV .qp-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }\n    #qp-camp_01KX146FB9RC4FV .qp-kpi { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:10px; }\n    #qp-camp_01KX146FB9RC4FV .qp-kpi b { display:block; color:#f8fafc; font-size:22px; line-height:1; }\n    #qp-camp_01KX146FB9RC4FV .qp-kpi span { color:#94a3b8; font-size:11px; }\n    #qp-camp_01KX146FB9RC4FV .qp-macro { white-space:pre-wrap; color:#cbd5e1; font-size:12.5px; line-height:1.55; margin:0; }\n    @media (max-width: 760px) {\n      #qp-camp_01KX146FB9RC4FV .qp-grid { grid-template-columns:1fr; }\n      #qp-camp_01KX146FB9RC4FV .qp-ticket { grid-template-columns:58px 1fr; }\n      #qp-camp_01KX146FB9RC4FV .qp-route { grid-column:2; }\n    }\n  </style>\n  <div class=\"qp-shell\">\n    <div class=\"qp-toolbar\">\n      <div>\n        <div class=\"qp-title\">Northstar Commerce Support Command Center</div>\n        <div class=\"qp-sub\">Prototype generated from public evidence. Click Run triage to classify, route, and draft replies.</div>\n      </div>\n      <div style=\"display:flex;gap:8px;flex-wrap:wrap\">\n        <button type=\"button\" onclick=\"window.qpRun_camp_01KX146FB9RC4FV()\">Run triage</button>\n        <button type=\"button\" class=\"secondary\" onclick=\"window.qpReset_camp_01KX146FB9RC4FV()\">Reset</button>\n      </div>\n    </div>\n    <div class=\"qp-grid\">\n      <div class=\"qp-card\">\n        <div class=\"qp-kpis\">\n          <div class=\"qp-kpi\"><b data-kpi=\"urgent\">0</b><span>urgent tickets</span></div>\n          <div class=\"qp-kpi\"><b data-kpi=\"sla\">0</b><span>SLA risks</span></div>\n          <div class=\"qp-kpi\"><b data-kpi=\"saved\">0m</b><span>triage time saved</span></div>\n        </div>\n        <div data-list style=\"margin-top:10px\"></div>\n      </div>\n      <div class=\"qp-card\">\n        <div class=\"qp-title\" style=\"font-size:14px\">Generated response macro</div>\n        <div class=\"qp-sub\">Personalized to the highest-risk ticket and routed owner.</div>\n        <pre data-macro class=\"qp-macro\" style=\"margin-top:12px\">Waiting for triage...</pre>\n      </div>\n    </div>\n  </div>\n  <script>\n    (() => {\n      const root = document.getElementById(\"qp-camp_01KX146FB9RC4FV\");\n      const seed = [{\"subject\": \"Enterprise account waiting on SLA response\", \"customer\": \"Avery from procurement\", \"body\": \"Hiring a Support Operations Lead to reduce our Zendesk ba\"}, {\"subject\": \"Billing issue needs routing before renewal call\", \"customer\": \"Northstar finance team\", \"body\": \"Operations Lead to reduce our Zendesk backlog. Manual ticket triage\"}, {\"subject\": \"Login and access ticket stuck in the wrong queue\", \"customer\": \"Operations manager\", \"body\": \"Hiring a Support Operations Lead to reduce our Zendesk backlog. Manual ticket triage across billing, delivery, and account issues is causing SLA breach risk and high-priority customer escalations. Experience building rou\"}, {\"subject\": \"Escalation summary needed for leadership review\", \"customer\": \"Avery Chen\", \"body\": \"Manual ticket triage across billing, delivery, and account issues is causing SLA breach risk\"}];\n      const sellerName = \"QueuePilot AI\";\n      const esc = (s) => String(s).replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[m]));\n      const classify = (t) => {\n        const text = (t.subject + \" \" + t.body).toLowerCase();\n        const urgent = /urgent|breach|down|blocked|escalat|refund|clinical|billing|security/.test(text);\n        const high = urgent || /sla|vip|enterprise|angry|login|payment|delivery/.test(text);\n        const route = /bill|payment|refund|invoice/.test(text) ? \"Billing Ops\"\n          : /login|bug|api|error|down|integration/.test(text) ? \"Technical Support\"\n          : /delivery|shipment|appointment|schedule/.test(text) ? \"Operations\"\n          : \"Customer Success\";\n        const macro = `Hi ${t.customer},\\n\\nI found the issue and routed it to ${route} with ${high ? \"high\" : \"normal\"} priority. We are tracking it against the current SLA and I will keep this thread updated with the next concrete action.\\n\\nContext captured: ${t.body.slice(0, 150)}...\\n\\n- ${sellerName}`;\n        return {...t, priority: urgent ? \"urgent\" : high ? \"high\" : \"normal\", route, sla: urgent || /sla|breach/.test(text), macro};\n      };\n      const render = (rows, done=false) => {\n        root.querySelector(\"[data-list]\").innerHTML = rows.map(t => `\n          <div class=\"qp-ticket\">\n            <div class=\"qp-tag ${done ? t.priority : \"normal\"}\">${done ? t.priority : \"new\"}</div>\n            <div>\n              <div style=\"color:#f8fafc;font-weight:650\">${esc(t.subject)}</div>\n              <div class=\"qp-meta\">${esc(t.customer)} \u00b7 ${esc(t.body.slice(0, 96))}</div>\n            </div>\n            <div class=\"qp-route\">${done ? esc(t.route) : \"unrouted\"}</div>\n          </div>`).join(\"\");\n        if (done) {\n          const urgent = rows.filter(t => t.priority === \"urgent\").length;\n          root.querySelector('[data-kpi=\"urgent\"]').textContent = urgent;\n          root.querySelector('[data-kpi=\"sla\"]').textContent = rows.filter(t => t.sla).length;\n          root.querySelector('[data-kpi=\"saved\"]').textContent = `${rows.length * 7}m`;\n          root.querySelector(\"[data-macro]\").textContent = rows.find(t => t.priority === \"urgent\")?.macro || rows[0].macro;\n        } else {\n          root.querySelector('[data-kpi=\"urgent\"]').textContent = \"0\";\n          root.querySelector('[data-kpi=\"sla\"]').textContent = \"0\";\n          root.querySelector('[data-kpi=\"saved\"]').textContent = \"0m\";\n          root.querySelector(\"[data-macro]\").textContent = \"Waiting for triage...\";\n        }\n      };\n      window.qpRun_camp_01KX146FB9RC4FV = () => render(seed.map(classify), true);\n      window.qpReset_camp_01KX146FB9RC4FV = () => render(seed, false);\n      render(seed, false);\n    })();\n  </script>\n</div>\n\n      </div>\n      <div class=\"cite mt-2\">\u2014 live triage workspace generated from Northstar Commerce&#39;s public support signals</div>\n    </section>\n\n    <!-- Voice memo -->\n    \n    <section class=\"mt-12 rise\">\n      <h2 class=\"text-xs uppercase tracking-widest text-slate-500 mb-3\">A note for you</h2>\n      <audio controls preload=\"none\" class=\"w-full\" onplay=\"beacon('play_audio')\">\n        <source src=\"/Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/voice/camp_01KX146FB9RC4FV.txt\" type=\"audio/mpeg\" />\n      </audio>\n    </section>\n    \n\n    <!-- CTA: book a paid pilot (Razorpay) -->\n    <section class=\"mt-16 rise text-center\">\n      <a href=\"https://rzp.io/i/demo-FB9RC4FV\" onclick=\"beacon('cta_click')\"\n         class=\"inline-block transition font-semibold px-9 py-4 rounded-xl glow\"\n         style=\"background:linear-gradient(135deg,var(--wisp),#34b8a0);color:#04120e\">\n        Book a paid pilot \u2014 \u20b97999\n      </a>\n      <p class=\"mt-4 text-sm text-slate-500\">\n        Cut first-response time and escalation chaos by auto-routing every inbound issue with evidence, priority, and a ready-to-send reply.\n      </p>\n    </section>\n\n    <footer class=\"mt-20 pt-8 border-t border-white/10 text-xs text-slate-600\">\n      <p>Prototype auto-generated by QueuePilot AI via Revenant. Every claim above cites a\n         public source. Not affiliated with or endorsed by Northstar Commerce.</p>\n      <p class=\"mt-2\">Reply STOP to opt out \u00b7 QueuePilot AI, built with Revenant.AI</p>\n    </footer>\n  </main>\n</body>\n</html>"
   },
   {
-    "id": "camp_01KX0VQS5383QTV",
-    "seller_id": "sel_01KX0VPSJ5EK7RB",
+    "id": "camp_01KX146FBYVSA25",
+    "seller_id": "sel_01KX146FB6AH5E0",
     "lead": {
-      "id": "lead_01KX0VPSXXJ3DCP",
-      "seller_id": "sel_01KX0VPSJ5EK7RB",
-      "company_name": "BrightSmile Dental Partners",
-      "company_domain": "brightsmile.example",
-      "person_name": "Marcus Feld",
-      "person_title": "Director of Operations",
-      "job_description": "Seeking a patient coordinator. Our receptionist hiring can't keep up with call volume; front desk is overwhelmed and patients wait on hold. Looking to reduce appointment scheduling backlog.",
+      "id": "lead_01KX146FB9A9JKS",
+      "seller_id": "sel_01KX146FB6AH5E0",
+      "company_name": "MedRoute Labs",
+      "company_domain": "medroute.example",
+      "person_name": "Nina Patel",
+      "person_title": "Director of Patient Support",
+      "job_description": "We need a Customer Support Manager to handle rising patient portal volume. The team is manually routing login, prescription, and billing tickets, and urgent clinical escalations can sit in the wrong queue. Intercom, SLA reporting, and escalation workflow experience preferred.",
       "score": {
-        "jd_confidence": 0.6,
-        "careers_score": 0.6,
+        "jd_confidence": 0.8,
+        "careers_score": 0.72,
         "github_score": 0.0,
-        "status_score": 0.0,
-        "eng_blog_score": 0.0,
-        "combined": 0.36,
-        "tier": "warm_only",
+        "status_score": 0.25,
+        "eng_blog_score": 0.2,
+        "combined": 0.55,
+        "tier": "corroborate",
         "evidence": [
           {
-            "id": "ev_01KX0VQSM17SBA1",
+            "id": "ev_01KX146FBZKP9EE",
             "source": "jd",
             "url": "",
-            "excerpt": "ist hiring can't keep up with call volume; front desk is overwhelmed an",
+            "excerpt": "We need a Customer Support Manager to handle rising pati",
             "weight": 0.3
           },
           {
-            "id": "ev_01KX0VPSXX70HDY",
+            "id": "ev_01KX146FBZG2RMA",
             "source": "jd",
-            "url": "https://brightsmile.example/jobs/pc",
-            "excerpt": "front desk is overwhelmed and patients wait on hold",
+            "url": "",
+            "excerpt": "s can sit in the wrong queue. Intercom, SLA reporting, and escalatio",
+            "weight": 0.2
+          },
+          {
+            "id": "ev_01KX146FB9GN9EA",
+            "source": "careers",
+            "url": "https://medroute.example/careers/support-manager",
+            "excerpt": "manually routing login, prescription, and billing tickets",
             "weight": 0.3
+          },
+          {
+            "id": "ev_01KX146FB9ZAR5X",
+            "source": "careers",
+            "url": "https://medroute.example/careers/support-manager",
+            "excerpt": "urgent clinical escalations can sit in the wrong queue",
+            "weight": 0.35
           }
         ]
       }
     },
     "persona": {
-      "name": "Marcus Feld",
-      "title": "Director of Operations",
-      "casual_formal": 0.6,
-      "technical_strategic": 0.4,
-      "warm_blunt": 0.5,
+      "name": "Nina Patel",
+      "title": "Director of Patient Support",
+      "casual_formal": 0.65,
+      "technical_strategic": 0.6,
+      "warm_blunt": 0.45,
       "references": [
-        "BrightSmile Dental Partners' mission to provide high-quality, accessible dental care",
-        "The critical role of efficient patient coordination in dental practice operations",
-        "BrightSmile's commitment to reducing patient wait times and improving the appointment scheduling process"
+        "their public push to fix support backlog"
       ],
       "vocabulary": [
-        "patient coordinator",
-        "dental practice",
-        "appointment scheduling",
-        "front desk",
-        "call volume",
-        "patient wait times",
-        "operational efficiency"
+        "support backlog",
+        "ticket triage",
+        "SLA breach",
+        "manual routing",
+        "Zendesk backlog"
       ]
     },
-    "state": "warm_only",
-    "artifacts": [],
-    "microsite_url": "",
-    "walkthrough_url": "",
-    "voice_memo_ref": "",
-    "email_subject": "EchoDesk AI: Automate your patient communication at BrightSmile",
-    "email_body": "Hi Marcus,\n\nI noticed BrightSmile Dental Partners could benefit from automating patient communication. EchoDesk AI handles appointment reminders, follow-ups, and reviews on autopilot.\n\nSee it in action: [walkthrough video]\nTry the live prototype: [live prototype]\n\nWould you be open to a 10-minute demo next week to explore how this could work for your clinics?\n\nBest,\n[Your Name]\nFounder, EchoDesk AI\n\nP.S. If you're not the right person for this, I'd appreciate it if you could point me in the right direction. And if you'd prefer not to receive these emails, just let me know.",
-    "payment_link": "",
-    "cost_cents": 1,
-    "notes": [],
-    "cost_usd": 0.01,
-    "tier": "warm_only",
-    "combined_score": 0.36,
-    "microsite_html": ""
+    "state": "awaiting_review",
+    "artifacts": [
+      {
+        "id": "art_01KX146FC2CZ1Z9",
+        "kind": "code",
+        "storage_ref": "inline://support-triage/camp_01KX146FBYVSA25",
+        "checksum": "5fdc4a0e141c77c2",
+        "verified": true,
+        "meta": {
+          "runtime": "browser",
+          "prototype": "support_triage"
+        }
+      },
+      {
+        "id": "art_01KX146FC3ANS1A",
+        "kind": "site",
+        "storage_ref": "out/sites/medroute_example/index.html",
+        "checksum": "439a55868212a7ad",
+        "verified": true,
+        "meta": {
+          "headline": "We built QueuePilot AI into MedRoute Labs's front desk.",
+          "url": "file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/sites/medroute_example/index.html"
+        }
+      },
+      {
+        "id": "art_01KX146FC8YWMVK",
+        "kind": "walkthrough",
+        "storage_ref": "file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/walkthroughs/camp_01KX146FBYVSA25.walkthrough.html",
+        "checksum": "",
+        "verified": true,
+        "meta": {
+          "beats": 5,
+          "seconds": 29.7
+        }
+      },
+      {
+        "id": "art_01KX146FCBD56W0",
+        "kind": "site",
+        "storage_ref": "out/sites/medroute_example/index.html",
+        "checksum": "fbcc4d4bbd39b31e",
+        "verified": true,
+        "meta": {
+          "headline": "We built QueuePilot AI into MedRoute Labs's front desk."
+        }
+      }
+    ],
+    "microsite_url": "file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/sites/medroute_example/index.html",
+    "walkthrough_url": "file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/walkthroughs/camp_01KX146FBYVSA25.walkthrough.html",
+    "voice_memo_ref": "/Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/voice/camp_01KX146FBYVSA25.txt",
+    "email_subject": "Built QueuePilot AI into MedRoute Labs's front desk (2-min look)",
+    "email_body": "Hi Nina Patel,\n\nI saw their public push to fix support backlog. Rather than pitch you, I had our system build a working prototype for MedRoute Labs and record a quick walkthrough of it.\n\n\u25b6 Watch the 60-sec walkthrough: file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/walkthroughs/camp_01KX146FBYVSA25.walkthrough.html\n\ud83d\udd17 Try the live prototype: file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/sites/medroute_example/index.html\n\nCut first-response time and escalation chaos by auto-routing every inbound issue with evidence, priority, and a ready-to-send reply.\n\nIf it's useful, there's a one-click pilot on the page. If not, just reply STOP and you'll never hear from us again.\n\n\u2014 The QueuePilot AI team",
+    "payment_link": "https://rzp.io/i/demo-FBYVSA25",
+    "cost_cents": 37,
+    "notes": [
+      "voice params {'stability': 0.62, 'style': 0.48, 'similarity_boost': 0.75}"
+    ],
+    "cost_usd": 0.37,
+    "tier": "corroborate",
+    "combined_score": 0.55,
+    "microsite_html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n  <title>QueuePilot AI \u00d7 MedRoute Labs \u2014 a working prototype</title>\n  <meta name=\"description\" content=\"AI support triage that turns messy inbound tickets into routed, prioritized work.\" />\n  <script src=\"https://cdn.tailwindcss.com\"></script>\n  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\" />\n  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin />\n  <link href=\"https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap\" rel=\"stylesheet\" />\n  <style>\n    :root { color-scheme: dark; --wisp:#52e0c4; --ember:#f5a623; }\n    * { font-family: 'Space Grotesk', system-ui, sans-serif; }\n    body {\n      background:\n        radial-gradient(900px 600px at 80% -10%, rgba(82,224,196,.12), transparent 60%),\n        radial-gradient(700px 500px at 0% 100%, rgba(245,166,35,.06), transparent 55%),\n        #06070d;\n      min-height: 100vh;\n    }\n    .glow { box-shadow: 0 0 90px -20px rgba(82,224,196,.45); }\n    .cite { font-size:.72rem; color:var(--wisp); font-style:italic; font-family:'JetBrains Mono',monospace; }\n    .mono { font-family:'JetBrains Mono', monospace; }\n    .grad { background:linear-gradient(180deg,#fff 0%,#cfe9e2 60%,var(--wisp) 100%); -webkit-background-clip:text; background-clip:text; color:transparent; }\n    @keyframes rise { from {opacity:0; transform:translateY(14px)} to {opacity:1; transform:none} }\n    .rise { animation: rise .7s ease both; }\n    .rise:nth-child(2){animation-delay:.08s} .rise:nth-child(3){animation-delay:.16s}\n  </style>\n</head>\n<body class=\"text-slate-100 antialiased\">\n  <!-- anonymized engagement beacon (copy / CTA / play) -->\n  <script>\n    window.__revenant = { campaign: \"camp_01KX146FBYVSA25\" };\n    function beacon(ev){ try{ navigator.sendBeacon(\"/beacon\", JSON.stringify({c:\"camp_01KX146FBYVSA25\",e:ev,t:Date.now()})); }catch(_){} }\n    window.addEventListener(\"load\", ()=>beacon(\"view\"));\n  </script>\n\n  <main class=\"max-w-3xl mx-auto px-6 py-16\">\n    <!-- Hero -->\n    <section class=\"rise\">\n      <p class=\"mono text-xs mb-4\" style=\"color:var(--wisp)\">\u25c6 built for MedRoute Labs \u00b7 Jul 08, 2026</p>\n      <h1 class=\"grad text-4xl md:text-6xl font-bold tracking-tight leading-[1.05]\">\n        We built QueuePilot AI into MedRoute Labs&#39;s front desk.\n      </h1>\n      <p class=\"mt-6 text-lg text-slate-300 max-w-2xl\">Cut first-response time and escalation chaos by auto-routing every inbound issue with evidence, priority, and a ready-to-send reply.</p>\n    </section>\n\n    <!-- The pain, in their own words -->\n    <section class=\"mt-12 rise\">\n      <h2 class=\"text-xs uppercase tracking-widest text-slate-500 mb-3\">What we noticed</h2>\n      <blockquote class=\"pl-5 py-3 text-slate-200 italic bg-white/5 rounded-r-lg\" style=\"border-left:3px solid var(--wisp)\">\n        \u201curgent clinical escalations can sit in the wrong queue\u201d\n        <div class=\"cite mt-2\">\u2014 per your careers page</div>\n      </blockquote>\n    </section>\n\n    <!-- The agent-recorded walkthrough (Loom-style) -->\n    \n    <section class=\"mt-12 rise\">\n      <h2 class=\"text-xs uppercase tracking-widest text-slate-500 mb-3\">\n        A 60-second walkthrough \u2014 recorded by an AI, not a human\n      </h2>\n      <div class=\"rounded-xl overflow-hidden glow border border-white/10 aspect-video\">\n        <iframe src=\"file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/walkthroughs/camp_01KX146FBYVSA25.walkthrough.html\" class=\"w-full h-full\" allow=\"autoplay; fullscreen\"\n          onclick=\"beacon('play_video')\"></iframe>\n      </div>\n    </section>\n    \n\n    <!-- The working prototype -->\n    <section class=\"mt-12 rise\">\n      <h2 class=\"text-xs uppercase tracking-widest text-slate-500 mb-3\">The prototype, live</h2>\n      <div class=\"rounded-xl border border-white/10 bg-white/5 p-6\">\n        \n<div id=\"qp-camp_01KX146FBYVSA25\" class=\"qp-app\">\n  <style>\n    #qp-camp_01KX146FBYVSA25 .qp-shell { display:grid; grid-template-columns:1fr; gap:14px; }\n    #qp-camp_01KX146FBYVSA25 .qp-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; }\n    #qp-camp_01KX146FBYVSA25 .qp-title { font-weight:700; color:#f8fafc; }\n    #qp-camp_01KX146FBYVSA25 .qp-sub { color:#94a3b8; font-size:12px; margin-top:2px; }\n    #qp-camp_01KX146FBYVSA25 button { border:0; border-radius:8px; padding:10px 13px; font-weight:700; cursor:pointer; background:#52e0c4; color:#04120e; }\n    #qp-camp_01KX146FBYVSA25 button.secondary { background:rgba(148,163,184,.16); color:#dbeafe; border:1px solid rgba(148,163,184,.25); }\n    #qp-camp_01KX146FBYVSA25 .qp-grid { display:grid; grid-template-columns:1.05fr .95fr; gap:12px; }\n    #qp-camp_01KX146FBYVSA25 .qp-card { background:rgba(15,23,42,.82); border:1px solid rgba(148,163,184,.18); border-radius:8px; padding:12px; }\n    #qp-camp_01KX146FBYVSA25 .qp-ticket { display:grid; grid-template-columns:64px 1fr 92px; gap:10px; align-items:center; border-bottom:1px solid rgba(148,163,184,.12); padding:10px 0; }\n    #qp-camp_01KX146FBYVSA25 .qp-ticket:last-child { border-bottom:0; }\n    #qp-camp_01KX146FBYVSA25 .qp-tag { font:600 10px/1.2 'JetBrains Mono',monospace; text-transform:uppercase; color:#04120e; background:#fbbf24; padding:5px 7px; border-radius:999px; text-align:center; }\n    #qp-camp_01KX146FBYVSA25 .qp-tag.urgent { background:#fb7185; color:white; }\n    #qp-camp_01KX146FBYVSA25 .qp-tag.high { background:#fbbf24; }\n    #qp-camp_01KX146FBYVSA25 .qp-tag.normal { background:#52e0c4; }\n    #qp-camp_01KX146FBYVSA25 .qp-meta { color:#94a3b8; font-size:11px; margin-top:3px; }\n    #qp-camp_01KX146FBYVSA25 .qp-route { color:#bfdbfe; font:600 11px 'JetBrains Mono',monospace; }\n    #qp-camp_01KX146FBYVSA25 .qp-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }\n    #qp-camp_01KX146FBYVSA25 .qp-kpi { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:10px; }\n    #qp-camp_01KX146FBYVSA25 .qp-kpi b { display:block; color:#f8fafc; font-size:22px; line-height:1; }\n    #qp-camp_01KX146FBYVSA25 .qp-kpi span { color:#94a3b8; font-size:11px; }\n    #qp-camp_01KX146FBYVSA25 .qp-macro { white-space:pre-wrap; color:#cbd5e1; font-size:12.5px; line-height:1.55; margin:0; }\n    @media (max-width: 760px) {\n      #qp-camp_01KX146FBYVSA25 .qp-grid { grid-template-columns:1fr; }\n      #qp-camp_01KX146FBYVSA25 .qp-ticket { grid-template-columns:58px 1fr; }\n      #qp-camp_01KX146FBYVSA25 .qp-route { grid-column:2; }\n    }\n  </style>\n  <div class=\"qp-shell\">\n    <div class=\"qp-toolbar\">\n      <div>\n        <div class=\"qp-title\">MedRoute Labs Support Command Center</div>\n        <div class=\"qp-sub\">Prototype generated from public evidence. Click Run triage to classify, route, and draft replies.</div>\n      </div>\n      <div style=\"display:flex;gap:8px;flex-wrap:wrap\">\n        <button type=\"button\" onclick=\"window.qpRun_camp_01KX146FBYVSA25()\">Run triage</button>\n        <button type=\"button\" class=\"secondary\" onclick=\"window.qpReset_camp_01KX146FBYVSA25()\">Reset</button>\n      </div>\n    </div>\n    <div class=\"qp-grid\">\n      <div class=\"qp-card\">\n        <div class=\"qp-kpis\">\n          <div class=\"qp-kpi\"><b data-kpi=\"urgent\">0</b><span>urgent tickets</span></div>\n          <div class=\"qp-kpi\"><b data-kpi=\"sla\">0</b><span>SLA risks</span></div>\n          <div class=\"qp-kpi\"><b data-kpi=\"saved\">0m</b><span>triage time saved</span></div>\n        </div>\n        <div data-list style=\"margin-top:10px\"></div>\n      </div>\n      <div class=\"qp-card\">\n        <div class=\"qp-title\" style=\"font-size:14px\">Generated response macro</div>\n        <div class=\"qp-sub\">Personalized to the highest-risk ticket and routed owner.</div>\n        <pre data-macro class=\"qp-macro\" style=\"margin-top:12px\">Waiting for triage...</pre>\n      </div>\n    </div>\n  </div>\n  <script>\n    (() => {\n      const root = document.getElementById(\"qp-camp_01KX146FBYVSA25\");\n      const seed = [{\"subject\": \"Enterprise account waiting on SLA response\", \"customer\": \"Avery from procurement\", \"body\": \"We need a Customer Support Manager to handle rising pati\"}, {\"subject\": \"Billing issue needs routing before renewal call\", \"customer\": \"MedRoute finance team\", \"body\": \"s can sit in the wrong queue. Intercom, SLA reporting, and escalatio\"}, {\"subject\": \"Login and access ticket stuck in the wrong queue\", \"customer\": \"Operations manager\", \"body\": \"We need a Customer Support Manager to handle rising patient portal volume. The team is manually routing login, prescription, and billing tickets, and urgent clinical escalations can sit in the wrong queue. Intercom, SLA \"}, {\"subject\": \"Escalation summary needed for leadership review\", \"customer\": \"Nina Patel\", \"body\": \"urgent clinical escalations can sit in the wrong queue\"}];\n      const sellerName = \"QueuePilot AI\";\n      const esc = (s) => String(s).replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[m]));\n      const classify = (t) => {\n        const text = (t.subject + \" \" + t.body).toLowerCase();\n        const urgent = /urgent|breach|down|blocked|escalat|refund|clinical|billing|security/.test(text);\n        const high = urgent || /sla|vip|enterprise|angry|login|payment|delivery/.test(text);\n        const route = /bill|payment|refund|invoice/.test(text) ? \"Billing Ops\"\n          : /login|bug|api|error|down|integration/.test(text) ? \"Technical Support\"\n          : /delivery|shipment|appointment|schedule/.test(text) ? \"Operations\"\n          : \"Customer Success\";\n        const macro = `Hi ${t.customer},\\n\\nI found the issue and routed it to ${route} with ${high ? \"high\" : \"normal\"} priority. We are tracking it against the current SLA and I will keep this thread updated with the next concrete action.\\n\\nContext captured: ${t.body.slice(0, 150)}...\\n\\n- ${sellerName}`;\n        return {...t, priority: urgent ? \"urgent\" : high ? \"high\" : \"normal\", route, sla: urgent || /sla|breach/.test(text), macro};\n      };\n      const render = (rows, done=false) => {\n        root.querySelector(\"[data-list]\").innerHTML = rows.map(t => `\n          <div class=\"qp-ticket\">\n            <div class=\"qp-tag ${done ? t.priority : \"normal\"}\">${done ? t.priority : \"new\"}</div>\n            <div>\n              <div style=\"color:#f8fafc;font-weight:650\">${esc(t.subject)}</div>\n              <div class=\"qp-meta\">${esc(t.customer)} \u00b7 ${esc(t.body.slice(0, 96))}</div>\n            </div>\n            <div class=\"qp-route\">${done ? esc(t.route) : \"unrouted\"}</div>\n          </div>`).join(\"\");\n        if (done) {\n          const urgent = rows.filter(t => t.priority === \"urgent\").length;\n          root.querySelector('[data-kpi=\"urgent\"]').textContent = urgent;\n          root.querySelector('[data-kpi=\"sla\"]').textContent = rows.filter(t => t.sla).length;\n          root.querySelector('[data-kpi=\"saved\"]').textContent = `${rows.length * 7}m`;\n          root.querySelector(\"[data-macro]\").textContent = rows.find(t => t.priority === \"urgent\")?.macro || rows[0].macro;\n        } else {\n          root.querySelector('[data-kpi=\"urgent\"]').textContent = \"0\";\n          root.querySelector('[data-kpi=\"sla\"]').textContent = \"0\";\n          root.querySelector('[data-kpi=\"saved\"]').textContent = \"0m\";\n          root.querySelector(\"[data-macro]\").textContent = \"Waiting for triage...\";\n        }\n      };\n      window.qpRun_camp_01KX146FBYVSA25 = () => render(seed.map(classify), true);\n      window.qpReset_camp_01KX146FBYVSA25 = () => render(seed, false);\n      render(seed, false);\n    })();\n  </script>\n</div>\n\n      </div>\n      <div class=\"cite mt-2\">\u2014 live triage workspace generated from MedRoute Labs&#39;s public support signals</div>\n    </section>\n\n    <!-- Voice memo -->\n    \n    <section class=\"mt-12 rise\">\n      <h2 class=\"text-xs uppercase tracking-widest text-slate-500 mb-3\">A note for you</h2>\n      <audio controls preload=\"none\" class=\"w-full\" onplay=\"beacon('play_audio')\">\n        <source src=\"/Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/voice/camp_01KX146FBYVSA25.txt\" type=\"audio/mpeg\" />\n      </audio>\n    </section>\n    \n\n    <!-- CTA: book a paid pilot (Razorpay) -->\n    <section class=\"mt-16 rise text-center\">\n      <a href=\"https://rzp.io/i/demo-FBYVSA25\" onclick=\"beacon('cta_click')\"\n         class=\"inline-block transition font-semibold px-9 py-4 rounded-xl glow\"\n         style=\"background:linear-gradient(135deg,var(--wisp),#34b8a0);color:#04120e\">\n        Book a paid pilot \u2014 \u20b97999\n      </a>\n      <p class=\"mt-4 text-sm text-slate-500\">\n        Cut first-response time and escalation chaos by auto-routing every inbound issue with evidence, priority, and a ready-to-send reply.\n      </p>\n    </section>\n\n    <footer class=\"mt-20 pt-8 border-t border-white/10 text-xs text-slate-600\">\n      <p>Prototype auto-generated by QueuePilot AI via Revenant. Every claim above cites a\n         public source. Not affiliated with or endorsed by MedRoute Labs.</p>\n      <p class=\"mt-2\">Reply STOP to opt out \u00b7 QueuePilot AI, built with Revenant.AI</p>\n    </footer>\n  </main>\n</body>\n</html>"
   },
   {
-    "id": "camp_01KX0VR4HSH86FT",
-    "seller_id": "sel_01KX0VPSJ5EK7RB",
+    "id": "camp_01KX146FCE35CYG",
+    "seller_id": "sel_01KX146FB6AH5E0",
     "lead": {
-      "id": "lead_01KX0VPSXXV1FQC",
-      "seller_id": "sel_01KX0VPSJ5EK7RB",
-      "company_name": "Cloudleaf Analytics",
-      "company_domain": "cloudleaf.example",
-      "person_name": "Jenna Ruiz",
-      "person_title": "People Ops Lead",
-      "job_description": "Looking for a passionate, fast-paced office administrator and team player with excellent communication to support our growing startup. Wear many hats, proactive self-starter.",
+      "id": "lead_01KX146FB9DNGPS",
+      "seller_id": "sel_01KX146FB6AH5E0",
+      "company_name": "Bluebird Studio",
+      "company_domain": "bluebirdstudio.example",
+      "person_name": "Mara Ortiz",
+      "person_title": "People Operations",
+      "job_description": "Looking for an enthusiastic office coordinator and team player. Must be passionate, proactive, fast-paced, and comfortable wearing many hats while supporting a collaborative culture.",
       "score": {
         "jd_confidence": 0.15,
         "careers_score": 0.1,
@@ -242,149 +304,242 @@ export const DEMO_CAMPAIGNS: Campaign[] = [
 
 export const DEMO_EVENTS: MissionEvent[] = [
   {
-    "id": "ev_01KX0VPSXWHECBV",
-    "at": 0.5,
-    "act": 2,
-    "agent": "Detective",
+    "id": "ev_01KX146FB8XET95",
+    "at": 2.6,
+    "act": 1,
+    "agent": "Human SDR",
     "kind": "info",
-    "message": "03:00 \u2014 the office is dark. Waking up with one directive: find companies leaking the pain EchoDesk AI solves.",
+    "message": "Traditional path for QueuePilot AI: SDRs scrape lists, guess at pain, send generic emails, then wait days for a sales engineer to build a custom demo.",
     "campaign_id": "",
     "company": "",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VPSXWBH21M",
-    "at": 2.1,
-    "act": 2,
-    "agent": "Detective",
-    "kind": "info",
-    "message": "Profiling the seller: Voice AI that answers every patient call so no appointment slips. ICP \u2192 Multi-location clinics, dental groups, and hospital networks drowning in front-desk call volume and appointment no-shows.",
+    "id": "ev_01KX146FB8DERKZ",
+    "at": 5.0,
+    "act": 1,
+    "agent": "Human SDR",
+    "kind": "alert",
+    "message": "Bottleneck detected: research, personalization, prototype engineering, and follow-up all depend on humans moving one account at a time.",
     "campaign_id": "",
     "company": "",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VPSXWF404P",
-    "at": 3.2,
-    "act": 2,
-    "agent": "Detective",
-    "kind": "query",
-    "message": "Formulating forensic query \u2192 \"front desk call volume\" \u2229 hiring signals \u2229 status pages \u2229 careers boards",
+    "id": "ev_01KX146FB89Q1GQ",
+    "at": 7.4,
+    "act": 1,
+    "agent": "Human SDR",
+    "kind": "state",
+    "message": "Control passes to the autonomous agent network. The company sleeps; the pipeline starts working at 03:00.",
     "campaign_id": "",
     "company": "",
-    "payload": {}
-  },
-  {
-    "id": "ev_01KX0VPSXW0GBJE",
-    "at": 4.3,
-    "act": 2,
-    "agent": "Detective",
-    "kind": "query",
-    "message": "Formulating forensic query \u2192 \"patient wait time\" \u2229 hiring signals \u2229 status pages \u2229 careers boards",
-    "campaign_id": "",
-    "company": "",
-    "payload": {}
-  },
-  {
-    "id": "ev_01KX0VPSXWY686V",
-    "at": 5.4,
-    "act": 2,
-    "agent": "Detective",
-    "kind": "query",
-    "message": "Formulating forensic query \u2192 \"appointment scheduling backlog\" \u2229 hiring signals \u2229 status pages \u2229 careers boards",
-    "campaign_id": "",
-    "company": "",
-    "payload": {}
-  },
-  {
-    "id": "ev_01KX0VPSXWW88G2",
-    "at": 6.5,
-    "act": 2,
-    "agent": "Detective",
-    "kind": "query",
-    "message": "Formulating forensic query \u2192 \"call drop rate\" \u2229 hiring signals \u2229 status pages \u2229 careers boards",
-    "campaign_id": "",
-    "company": "",
-    "payload": {}
-  },
-  {
-    "id": "ev_01KX0VPSXX2X5WG",
-    "at": 8.3,
-    "act": 2,
-    "agent": "Detective",
-    "kind": "info",
-    "message": "Candidate surfaced: Meridian Health Group (meridianhealth.example) \u2014 Dr. Priya Nair, VP of Patient Operations",
-    "campaign_id": "",
-    "company": "Meridian Health Group",
-    "payload": {}
-  },
-  {
-    "id": "ev_01KX0VPSXX9NYNM",
-    "at": 10.2,
-    "act": 2,
-    "agent": "Truth Ledger",
-    "kind": "evidence",
-    "message": "Grounding verbatim evidence [careers] \u2014 \"Hiring 4 front-desk coordinators across our clinics\"",
-    "campaign_id": "",
-    "company": "Meridian Health Group",
     "payload": {
-      "source": "careers",
-      "url": "https://meridianhealth.example/careers"
+      "state": "handoff_to_agents"
     }
   },
   {
-    "id": "ev_01KX0VPSXXWJX0T",
-    "at": 12.1,
+    "id": "ev_01KX146FB8GGTSH",
+    "at": 7.9,
     "act": 2,
-    "agent": "Truth Ledger",
-    "kind": "evidence",
-    "message": "Grounding verbatim evidence [jd] \u2014 \"average phone hold time is now over 8 minutes, driving a 22% call drop rate\"",
+    "agent": "Detective",
+    "kind": "info",
+    "message": "03:00 \u2014 the office is dark. Waking up with one directive: find companies leaking the pain QueuePilot AI solves.",
     "campaign_id": "",
-    "company": "Meridian Health Group",
-    "payload": {
-      "source": "jd",
-      "url": "https://meridianhealth.example/careers/fd-1"
-    }
+    "company": "",
+    "payload": {}
   },
   {
-    "id": "ev_01KX0VPSXX0TDSF",
+    "id": "ev_01KX146FB8JF9KR",
+    "at": 9.5,
+    "act": 2,
+    "agent": "Detective",
+    "kind": "info",
+    "message": "Profiling the seller: AI support triage that turns messy inbound tickets into routed, prioritized work. ICP \u2192 B2B SaaS, marketplaces, healthcare ops, fintech, devtools, and ecommerce teams with growing customer support volume, manual ticket routing, SLA risk, or Zendesk/Intercom backlog pressure.",
+    "campaign_id": "",
+    "company": "",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FB838Q7W",
+    "at": 10.6,
+    "act": 2,
+    "agent": "Detective",
+    "kind": "query",
+    "message": "Formulating forensic query \u2192 \"support backlog\" \u2229 hiring signals \u2229 status pages \u2229 careers boards",
+    "campaign_id": "",
+    "company": "",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FB8ADWTR",
+    "at": 11.7,
+    "act": 2,
+    "agent": "Detective",
+    "kind": "query",
+    "message": "Formulating forensic query \u2192 \"ticket triage\" \u2229 hiring signals \u2229 status pages \u2229 careers boards",
+    "campaign_id": "",
+    "company": "",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FB8Y2EYF",
+    "at": 12.8,
+    "act": 2,
+    "agent": "Detective",
+    "kind": "query",
+    "message": "Formulating forensic query \u2192 \"SLA breach\" \u2229 hiring signals \u2229 status pages \u2229 careers boards",
+    "campaign_id": "",
+    "company": "",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FB8WRMH8",
     "at": 13.9,
     "act": 2,
     "agent": "Detective",
-    "kind": "info",
-    "message": "Candidate surfaced: BrightSmile Dental Partners (brightsmile.example) \u2014 Marcus Feld, Director of Operations",
+    "kind": "query",
+    "message": "Formulating forensic query \u2192 \"manual routing\" \u2229 hiring signals \u2229 status pages \u2229 careers boards",
     "campaign_id": "",
-    "company": "BrightSmile Dental Partners",
+    "company": "",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VPSXXWTSKX",
-    "at": 15.8,
+    "id": "ev_01KX146FB8NGQKS",
+    "at": 15.0,
     "act": 2,
-    "agent": "Truth Ledger",
-    "kind": "evidence",
-    "message": "Grounding verbatim evidence [jd] \u2014 \"front desk is overwhelmed and patients wait on hold\"",
+    "agent": "Detective",
+    "kind": "query",
+    "message": "Formulating forensic query \u2192 \"customer operations\" \u2229 hiring signals \u2229 status pages \u2229 careers boards",
     "campaign_id": "",
-    "company": "BrightSmile Dental Partners",
-    "payload": {
-      "source": "jd",
-      "url": "https://brightsmile.example/jobs/pc"
-    }
+    "company": "",
+    "payload": {}
   },
   {
-    "id": "ev_01KX0VPSXXF45XM",
-    "at": 17.6,
+    "id": "ev_01KX146FB872R6V",
+    "at": 16.1,
+    "act": 2,
+    "agent": "Detective",
+    "kind": "query",
+    "message": "Formulating forensic query \u2192 \"customer support\" \u2229 hiring signals \u2229 status pages \u2229 careers boards",
+    "campaign_id": "",
+    "company": "",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FB8B66R2",
+    "at": 17.2,
+    "act": 2,
+    "agent": "Detective",
+    "kind": "query",
+    "message": "Formulating forensic query \u2192 \"support operations\" \u2229 hiring signals \u2229 status pages \u2229 careers boards",
+    "campaign_id": "",
+    "company": "",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FB866S4H",
+    "at": 18.3,
+    "act": 2,
+    "agent": "Detective",
+    "kind": "query",
+    "message": "Formulating forensic query \u2192 \"customer success operations\" \u2229 hiring signals \u2229 status pages \u2229 careers boards",
+    "campaign_id": "",
+    "company": "",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FB8JDAA6",
+    "at": 20.1,
     "act": 2,
     "agent": "Detective",
     "kind": "info",
-    "message": "Candidate surfaced: Cloudleaf Analytics (cloudleaf.example) \u2014 Jenna Ruiz, People Ops Lead",
+    "message": "Candidate surfaced: Northstar Commerce (northstarcommerce.example) \u2014 Avery Chen, VP of Customer Operations",
     "campaign_id": "",
-    "company": "Cloudleaf Analytics",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VPSXXZHHNE",
-    "at": 19.2,
+    "id": "ev_01KX146FB8Y29WM",
+    "at": 22.0,
+    "act": 2,
+    "agent": "Truth Ledger",
+    "kind": "evidence",
+    "message": "Grounding verbatim evidence [careers] \u2014 \"reduce our Zendesk backlog\"",
+    "campaign_id": "",
+    "company": "Northstar Commerce",
+    "payload": {
+      "source": "careers",
+      "url": "https://northstarcommerce.example/jobs/support-ops"
+    }
+  },
+  {
+    "id": "ev_01KX146FB8K28V0",
+    "at": 23.9,
+    "act": 2,
+    "agent": "Truth Ledger",
+    "kind": "evidence",
+    "message": "Grounding verbatim evidence [jd] \u2014 \"Manual ticket triage across billing, delivery, and account issues is causing SLA breach risk\"",
+    "campaign_id": "",
+    "company": "Northstar Commerce",
+    "payload": {
+      "source": "jd",
+      "url": "https://northstarcommerce.example/jobs/support-ops"
+    }
+  },
+  {
+    "id": "ev_01KX146FB9CBP21",
+    "at": 25.7,
+    "act": 2,
+    "agent": "Detective",
+    "kind": "info",
+    "message": "Candidate surfaced: MedRoute Labs (medroute.example) \u2014 Nina Patel, Director of Patient Support",
+    "campaign_id": "",
+    "company": "MedRoute Labs",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FB99V17M",
+    "at": 27.6,
+    "act": 2,
+    "agent": "Truth Ledger",
+    "kind": "evidence",
+    "message": "Grounding verbatim evidence [careers] \u2014 \"manually routing login, prescription, and billing tickets\"",
+    "campaign_id": "",
+    "company": "MedRoute Labs",
+    "payload": {
+      "source": "careers",
+      "url": "https://medroute.example/careers/support-manager"
+    }
+  },
+  {
+    "id": "ev_01KX146FB93Z6QC",
+    "at": 29.5,
+    "act": 2,
+    "agent": "Truth Ledger",
+    "kind": "evidence",
+    "message": "Grounding verbatim evidence [careers] \u2014 \"urgent clinical escalations can sit in the wrong queue\"",
+    "campaign_id": "",
+    "company": "MedRoute Labs",
+    "payload": {
+      "source": "careers",
+      "url": "https://medroute.example/careers/support-manager"
+    }
+  },
+  {
+    "id": "ev_01KX146FB9VQ52S",
+    "at": 31.3,
+    "act": 2,
+    "agent": "Detective",
+    "kind": "info",
+    "message": "Candidate surfaced: Bluebird Studio (bluebirdstudio.example) \u2014 Mara Ortiz, People Operations",
+    "campaign_id": "",
+    "company": "Bluebird Studio",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FB9A9BFH",
+    "at": 32.9,
     "act": 2,
     "agent": "Detective",
     "kind": "info",
@@ -394,269 +549,472 @@ export const DEMO_EVENTS: MissionEvent[] = [
     "payload": {}
   },
   {
-    "id": "ev_01KX0VPTR6TGBMV",
-    "at": 21.6,
+    "id": "ev_01KX146FBB32988",
+    "at": 35.3,
     "act": 2,
     "agent": "Gatekeeper",
     "kind": "verdict",
-    "message": "Meridian Health Group: VERIFIED HIGH-VALUE TARGET (corroborate, 0.60). 4 pieces of cited evidence. Dispatching the swarm.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Northstar Commerce: VERIFIED HIGH-VALUE TARGET (corroborate, 0.59). 4 pieces of cited evidence. Dispatching the swarm.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {
       "tier": "corroborate",
-      "score": 0.6
+      "score": 0.59
     }
   },
   {
-    "id": "ev_01KX0VPTR6M41Y9",
-    "at": 23.6,
+    "id": "ev_01KX146FBBCMEE0",
+    "at": 37.3,
     "act": 2,
     "agent": "Profiler",
     "kind": "info",
-    "message": "Reading Dr. Priya Nair (VP of Patient Operations) \u2014 public writing only. Scoring tone axes for the pitch voice.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Reading Avery Chen (VP of Customer Operations) \u2014 public writing only. Scoring tone axes for the pitch voice.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VPZWVTV9DG",
-    "at": 25.6,
+    "id": "ev_01KX146FBBDMM2S",
+    "at": 39.3,
     "act": 2,
     "agent": "Profiler",
     "kind": "info",
-    "message": "Persona locked: formal, technical, warm. Callback material: Your recent article in Healthcare Today about optimizing patient access through technology",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Persona locked: formal, technical, warm. Callback material: their public push to fix support backlog",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VQ0CEW5VRF",
-    "at": 27.8,
+    "id": "ev_01KX146FBCRCF3B",
+    "at": 41.5,
     "act": 3,
     "agent": "Developer",
     "kind": "info",
-    "message": "Isolating Meridian Health Group's problem: \u201cHiring 4 front-desk coordinators across our clinics. Our patient call volume has doubled and average phone hol\u2026\u201d Stops pitching. Starts building.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Isolating Northstar Commerce's problem: \u201cHiring a Support Operations Lead to reduce our Zendesk backlog. Manual ticket triage across billing, delivery,\u2026\u201d Stops pitching. Starts building.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VQ0CEV2NTX",
-    "at": 30.2,
+    "id": "ev_01KX146FBC2442Z",
+    "at": 43.7,
     "act": 3,
     "agent": "Developer",
     "kind": "code",
-    "message": "Writing a call-routing voice agent for Meridian Health Group: booking + triage flows, tuned to their phone stack, zero hold time.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Writing a reference implementation for the pattern their posting names.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VQ2K7T3AKA",
-    "at": 32.4,
+    "id": "ev_01KX146FBJ9DQDP",
+    "at": 45.9,
     "act": 3,
     "agent": "Sandbox",
     "kind": "verdict",
-    "message": "Sandbox run: render \u2192 structural checks \u2192 checksum efddc914\u2026 ALL CHECKS PASS \u2713 artifact is VERIFIED",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Sandbox run: render \u2192 structural checks \u2192 checksum 98653f21\u2026 ALL CHECKS PASS \u2713 artifact is VERIFIED",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {
       "verified": true,
-      "checksum": "efddc914f79cdd9c"
+      "checksum": "98653f21a6aba491"
     }
   },
   {
-    "id": "ev_01KX0VQ33CKPT4E",
-    "at": 35.0,
+    "id": "ev_01KX146FBMF2PT9",
+    "at": 48.5,
     "act": 3,
     "agent": "Site Weaver",
     "kind": "artifact",
-    "message": "Deployed: personalized landing page for Meridian Health Group is LIVE at /meridianhealth \u2014 their name, their pain quoted verbatim, the working prototype embedded.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Deployed: personalized landing page for Northstar Commerce is LIVE at /northstarcommerce \u2014 their name, their pain quoted verbatim, the working prototype embedded.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {
-      "url": "file:///Users/little_beast/Revenant.AI/out/sites/meridianhealth_example/index.html",
+      "url": "file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/sites/northstarcommerce_example/index.html",
       "state": "deployed"
     }
   },
   {
-    "id": "ev_01KX0VQ33DYXGXJ",
-    "at": 36.6,
+    "id": "ev_01KX146FBNE05EA",
+    "at": 50.1,
     "act": 3,
     "agent": "Razorpay",
     "kind": "payment",
-    "message": "Minted a paid-pilot link (\u20b94999) for Meridian Health Group \u2014 when they pay, the webhook flips this deal to WON on its own.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Minted a paid-pilot link (\u20b97999) for Northstar Commerce \u2014 when they pay, the webhook flips this deal to WON on its own.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {
-      "link": "https://rzp.io/i/demo-SXXZT404"
+      "link": "https://rzp.io/i/demo-FB9RC4FV"
     }
   },
   {
-    "id": "ev_01KX0VQ3F2H6PN9",
-    "at": 38.8,
+    "id": "ev_01KX146FBPF2Y9F",
+    "at": 52.3,
     "act": 4,
     "agent": "Director",
     "kind": "film",
-    "message": "Rolling. Headless browser on Meridian Health Group's live prototype \u2014 presenter bubble on, narration timed to the audio track. No human in the room.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Rolling. Headless browser on Northstar Commerce's live prototype \u2014 presenter bubble on, narration timed to the audio track. No human in the room.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VQAJVX1FY4",
-    "at": 40.3,
+    "id": "ev_01KX146FBPCBRWG",
+    "at": 53.8,
     "act": 4,
     "agent": "Director",
     "kind": "film",
-    "message": "Beat 1/5 \u00b7 scroll_to(.hero-section) \u2014 \u201cAt Meridian Health Group, our clinics were overwhelmed. Patient call volume doubled, and p\u201d",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Beat 1/5 \u00b7 scroll_to(h1) \u2014 \u201cHi \u2014 this is a quick look at what QueuePilot AI built for Northstar Commerce, automaticall\u201d",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VQAJVEJE0Q",
-    "at": 41.8,
+    "id": "ev_01KX146FBPTPYNY",
+    "at": 55.3,
     "act": 4,
     "agent": "Director",
     "kind": "film",
-    "message": "Beat 2/5 \u00b7 click(#features-tab) \u2014 \u201cEchoDesk AI was built to solve this. It's an intelligent call deflection system that handl\u201d",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Beat 2/5 \u00b7 scroll_to(blockquote) \u2014 \u201cWe noticed this in your own words: Manual ticket triage across billing, delivery, and acco\u201d",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VQAJVAAWRR",
-    "at": 43.3,
+    "id": "ev_01KX146FBP120WT",
+    "at": 56.8,
     "act": 4,
     "agent": "Director",
     "kind": "film",
-    "message": "Beat 3/5 \u00b7 scroll_to(.conversational-ai-demo) \u2014 \u201cPatients can now instantly get answers about appointments, prescriptions, and billing thro\u201d",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Beat 3/5 \u00b7 scroll_to(section:nth-of-type(4)) \u2014 \u201cSo instead of a pitch deck, here's a working prototype, wired to your context.\u201d",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VQAJV4M3TW",
-    "at": 44.8,
+    "id": "ev_01KX146FBP7KNT1",
+    "at": 58.3,
     "act": 4,
     "agent": "Director",
     "kind": "film",
-    "message": "Beat 4/5 \u00b7 click(#results-tab) \u2014 \u201cThis frees up our staff to focus on more complex patient needs, reducing hold times from a\u201d",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Beat 4/5 \u00b7 click(button) \u2014 \u201cGive it a try \u2014 it runs live, right here on the page.\u201d",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VQAJVYVG5N",
-    "at": 46.3,
+    "id": "ev_01KX146FBPZMYH8",
+    "at": 59.8,
     "act": 4,
     "agent": "Director",
     "kind": "film",
-    "message": "Beat 5/5 \u00b7 scroll_to(.cta-section) \u2014 \u201cWith EchoDesk AI, we've transformed patient access while maintaining a personal touch. See\u201d",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Beat 5/5 \u00b7 scroll_to(a[href]) \u2014 \u201cIf it's useful, the pilot is one click. That's QueuePilot AI, built for you before we ever\u201d",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VQAJXHVSBX",
-    "at": 48.5,
+    "id": "ev_01KX146FBRQ0PDP",
+    "at": 62.0,
     "act": 4,
     "agent": "Director",
     "kind": "artifact",
-    "message": "Cut. 5 beats, ~38.0s \u2014 a Loom-style walkthrough of the prototype, recorded and edited by an agent, embedded on the microsite.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Cut. 5 beats, ~31.6s \u2014 a Loom-style walkthrough of the prototype, recorded and edited by an agent, embedded on the microsite.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {
       "beats": 5,
-      "seconds": 38.0
+      "seconds": 31.6
     }
   },
   {
-    "id": "ev_01KX0VQAJYB56P9",
-    "at": 50.5,
+    "id": "ev_01KX146FBRXPR4S",
+    "at": 64.0,
     "act": 4,
     "agent": "Copywriter",
     "kind": "info",
-    "message": "Scripting for Dr. Priya Nair: callback \u2192 their pain, verbatim \u2192 the live prototype \u2192 one soft ask. Every claim checked against evidence.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Scripting for Avery Chen: callback \u2192 their pain, verbatim \u2192 the live prototype \u2192 one soft ask. Every claim checked against evidence.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VQECGHFQXW",
-    "at": 52.9,
+    "id": "ev_01KX146FBS64VK2",
+    "at": 66.4,
     "act": 4,
     "agent": "Voice Director",
     "kind": "voice",
-    "message": "Tuning the synthetic voice to Dr. Priya Nair's vibe \u2014 stability 0.65 (measured), style 0.5 (warm). Not a robot voiceover; a memo a human would leave.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Tuning the synthetic voice to Avery Chen's vibe \u2014 stability 0.62 (measured), style 0.48 (warm). Not a robot voiceover; a memo a human would leave.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {
-      "stability": 0.65,
-      "style": 0.5,
+      "stability": 0.62,
+      "style": 0.48,
       "similarity_boost": 0.75
     }
   },
   {
-    "id": "ev_01KX0VQRNQSCW8G",
-    "at": 55.1,
+    "id": "ev_01KX146FBW9SCEQ",
+    "at": 68.6,
     "act": 5,
     "agent": "Outreach",
     "kind": "mail",
-    "message": "Drafted for Dr. Priya Nair: \u201cEchoDesk AI: Transforming Patient Operations at Meridian Health Group\u201d \u2014 carries the live deployment link and the AI walkthrough. Precision, not spray.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Drafted for Avery Chen: \u201cBuilt QueuePilot AI into Northstar Commerce's front desk (2-min look)\u201d \u2014 carries the live deployment link and the AI walkthrough. Precision, not spray.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VQS528XE0F",
-    "at": 57.5,
+    "id": "ev_01KX146FBXGD8HW",
+    "at": 71.0,
     "act": 5,
     "agent": "Outreach",
     "kind": "state",
-    "message": "Meridian Health Group package complete \u2014 live prototype, AI walkthrough, voice memo, pilot link. Parked in the review queue. Nothing sends without a human click.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Northstar Commerce package complete \u2014 live prototype, AI walkthrough, voice memo, pilot link. Parked in the review queue. Nothing sends without a human click.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {
       "state": "awaiting_review"
     }
   },
   {
-    "id": "ev_01KX0VQT7JFQW6C",
-    "at": 59.7,
+    "id": "ev_01KX146FC0VWFZ7",
+    "at": 73.4,
     "act": 2,
     "agent": "Gatekeeper",
     "kind": "verdict",
-    "message": "BrightSmile Dental Partners: pain is real but thin (0.36). Routed WARM-ONLY \u2014 a soft intro, no engineered artifact. We never fake a prototype.",
-    "campaign_id": "camp_01KX0VQS5383QTV",
-    "company": "BrightSmile Dental Partners",
+    "message": "MedRoute Labs: VERIFIED HIGH-VALUE TARGET (corroborate, 0.55). 4 pieces of cited evidence. Dispatching the swarm.",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
     "payload": {
-      "tier": "warm_only",
-      "score": 0.36,
-      "state": "warm_only"
+      "tier": "corroborate",
+      "score": 0.55
     }
   },
   {
-    "id": "ev_01KX0VR46BP168X",
-    "at": 61.9,
-    "act": 5,
-    "agent": "Outreach",
-    "kind": "mail",
-    "message": "Drafted for Marcus Feld: \u201cEchoDesk AI: Automate your patient communication at BrightSmile\u201d \u2014 carries the live deployment link and the AI walkthrough. Precision, not spray.",
-    "campaign_id": "camp_01KX0VQS5383QTV",
-    "company": "BrightSmile Dental Partners",
+    "id": "ev_01KX146FC0XKMX0",
+    "at": 75.4,
+    "act": 2,
+    "agent": "Profiler",
+    "kind": "info",
+    "message": "Reading Nina Patel (Director of Patient Support) \u2014 public writing only. Scoring tone axes for the pitch voice.",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
     "payload": {}
   },
   {
-    "id": "ev_01KX0VR59AT9NT0",
-    "at": 64.1,
+    "id": "ev_01KX146FC0TGQEE",
+    "at": 77.4,
+    "act": 2,
+    "agent": "Profiler",
+    "kind": "info",
+    "message": "Persona locked: formal, technical, warm. Callback material: their public push to fix support backlog",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FC2BPJQ1",
+    "at": 79.6,
+    "act": 3,
+    "agent": "Developer",
+    "kind": "info",
+    "message": "Isolating MedRoute Labs's problem: \u201cWe need a Customer Support Manager to handle rising patient portal volume. The team is manually routing login,\u2026\u201d Stops pitching. Starts building.",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FC20FSGJ",
+    "at": 81.8,
+    "act": 3,
+    "agent": "Developer",
+    "kind": "code",
+    "message": "Writing a reference implementation for the pattern their posting names.",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FC344GAA",
+    "at": 84.0,
+    "act": 3,
+    "agent": "Sandbox",
+    "kind": "verdict",
+    "message": "Sandbox run: render \u2192 structural checks \u2192 checksum 439a5586\u2026 ALL CHECKS PASS \u2713 artifact is VERIFIED",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {
+      "verified": true,
+      "checksum": "439a55868212a7ad"
+    }
+  },
+  {
+    "id": "ev_01KX146FC50X7HJ",
+    "at": 86.6,
+    "act": 3,
+    "agent": "Site Weaver",
+    "kind": "artifact",
+    "message": "Deployed: personalized landing page for MedRoute Labs is LIVE at /medroute \u2014 their name, their pain quoted verbatim, the working prototype embedded.",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {
+      "url": "file:///Users/little_beast/Documents/Codex/2026-07-08/himanshu-thakur-7-revenant-ai-https/work/Revenant.AI/out/sites/medroute_example/index.html",
+      "state": "deployed"
+    }
+  },
+  {
+    "id": "ev_01KX146FC5W6PYF",
+    "at": 88.2,
+    "act": 3,
+    "agent": "Razorpay",
+    "kind": "payment",
+    "message": "Minted a paid-pilot link (\u20b97999) for MedRoute Labs \u2014 when they pay, the webhook flips this deal to WON on its own.",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {
+      "link": "https://rzp.io/i/demo-FBYVSA25"
+    }
+  },
+  {
+    "id": "ev_01KX146FC74N1PT",
+    "at": 90.4,
+    "act": 4,
+    "agent": "Director",
+    "kind": "film",
+    "message": "Rolling. Headless browser on MedRoute Labs's live prototype \u2014 presenter bubble on, narration timed to the audio track. No human in the room.",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FC7HKXN0",
+    "at": 91.9,
+    "act": 4,
+    "agent": "Director",
+    "kind": "film",
+    "message": "Beat 1/5 \u00b7 scroll_to(h1) \u2014 \u201cHi \u2014 this is a quick look at what QueuePilot AI built for MedRoute Labs, automatically.\u201d",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FC7V2CFK",
+    "at": 93.4,
+    "act": 4,
+    "agent": "Director",
+    "kind": "film",
+    "message": "Beat 2/5 \u00b7 scroll_to(blockquote) \u2014 \u201cWe noticed this in your own words: urgent clinical escalations can sit in the wrong queue.\u201d",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FC7ZZZBQ",
+    "at": 94.9,
+    "act": 4,
+    "agent": "Director",
+    "kind": "film",
+    "message": "Beat 3/5 \u00b7 scroll_to(section:nth-of-type(4)) \u2014 \u201cSo instead of a pitch deck, here's a working prototype, wired to your context.\u201d",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FC7MDAJY",
+    "at": 96.4,
+    "act": 4,
+    "agent": "Director",
+    "kind": "film",
+    "message": "Beat 4/5 \u00b7 click(button) \u2014 \u201cGive it a try \u2014 it runs live, right here on the page.\u201d",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FC7S42T2",
+    "at": 97.9,
+    "act": 4,
+    "agent": "Director",
+    "kind": "film",
+    "message": "Beat 5/5 \u00b7 scroll_to(a[href]) \u2014 \u201cIf it's useful, the pilot is one click. That's QueuePilot AI, built for you before we ever\u201d",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FC8SD266",
+    "at": 100.1,
+    "act": 4,
+    "agent": "Director",
+    "kind": "artifact",
+    "message": "Cut. 5 beats, ~29.7s \u2014 a Loom-style walkthrough of the prototype, recorded and edited by an agent, embedded on the microsite.",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {
+      "beats": 5,
+      "seconds": 29.7
+    }
+  },
+  {
+    "id": "ev_01KX146FC953XYZ",
+    "at": 102.1,
+    "act": 4,
+    "agent": "Copywriter",
+    "kind": "info",
+    "message": "Scripting for Nina Patel: callback \u2192 their pain, verbatim \u2192 the live prototype \u2192 one soft ask. Every claim checked against evidence.",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FC98QE4T",
+    "at": 104.5,
+    "act": 4,
+    "agent": "Voice Director",
+    "kind": "voice",
+    "message": "Tuning the synthetic voice to Nina Patel's vibe \u2014 stability 0.62 (measured), style 0.48 (warm). Not a robot voiceover; a memo a human would leave.",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {
+      "stability": 0.62,
+      "style": 0.48,
+      "similarity_boost": 0.75
+    }
+  },
+  {
+    "id": "ev_01KX146FCCQG1FJ",
+    "at": 106.7,
+    "act": 5,
+    "agent": "Outreach",
+    "kind": "mail",
+    "message": "Drafted for Nina Patel: \u201cBuilt QueuePilot AI into MedRoute Labs's front desk (2-min look)\u201d \u2014 carries the live deployment link and the AI walkthrough. Precision, not spray.",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {}
+  },
+  {
+    "id": "ev_01KX146FCEK1F9X",
+    "at": 109.1,
+    "act": 5,
+    "agent": "Outreach",
+    "kind": "state",
+    "message": "MedRoute Labs package complete \u2014 live prototype, AI walkthrough, voice memo, pilot link. Parked in the review queue. Nothing sends without a human click.",
+    "campaign_id": "camp_01KX146FBYVSA25",
+    "company": "MedRoute Labs",
+    "payload": {
+      "state": "awaiting_review"
+    }
+  },
+  {
+    "id": "ev_01KX146FCHRZ4Y6",
+    "at": 111.3,
     "act": 2,
     "agent": "Gatekeeper",
     "kind": "verdict",
-    "message": "Cloudleaf Analytics: HR boilerplate, zero technical signal. KILLED for $0.001 \u2014 not one expensive token spent.",
-    "campaign_id": "camp_01KX0VR4HSH86FT",
-    "company": "Cloudleaf Analytics",
+    "message": "Bluebird Studio: HR boilerplate, zero technical signal. KILLED for $0.001 \u2014 not one expensive token spent.",
+    "campaign_id": "camp_01KX146FCE35CYG",
+    "company": "Bluebird Studio",
     "payload": {
       "tier": "kill",
       "score": 0.08,
@@ -665,105 +1023,105 @@ export const DEMO_EVENTS: MissionEvent[] = [
   },
   {
     "id": "ev_demo_0",
-    "at": 66.6,
+    "at": 113.8,
     "act": 5,
     "agent": "Human Closer",
     "kind": "info",
-    "message": "Operator approved the Meridian Health Group package. Sending.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Operator approved the Northstar Commerce package. Sending.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {
       "state": "sent"
     }
   },
   {
     "id": "ev_demo_1",
-    "at": 68.8,
+    "at": 116.0,
     "act": 5,
     "agent": "Outreach",
     "kind": "mail",
-    "message": "Delivered to Dr. Priya Nair's inbox \u2014 live prototype + AI walkthrough attached. Now we watch.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Delivered to Avery Chen's inbox \u2014 live prototype + AI walkthrough attached. Now we watch.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
     "id": "ev_demo_2",
-    "at": 71.8,
+    "at": 119.0,
     "act": 5,
     "agent": "Persistence",
     "kind": "info",
     "message": "48h, no reply. Consulting the memory ledger \u2014 drafting a follow-up that references the walkthrough, not a generic 'just circling back'.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
     "id": "ev_demo_3",
-    "at": 74.8,
+    "at": 122.0,
     "act": 5,
     "agent": "Persistence",
     "kind": "alert",
-    "message": "Reply detected from Dr. Priya Nair: \u201cWho built this?? Can we talk this week?\u201d Classified: MEETING REQUEST. Scheduling link sent.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Reply detected from Avery Chen: \u201cWho built this?? Can we talk this week?\u201d Classified: MEETING REQUEST. Scheduling link sent.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {
       "state": "replied"
     }
   },
   {
     "id": "ev_demo_4",
-    "at": 78.0,
+    "at": 125.2,
     "act": 5,
     "agent": "Closer",
     "kind": "voice",
     "message": "Calendar invite hit. The voice agent takes the call: introduces the prototype it built, references their 8-minute hold times, qualifies scope.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
     "id": "ev_demo_5",
-    "at": 80.6,
+    "at": 127.8,
     "act": 5,
     "agent": "Closer",
     "kind": "info",
     "message": "Negotiation shifting to enterprise pricing and integration depth \u2014 beyond my mandate. Escalating.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
     "id": "ev_demo_6",
-    "at": 83.4,
+    "at": 130.6,
     "act": 5,
     "agent": "Human Closer",
     "kind": "alert",
     "message": "\u26a1 HANDOFF \u2014 human closer joins the live call with full context: the code built, the walkthrough, every touch. Seals the pilot.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
     "id": "ev_demo_7",
-    "at": 86.0,
+    "at": 133.2,
     "act": 5,
     "agent": "Razorpay",
     "kind": "payment",
-    "message": "\u20b94,999 pilot payment received from Meridian Health Group. Webhook \u2192 truth ledger.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "\u20b94,999 pilot payment received from Northstar Commerce. Webhook \u2192 truth ledger.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {}
   },
   {
     "id": "ev_demo_8",
-    "at": 88.0,
+    "at": 135.2,
     "act": 5,
     "agent": "Truth Ledger",
     "kind": "state",
-    "message": "Meridian Health Group \u2192 WON. The circle closes: found at 3 AM, engineered by breakfast, closed by a human + agent team.",
-    "campaign_id": "camp_01KX0VPSXXZT404",
-    "company": "Meridian Health Group",
+    "message": "Northstar Commerce \u2192 WON. The circle closes: found at 3 AM, engineered by breakfast, closed by a human + agent team.",
+    "campaign_id": "camp_01KX146FB9RC4FV",
+    "company": "Northstar Commerce",
     "payload": {
       "state": "won"
     }

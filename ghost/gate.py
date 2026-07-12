@@ -38,7 +38,10 @@ JD_RULES: list[Rule] = [
         re.compile(
             r"(?i)\b(vacuum tuning|memory fragmentation|deadlock|alert fatigue|"
             r"cascading failures|hot partition|cold start|call drop|wait time|"
-            r"call volume|hold time|abandonment rate)\b"
+            r"call volume|hold time|abandonment rate|support backlog|ticket triage|"
+            r"manual routing|sla breach|escalation workflow|customer escalation|"
+            r"first-response|first response|reply time|backlog pressure|"
+            r"customer operations|support operations|customer support|support tickets)\b"
         ),
         0.30,
     ),
@@ -47,7 +50,8 @@ JD_RULES: list[Rule] = [
         re.compile(
             r"(?i)\b(redis cluster|dragonfly|clickhouse|neo4j|cockroachdb|"
             r"dynamodb streams|kafka connect|pulsar|nats jetstream|otel collector|"
-            r"twilio|epic|cerner|athenahealth|genesys)\b"
+            r"twilio|epic|cerner|athenahealth|genesys|zendesk|intercom|freshdesk|"
+            r"helpscout|salesforce service cloud|jira service management)\b"
         ),
         0.20,
     ),

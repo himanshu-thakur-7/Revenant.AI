@@ -19,6 +19,7 @@ from .models import new_id
 
 # Agent display names, fixed vocabulary the console colors by.
 DETECTIVE = "Detective"
+SDR = "Human SDR"
 LEDGER = "Truth Ledger"
 GATEKEEPER = "Gatekeeper"
 PROFILER = "Profiler"

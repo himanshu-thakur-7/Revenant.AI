@@ -1,6 +1,6 @@
 """``ghost`` / ``revenant`` CLI — the operator's entry point.
 
-    ghost run --seller echodesk --limit 3     # full loop, offline by default
+    ghost run --seller queuepilot --limit 3   # full loop, offline by default
     ghost onboard "we sell ..."              # dictated blurb → new seller
     ghost sellers                            # list built-in configs
     ghost approve <campaign_id> --to a@b.com # send an awaiting_review campaign
@@ -11,6 +11,7 @@ from __future__ import annotations
 import typer
 from rich.console import Console
 
+from .agents import build_orchestrator_state, save_state
 from . import outreach
 from .config import settings
 from .ledger import ledger
@@ -20,12 +21,14 @@ from .sellers import get_seller, list_sellers
 from .sellers import onboard as onboard_seller
 
 app = typer.Typer(add_completion=False, help="Revenant — the autonomous outbound engineer.")
+brain_app = typer.Typer(add_completion=False, help="Accumulator / Orchestrator agent.")
+app.add_typer(brain_app, name="brain")
 console = Console()
 
 
 @app.command()
 def run(
-    seller: str = typer.Option("echodesk", help="Seller config slug (see `ghost sellers`)."),
+    seller: str = typer.Option("queuepilot", help="Seller config slug (see `ghost sellers`)."),
     limit: int = typer.Option(3, help="Max leads to process."),
 ):
     """Run the full hunt → review loop for a seller."""
@@ -57,6 +60,32 @@ def sellers():
     for s in list_sellers():
         cfg = get_seller(s)
         console.print(f"  [bold]{s}[/bold] — {cfg.one_liner}")
+
+
+@brain_app.command("ingest")
+def brain_ingest(
+    blurb: str = typer.Argument(..., help="Founder description of the startup/product."),
+    path: list[str] = typer.Option(
+        None,
+        "--path",
+        "-p",
+        help="Docs/code path to ingest. Can be passed multiple times.",
+    ),
+    slug: str = typer.Option("founder", help="Seller slug for this founder brain."),
+    max_files: int = typer.Option(40, help="Maximum docs/code files to scan."),
+):
+    """Create the Accumulator brain artifact from founder chat + local docs/code."""
+    from pathlib import Path
+
+    roots = [Path(p) for p in (path or ["."])]
+    state = build_orchestrator_state(blurb, scan_roots=roots, slug=slug, max_files=max_files)
+    out = save_state(state)
+    console.print(f"[green]brain created[/green] {state.id} → {out}")
+    console.print(f"[bold]{state.brief.company_name}[/bold] — {state.brief.one_liner}")
+    console.print("\n[bold]Delegation plan[/bold]")
+    for task in state.tasks:
+        console.print(f"  [cyan]{task.role.value:12}[/cyan] {task.objective}")
+        console.print(f"    → {task.expected_output}")
 
 
 @app.command()

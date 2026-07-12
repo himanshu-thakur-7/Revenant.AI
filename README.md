@@ -20,7 +20,7 @@ It hunts pain, ships a working prototype, films an AI walkthrough of it, and fol
 
 ## The loop (Acts I–V)
 
-1. **Reconnaissance** — a founder dictates their company identity (Wispr Flow → Hermes). Revenant uses **Linkup** to find companies leaking that exact pain and writes *verbatim evidence* into the **Convex** truth ledger.
+1. **Reconnaissance** — a founder dictates their company identity (Wispr Flow → Hermes). Revenant uses **Linkup** when configured, or a credential-free public sweep across live job posts + public GitHub issues when it is not, to find companies leaking that exact pain and write *verbatim evidence* into the **Convex** truth ledger.
 2. **Signal gate** — a cheap, deterministic filter kills HR boilerplate for ~$0.001 before a single expensive token is spent (see [`ghost/gate.py`](ghost/gate.py)).
 3. **Just-in-time engineering** — for promoted leads, a builder agent generates a working prototype + personalized microsite and deploys it to **Cloudflare Pages**.
 4. **The cinematic pitch** — a **Director agent** screen-records the live prototype while an **ElevenLabs**-narrated presenter explains *what it built and why it fits*, hosted on **Cloudflare Stream**. No human touches the recording.
@@ -32,7 +32,7 @@ It hunts pain, ships a working prototype, films an AI walkthrough of it, and fol
 |---|---|
 | **Hermes (Nous Research)** | The orchestrator — every stage is a Hermes skill; cron = the 3 AM loop + persistence engine; memory = long-term prospect context; Telegram = control channel |
 | **OpenAI** | Codegen, copy, walkthrough script, persona tone-scoring, embeddings |
-| **Linkup** | Web reconnaissance — pain signals, careers/status/blog forensics |
+| **Linkup** | Web reconnaissance — pain signals, careers/status/blog forensics. The demo also has a no-key public recon path via live jobs + GitHub issues. |
 | **Cloudflare** | Pages (microsites) · Stream (walkthrough videos) · Workers AI (classifier fallback) |
 | **Convex** | Truth ledger + realtime HITL console via live queries + Razorpay webhook |
 | **ElevenLabs** | Walkthrough narration + voice memo + embedded conversational agent (the live prototype) |
@@ -62,7 +62,7 @@ Founder (Wispr Flow / Telegram)
 - **Verify before you send.** Generated sites must build and return 200; every microsite claim cites a verbatim evidence excerpt.
 - **Budget everything.** Cheap stages gate expensive ones. The gate kills boilerplate for a tenth of a cent.
 - **Human in the loop by default.** Nothing sends without a click; `DRY_RUN=1` is on by default.
-- **Offline-first.** The entire pipeline runs from canned fixtures with zero network (`REVENANT_MODE=offline`), so it's demoable on a plane and testable in CI.
+- **Offline-first, live-capable demo.** `REVENANT_MODE=offline` is deterministic for CI; `REVENANT_MODE=live` performs a real public-data recon sweep even before paid API keys are added.
 
 ## Quickstart
 
@@ -71,8 +71,11 @@ Founder (Wispr Flow / Telegram)
 uv venv --python 3.11 && source .venv/bin/activate
 uv pip install -e ".[dev]"
 
-# 2. run the whole loop offline against the built-in EchoDesk AI seller config
-ghost run --seller echodesk --limit 3
+# 2. run the whole loop offline against the built-in QueuePilot AI seller config
+PYTHONPATH=. python -m ghost.cli run --seller queuepilot --limit 3
+
+# 2b. run live public recon (no Linkup key required; still DRY_RUN by default)
+PYTHONPATH=. REVENANT_MODE=live python -m ghost.cli run --seller queuepilot --limit 1
 
 # 3. prove the gate does its job
 pytest ghost/tests/test_gate.py -q
@@ -80,7 +83,7 @@ pytest ghost/tests/test_gate.py -q
 # 4. go live: cp .env.example .env, fill keys, set REVENANT_MODE=live
 ```
 
-Outputs land in `out/` — `ledger.json` (what the console renders), microsite HTML, the walkthrough script, and voice/video artifacts.
+Outputs land in `out/` — `ledger.json` (what the console renders), verified microsite HTML, a working support-triage prototype, a playable Loom-style walkthrough, and voice/video artifacts.
 
 ## Repo layout
 

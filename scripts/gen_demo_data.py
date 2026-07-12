@@ -83,7 +83,7 @@ def main() -> None:
     from ghost.pipeline import run_seller
     from ghost.sellers import get_seller
 
-    run_seller(get_seller("echodesk"), limit=3)
+    run_seller(get_seller("queuepilot"), limit=3)
 
     snap = json.loads((ROOT / "out" / "ledger.json").read_text())
     campaigns = snap.get("campaigns", [])

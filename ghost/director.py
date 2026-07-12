@@ -15,10 +15,10 @@ No human ever touches this recording. The Director:
   5. HOST    — upload to Cloudflare Stream; the player URL goes on the microsite
      and into the outreach email.
 
-Offline mode runs stages 1-2 conceptually and emits a *storyboard* JSON +
-narration script to ``out/walkthroughs/`` so the whole flow is demoable and the
-pipeline sets ``campaign.walkthrough_url`` to that artifact. The heavy media
-path (3-5) only runs in live mode with Playwright + ffmpeg present.
+When heavyweight browser recording is unavailable, the fallback is not a dead
+JSON file: it emits a playable Loom-style HTML walkthrough with an avatar
+bubble, timed captions, iframe preview, and scripted UI actions. The heavy
+media path (3-5) only runs in live mode with Playwright + ffmpeg present.
 """
 
 from __future__ import annotations
@@ -119,6 +119,8 @@ def direct(campaign: Campaign, seller: SellerProfile) -> Campaign:
 
     board_path = OUT / f"{campaign.id}.storyboard.json"
     board_path.write_text(json.dumps({"campaign": campaign.id, "beats": beats}, indent=2))
+    player_path = OUT / f"{campaign.id}.walkthrough.html"
+    player_path.write_text(_walkthrough_player(campaign, seller, beats))
 
     can_render = (
         settings.require_live("cloudflare_api_token")
@@ -130,9 +132,9 @@ def direct(campaign: Campaign, seller: SellerProfile) -> Campaign:
     if can_render:
         url = _render_and_host(campaign, seller, beats)  # pragma: no cover - heavy path
     else:
-        # Offline / no-media: the storyboard IS the artifact for the demo.
-        url = board_path.resolve().as_uri()
-        log.dim(f"[director] offline → storyboard ({len(beats)} beats, ~{total}s)")
+        # Offline / no-media: ship a playable walkthrough rather than a JSON prop.
+        url = player_path.resolve().as_uri()
+        log.dim(f"[director] offline → interactive walkthrough ({len(beats)} beats, ~{total}s)")
 
     campaign.walkthrough_url = url
     campaign.artifacts.append(
@@ -149,6 +151,118 @@ def direct(campaign: Campaign, seller: SellerProfile) -> Campaign:
     )
     log.ok(f"Walkthrough ready (~{total}s, {len(beats)} beats)")
     return campaign
+
+
+def _walkthrough_player(campaign: Campaign, seller: SellerProfile, beats: list[dict]) -> str:
+    """Self-contained walkthrough player used when full video rendering is not
+    available. It is a real demo surface: timed narration, avatar, and iframe
+    actions over the deployed prototype."""
+    beat_json = json.dumps(beats).replace("</", "<\\/")
+    title = f"{seller.name} built for {campaign.lead.company_name}"
+    site_url = campaign.microsite_url
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{_esc(title)} — walkthrough</title>
+  <style>
+    :root {{ color-scheme: dark; --bg:#080b12; --panel:#111827; --line:#253044; --ink:#e5eefb; --muted:#8ea0b8; --wisp:#52e0c4; }}
+    * {{ box-sizing:border-box; }}
+    body {{ margin:0; min-height:100vh; background:var(--bg); color:var(--ink); font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+    .shell {{ display:grid; grid-template-columns:320px 1fr; min-height:100vh; }}
+    aside {{ border-right:1px solid var(--line); background:#0c111d; padding:18px; }}
+    h1 {{ font-size:20px; line-height:1.2; margin:0 0 8px; }}
+    p {{ color:var(--muted); line-height:1.45; }}
+    button {{ border:0; border-radius:8px; padding:11px 15px; background:var(--wisp); color:#04120e; font-weight:800; cursor:pointer; width:100%; }}
+    .beat {{ padding:10px 0; border-bottom:1px solid var(--line); color:var(--muted); font-size:13px; }}
+    .beat.on {{ color:var(--ink); }}
+    .stage {{ position:relative; min-height:100vh; background:#05070c; }}
+    iframe {{ width:100%; height:100vh; border:0; background:#06070d; }}
+    .bubble {{ position:absolute; right:22px; bottom:22px; width:min(420px, calc(100% - 44px)); border:1px solid rgba(82,224,196,.35); background:rgba(8,11,18,.92); border-radius:14px; padding:14px 15px; box-shadow:0 18px 60px rgba(0,0,0,.38); }}
+    .avatar {{ width:38px; height:38px; border-radius:999px; display:grid; place-items:center; background:linear-gradient(135deg,var(--wisp),#8fb5ff); color:#06110e; font-weight:900; float:left; margin-right:12px; }}
+    .caption {{ font-size:15px; line-height:1.45; }}
+    .progress {{ height:3px; background:#172033; margin-top:14px; border-radius:99px; overflow:hidden; }}
+    .bar {{ height:100%; width:0%; background:var(--wisp); transition:width .2s linear; }}
+    @media (max-width: 840px) {{
+      .shell {{ grid-template-columns:1fr; }}
+      aside {{ min-height:auto; border-right:0; border-bottom:1px solid var(--line); }}
+      iframe {{ height:70vh; }}
+      .stage {{ min-height:70vh; }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <h1>{_esc(title)}</h1>
+      <p>Autonomous walkthrough generated by the Director agent from grounded campaign evidence.</p>
+      <button id="play">Play walkthrough</button>
+      <div id="beats" style="margin-top:14px"></div>
+    </aside>
+    <main class="stage">
+      <iframe id="demo" src="{_esc(site_url)}"></iframe>
+      <div class="bubble">
+        <div class="avatar">AI</div>
+        <div id="caption" class="caption">Ready when you are.</div>
+        <div class="progress"><div id="bar" class="bar"></div></div>
+      </div>
+    </main>
+  </div>
+  <script>
+    const beats = {beat_json};
+    const list = document.getElementById("beats");
+    const caption = document.getElementById("caption");
+    const frame = document.getElementById("demo");
+    const bar = document.getElementById("bar");
+    list.innerHTML = beats.map((b,i)=>`<div class="beat" data-i="${{i}}">${{i+1}}. ${{b.narration}}</div>`).join("");
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    async function act(beat) {{
+      try {{
+        const doc = frame.contentWindow.document;
+        const el = doc.querySelector(beat.target);
+        if (!el) return;
+        if (beat.ui_action === "click") el.click();
+        else el.scrollIntoView({{behavior:"smooth", block:"center"}});
+      }} catch (_) {{}}
+    }}
+    async function play() {{
+      for (let i = 0; i < beats.length; i++) {{
+        document.querySelectorAll(".beat").forEach((el, j) => el.classList.toggle("on", i === j));
+        const beat = beats[i];
+        caption.textContent = beat.narration;
+        act(beat);
+        if ("speechSynthesis" in window) {{
+          speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance(beat.narration);
+          u.rate = 0.95; u.pitch = 0.95;
+          speechSynthesis.speak(u);
+        }}
+        const ms = Math.max(2200, (beat.est_seconds || 4) * 1000);
+        const started = performance.now();
+        while (performance.now() - started < ms) {{
+          bar.style.width = `${{Math.min(100, ((performance.now() - started) / ms) * 100)}}%`;
+          await sleep(120);
+        }}
+        bar.style.width = "0%";
+      }}
+      caption.textContent = "Walkthrough complete. The prototype is live on the page.";
+      document.querySelectorAll(".beat").forEach(el => el.classList.remove("on"));
+    }}
+    document.getElementById("play").addEventListener("click", play);
+  </script>
+</body>
+</html>"""
+
+
+def _esc(text: str) -> str:
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
 
 
 def _has_playwright() -> bool:

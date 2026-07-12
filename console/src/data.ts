@@ -7,9 +7,21 @@
 //
 // The console never mutates pipeline state except through explicit actions.
 
-export type Evidence = { source: string; url: string; excerpt: string; weight: number };
+export type Evidence = { id?: string; source: string; url: string; excerpt: string; weight: number };
+
+export type SignalScore = {
+  jd_confidence?: number;
+  careers_score?: number;
+  github_score?: number;
+  status_score?: number;
+  eng_blog_score?: number;
+  combined: number;
+  tier: string;
+  evidence: Evidence[];
+};
 
 export type Campaign = {
+  [key: string]: unknown;
   id: string;
   seller_id: string;
   state: string;
@@ -24,12 +36,14 @@ export type Campaign = {
   payment_link: string;
   cost_usd: number;
   lead: {
+    id?: string;
+    seller_id?: string;
     company_name: string;
     company_domain: string;
     person_name: string;
     person_title: string;
     job_description: string;
-    score?: { combined: number; tier: string; evidence: Evidence[] };
+    score?: SignalScore;
   };
 };
 

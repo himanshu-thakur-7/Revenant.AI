@@ -10,7 +10,7 @@ by agent — the storyline, visible.
 from __future__ import annotations
 
 from . import builder, deploy, director, outreach, payments, profiler, recon, voice
-from .events import GATEKEEPER, OUTREACH, PROFILER, mission
+from .events import GATEKEEPER, OUTREACH, PROFILER, SDR, mission
 from .gate import evaluate
 from .ledger import ledger
 from .log import log
@@ -21,6 +21,7 @@ def run_seller(seller: SellerProfile, limit: int = 3) -> list[Campaign]:
     """Full hunt→review loop for one seller. Returns the campaigns produced."""
     ledger.upsert_seller(seller)
     log.info(f"\n[bold]🕯️  Revenant — hunting for {seller.name}[/bold]\n")
+    _act_one(seller)
 
     leads = recon.hunt(seller, limit=limit)
     campaigns: list[Campaign] = []
@@ -32,6 +33,35 @@ def run_seller(seller: SellerProfile, limit: int = 3) -> list[Campaign]:
     _summary(seller, campaigns)
     ledger.publish_events()
     return campaigns
+
+
+def _act_one(seller: SellerProfile) -> None:
+    """Make the before-state visible in the console replay."""
+    mission.emit(
+        1,
+        SDR,
+        f"Traditional path for {seller.name}: SDRs scrape lists, guess at pain, "
+        "send generic emails, then wait days for a sales engineer to build a custom demo.",
+        kind="info",
+        dwell=2.6,
+    )
+    mission.emit(
+        1,
+        SDR,
+        "Bottleneck detected: research, personalization, prototype engineering, "
+        "and follow-up all depend on humans moving one account at a time.",
+        kind="alert",
+        dwell=2.4,
+    )
+    mission.emit(
+        1,
+        SDR,
+        "Control passes to the autonomous agent network. The company sleeps; "
+        "the pipeline starts working at 03:00.",
+        kind="state",
+        dwell=2.4,
+        payload={"state": "handoff_to_agents"},
+    )
 
 
 def _run_one(seller: SellerProfile, lead: Lead, forensics: SignalScore) -> Campaign:
