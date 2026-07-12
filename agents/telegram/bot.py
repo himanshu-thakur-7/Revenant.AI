@@ -96,7 +96,11 @@ class Session:
 # to the founder so their phone pings when something meaningful happens.
 # ``{a}`` interpolates the stage's own detail argument (company name, url, etc).
 _STAGE_NARR: dict[str, str] = {
-    "research":           "🔎 On it — hunting for a fit prospect right now. Real web search + Apollo for the decision-maker. Takes 30-60 seconds.",
+    "research":           "🔎 On it — hunting a fit prospect right now.",
+    "brainstorm":         "🧠 {a}",
+    "apollo_pick":        "🎯 {a} — verified in Apollo. Grabbing the decision-maker + their email.",
+    "apollo_contact":     "",  # silent — already narrated in apollo_pick
+    "research_llm":       "🔎 Nothing matched from that list — switching to open web recon.",
     "research_retry":     "First pass came up dry — I'm broadening the search and trying again.",
     "research_done":      "Locked in a target: <b>{a}</b>.\n\n⚙️ Now building them a working prototype tailored to their setup. About 90 seconds — I'll ping when it's live.",
     "engineer":           "",

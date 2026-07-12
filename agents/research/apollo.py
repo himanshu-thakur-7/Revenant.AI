@@ -51,6 +51,82 @@ def _headers() -> dict[str, str]:
     }
 
 
+def search_companies(keywords: list[str], *,
+                     size_min: int = 5, size_max: int = 500,
+                     limit: int = 25, per_page: int = 100) -> list[dict[str, Any]]:
+    """Fetch candidate companies matching ``keywords`` (industry/segment tags),
+    then filter client-side to startup-sized (Apollo starter plan ignores the
+    ``organization_num_employees_ranges`` filter on server, so we do it here).
+
+    Returns light company dicts — no credits spent (org search is free).
+    """
+    body = {
+        "q_organization_keyword_tags": [k for k in keywords if k],
+        "per_page": per_page,
+        "page": 1,
+    }
+    try:
+        resp = httpx.post(f"{_BASE}/organizations/search",
+                          headers=_headers(), json=body, timeout=25)
+    except httpx.HTTPError as exc:
+        raise ApolloError(f"apollo network error: {exc}") from exc
+
+    if resp.status_code == 401:
+        raise ApolloError("Apollo rejected the API key (401).")
+    if resp.status_code == 429:
+        raise ApolloError("Apollo rate limit hit (429).")
+    if resp.status_code != 200:
+        raise ApolloError(f"apollo org search {resp.status_code}: {resp.text[:200]}")
+
+    orgs = (resp.json() or {}).get("organizations", []) or []
+    out: list[dict[str, Any]] = []
+    for o in orgs:
+        emp = o.get("estimated_num_employees") or 0
+        if not (size_min <= emp <= size_max):
+            continue
+        domain = (o.get("primary_domain") or o.get("website_url") or "").strip()
+        # strip protocol / trailing slash
+        for prefix in ("https://", "http://"):
+            if domain.startswith(prefix):
+                domain = domain[len(prefix):]
+        domain = domain.split("/", 1)[0].rstrip(".")
+        if not domain or " " in domain:
+            continue
+        out.append({
+            "name": o.get("name", ""),
+            "domain": domain,
+            "employees": emp,
+            "industry": o.get("industry", ""),
+            "founded_year": o.get("founded_year"),
+            "linkedin_url": o.get("linkedin_url", ""),
+            "short_description": (o.get("short_description") or "")[:400],
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
+def enrich_organization(domain: str) -> dict[str, Any] | None:
+    """Look up a company in Apollo's org index by domain. Free, no credits.
+    Returns None on 404 (Apollo doesn't know the company) or on any error."""
+    d = (domain or "").strip().lower()
+    for p in ("https://", "http://", "www."):
+        if d.startswith(p):
+            d = d[len(p):]
+    d = d.split("/", 1)[0].rstrip(".")
+    if not d or "." not in d:
+        return None
+    try:
+        resp = httpx.get(f"{_BASE}/organizations/enrich",
+                        headers=_headers(), params={"domain": d}, timeout=15)
+    except httpx.HTTPError:
+        return None
+    if resp.status_code != 200:
+        return None
+    org = (resp.json() or {}).get("organization", {}) or {}
+    return org or None
+
+
 def search_people(company_domain: str, *, titles: list[str] | None = None,
                   limit: int = 5) -> list[dict[str, Any]]:
     """People search by company domain. Returns light person dicts,
