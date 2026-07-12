@@ -502,6 +502,23 @@ class RevenantBot:
         a private repo we can't access) is skipped; as long as ONE works we
         still build a solid understanding."""
         sess = self.session(chat_id)
+
+        # ── on-stage Razorpay demo: canned context, no repo/site fetch ──
+        from .. import demo_razorpay
+        if demo_razorpay.demo_active() and "razorpay" in source.lower():
+            ctx = demo_razorpay.razorpay_context()
+            sess.ctx = ctx
+            sess.ctx_label = "razorpay.com"
+            sess.setup_done = True
+            self.api.send_message(
+                chat_id,
+                f"Got it — ingested <b>Razorpay</b>'s product.\n\n"
+                f"<i>{html.escape(ctx.summary()[:280])}</i>\n\n"
+                "I'll sell on their behalf from here. When you're ready, "
+                "tell me who to go after — e.g. "
+                "<i>“find merchants who'd need us”</i>.")
+            return
+
         sources = _extract_sources(source)
         if not sources:
             sources = [source.strip()]
