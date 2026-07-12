@@ -346,6 +346,13 @@ def find_shortlist(
                 pass
 
     stage("research", "Hunting for fit prospects…")
+
+    # ── on-stage Razorpay demo: deterministic, pre-vetted shortlist ──
+    from . import demo_razorpay
+    if demo_razorpay.demo_active() and demo_razorpay.is_razorpay(founder_context):
+        stage("research_demo", "Matching Razorpay against its ideal merchants…")
+        return demo_razorpay.razorpay_shortlist()[:want]
+
     # Seed the LLM with what the founder actually sells — the fit rationale
     # is only useful if it names capabilities the product actually has.
     founder_gist = ""
@@ -408,6 +415,33 @@ def build_campaign_for(
     art.recipient_email = emails[0] if emails else ""
     stage("research_done", f"Target: {art.company}"
           + (f" · {art.contact_name}" if art.contact_name else ""))
+
+    # ── on-stage Razorpay demo: pre-built boAt prototype + walkthrough ──
+    # Deterministic path — no live LLM/deploy variance on stage. The prototype
+    # AND the Fiona-narrated walkthrough are already built & deployed; we replay
+    # staged progress so the audience sees the build + filming happen, then
+    # reveal the pinned prototype URL and deliver the pre-built video SEPARATELY
+    # (never embedded in the prototype).
+    from . import demo_razorpay
+    if (demo_razorpay.demo_active()
+            and demo_razorpay.is_razorpay(founder_context)
+            and demo_razorpay.is_boat_pick(prospect)):
+        demo_razorpay.run_staged_build(stage)
+        art.prototype_url = demo_razorpay.PROTOTYPE_URL
+        art.walkthrough_url = demo_razorpay.WALKTHROUGH_URL
+        if demo_razorpay.WALKTHROUGH_MP4.exists():
+            art.walkthrough_mp4 = str(demo_razorpay.WALKTHROUGH_MP4)
+        # Deterministic email — template only, no LLM call on stage.
+        art.email_subject, art.email_body = _fallback_email(
+            prospect=prospect,
+            founder_context=founder_context,
+            prototype_url=art.prototype_url,
+            walkthrough_url=art.walkthrough_url,
+            deck_url=art.deck_url)
+        art.cost_usd = round(COST.cents / 100, 4)
+        art.ok = True
+        stage("done", art.company)
+        return art
 
     # ── 2. Engineer ───────────────────────────────────────────
     stage("engineer", f"Building a prototype for {art.company}…")
