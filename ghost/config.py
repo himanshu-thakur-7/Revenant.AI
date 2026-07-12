@@ -50,7 +50,7 @@ class Settings(BaseModel):
 
     cloudflare_api_token: str | None = None
     cloudflare_account_id: str | None = None
-    cloudflare_pages_project: str = "revenant-sites"
+    cloudflare_pages_project: str = "revenant-prototypes"
 
     convex_url: str | None = None
     convex_deploy_key: str | None = None
@@ -66,6 +66,15 @@ class Settings(BaseModel):
     telegram_chat_id: str | None = None
 
     stage1b_provider: str = "openai"
+
+    # D-ID (avatar lip-sync)
+    did_api_key: str | None = None
+    did_presenter_id: str = "amy-Aq6OmGZnMt"  # stock: warm business tone
+    skip_lipsync: bool = False  # DIRECTOR_SKIP_LIPSYNC=1 to save credits
+
+    # Cloudinary (video host)
+    cloudinary_cloud_name: str | None = None
+    cloudinary_api_key: str | None = None
 
     @property
     def offline(self) -> bool:
@@ -93,7 +102,7 @@ def get_settings() -> Settings:
         elevenlabs_agent_id=os.getenv("ELEVENLABS_AGENT_ID"),
         cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN"),
         cloudflare_account_id=os.getenv("CLOUDFLARE_ACCOUNT_ID"),
-        cloudflare_pages_project=os.getenv("CLOUDFLARE_PAGES_PROJECT", "revenant-sites"),
+        cloudflare_pages_project=os.getenv("CLOUDFLARE_PAGES_PROJECT", "revenant-prototypes"),
         convex_url=os.getenv("CONVEX_URL"),
         convex_deploy_key=os.getenv("CONVEX_DEPLOY_KEY"),
         razorpay_key_id=os.getenv("RAZORPAY_KEY_ID"),
@@ -104,6 +113,11 @@ def get_settings() -> Settings:
         telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN"),
         telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID"),
         stage1b_provider=os.getenv("STAGE1B_PROVIDER", "openai"),
+        did_api_key=os.getenv("DID_API_KEY"),
+        did_presenter_id=os.getenv("DID_PRESENTER_ID", "amy-Aq6OmGZnMt"),
+        skip_lipsync=_flag("DIRECTOR_SKIP_LIPSYNC", False),
+        cloudinary_cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+        cloudinary_api_key=os.getenv("CLOUDINARY_API_KEY"),
     )
 
 
