@@ -34,26 +34,38 @@ _DEFAULT_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 
 
 def narrate(text: str, out_path: Path, *, voice_id: str | None = None) -> tuple[Path, float]:
-    """Render ``text`` to an MP3 at ``out_path``. Returns (path, duration_seconds)."""
+    """Render ``text`` to an MP3 at ``out_path``. Returns (path, duration_seconds).
+
+    Voice chain, each falling through on failure so a dead key never kills the
+    film: ElevenLabs (if key) → **OpenAI TTS** (natural, uses the LLM key we
+    already have) → macOS ``say`` (robotic last resort)."""
+    # 1. ElevenLabs — only if a key is configured.
     if settings.elevenlabs_api_key:
         try:
             _elevenlabs_render(text, out_path, voice_id=voice_id or settings.elevenlabs_voice_id
                                 or _DEFAULT_VOICE_ID)
             return out_path, _measure(out_path)
         except Exception as exc:  # quota_exceeded (401), network, etc.
-            # The docstring promises a `say` fallback — honour it on ANY
-            # ElevenLabs failure so a dead/exhausted key never kills the film.
-            if platform.system() != "Darwin":
-                raise
-            print(f"[tts] ElevenLabs failed ({str(exc)[:120]}); falling back to "
+            print(f"[tts] ElevenLabs failed ({str(exc)[:120]}); trying OpenAI TTS.",
+                  file=sys.stderr, flush=True)
+
+    # 2. OpenAI TTS — natural voice, reuses the OpenAI key already in .env.
+    oai_key = settings.llm_api_key or settings.openai_api_key or os.getenv("OPENAI_API_KEY")
+    if oai_key:
+        try:
+            _openai_render(text, out_path, api_key=oai_key)
+            return out_path, _measure(out_path)
+        except Exception as exc:
+            print(f"[tts] OpenAI TTS failed ({str(exc)[:120]}); falling back to "
                   f"macOS `say`.", file=sys.stderr, flush=True)
-            _say_render(text, out_path)
-    elif platform.system() == "Darwin":
+
+    # 3. macOS `say` — last resort.
+    if platform.system() == "Darwin":
         _say_render(text, out_path)
     else:
         raise RuntimeError(
-            "No ELEVENLABS_API_KEY and macOS `say` fallback isn't available on this "
-            "platform. Add ELEVENLABS_API_KEY to .env to run the walkthrough live."
+            "All TTS providers failed and macOS `say` isn't available on this "
+            "platform. Add ELEVENLABS_API_KEY or a working OPENAI_API_KEY to .env."
         )
     return out_path, _measure(out_path)
 
@@ -80,6 +92,27 @@ def _elevenlabs_render(text: str, out_path: Path, *, voice_id: str) -> None:
             # Read the body for a clean error before raising.
             body = resp.read()
             raise RuntimeError(f"ElevenLabs {resp.status_code}: {body[:300]!r}")
+        with open(out_path, "wb") as f:
+            for chunk in resp.iter_bytes():
+                f.write(chunk)
+
+
+_OPENAI_TTS_URL = "/audio/speech"
+
+
+def _openai_render(text: str, out_path: Path, *, api_key: str) -> None:
+    """OpenAI text-to-speech → MP3. Natural voice (env REVENANT_TTS_VOICE,
+    default 'nova'); model REVENANT_TTS_MODEL (default 'tts-1-hd')."""
+    base = (settings.llm_base_url or "https://api.openai.com/v1").rstrip("/")
+    voice = os.getenv("REVENANT_TTS_VOICE", "nova")
+    model = os.getenv("REVENANT_TTS_MODEL", "tts-1-hd")
+    payload = {"model": model, "voice": voice, "input": text, "response_format": "mp3"}
+    with httpx.stream("POST", base + _OPENAI_TTS_URL,
+                      headers={"Authorization": f"Bearer {api_key}"},
+                      json=payload, timeout=60) as resp:
+        if resp.status_code != 200:
+            body = resp.read()
+            raise RuntimeError(f"OpenAI TTS {resp.status_code}: {body[:200]!r}")
         with open(out_path, "wb") as f:
             for chunk in resp.iter_bytes():
                 f.write(chunk)

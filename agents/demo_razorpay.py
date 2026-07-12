@@ -37,7 +37,7 @@ SITE_DIR = Path(__file__).parent / "demo_razorpay_site"
 #   revenant director <PROTOTYPE_URL> --company boAt ...   (DIRECTOR_SKIP_LIPSYNC=1)
 WALKTHROUGH_URL = os.getenv(
     "RAZORPAY_WALKTHROUGH_URL",
-    "https://9064116d.revenant-walkthroughs.pages.dev/walkthrough.mp4")
+    "https://542dde7f.revenant-walkthroughs.pages.dev/walkthrough.mp4")
 WALKTHROUGH_MP4 = Path(__file__).parent / "demo_razorpay_assets" / "boat-walkthrough.mp4"
 
 
@@ -203,22 +203,45 @@ def razorpay_shortlist() -> list[dict[str, Any]]:
 # unchanged. NO "embed_media" stage — the walkthrough is delivered separately,
 # never embedded in the prototype.
 _STAGED_BUILD: list[tuple[str, str, float]] = [
-    ("engineer",      "Reading Razorpay's product + boAt's brand and catalog…", 10),
-    ("engineer",      "Designing the Magic Checkout prototype for boAt…", 13),
-    ("engineer_done", PROTOTYPE_URL, 3),
-    ("director",      "Filming a walkthrough with an AI presenter narrating…", 16),
+    # Engineer ≈ 140s (the founder asked for a real, natural-feeling build).
+    ("engineer",      "Reading Razorpay's product docs + boAt's catalog & brand…", 30),
+    ("engineer",      "Designing the Magic Checkout prototype for boAt…", 35),
+    ("engineer",      "Wiring the 1-click prefill + COD/RTO risk logic…", 40),
+    ("engineer",      "Deploying to Cloudflare's edge + hardening the UI…", 35),
+    ("engineer_done", PROTOTYPE_URL, 5),
+    # Director ≈ 22s.
+    ("director",      "Filming the walkthrough — AI presenter narrating on-screen…", 22),
     ("director_done", "", 3),
-    ("sales",         "Writing the pitch email + assembling the deck…", 11),
+    # Sales.
+    ("sales",         "Writing the pitch email + assembling the deck…", 10),
     ("sales_done",    "", 2),
 ]
 
 
 def run_staged_build(on_stage, *, sleep=time.sleep) -> None:
     """Emit staged progress pings so the pre-built boAt prototype + walkthrough
-    'build' convincingly on stage (~58s of staged work)."""
+    'build' convincingly on stage (engineer ~140s, director ~22s)."""
     for name, detail, dwell in _STAGED_BUILD:
         try:
             on_stage(name, detail)
+        except Exception:
+            pass
+        sleep(dwell)
+
+
+# ── staged ingestion (~10s) ───────────────────────────────────────
+_INGEST_STEPS: list[tuple[str, float]] = [
+    ("🔗 Pulling Razorpay's product surface — Magic Checkout, pricing, docs…", 4),
+    ("📚 Reading the COD/RTO playbook, UPI methods, and merchant case studies…", 4),
+    ("🧠 Building a working model of what Razorpay sells and who it's for…", 2),
+]
+
+
+def run_staged_ingest(send, *, sleep=time.sleep) -> None:
+    """~10s of ingestion pings so onboarding Razorpay feels like real work."""
+    for msg, dwell in _INGEST_STEPS:
+        try:
+            send(msg)
         except Exception:
             pass
         sleep(dwell)

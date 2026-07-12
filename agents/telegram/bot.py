@@ -512,6 +512,10 @@ class RevenantBot:
             sess.ctx = ctx
             sess.ctx_label = "razorpay.com"
             sess.setup_done = True
+            # ~10s of staged ingestion so onboarding feels like real work.
+            with _TypingLoop(self.api, chat_id):
+                demo_razorpay.run_staged_ingest(
+                    lambda m: self.api.send_message(chat_id, m, disable_preview=True))
             self.api.send_message(
                 chat_id,
                 f"Got it — ingested <b>Razorpay</b>'s product.\n\n"
@@ -634,7 +638,54 @@ class RevenantBot:
 
         sess.shortlist = shortlist
         sess.mode = "awaiting_pick"
-        self._show_shortlist(chat_id, shortlist)
+        from .. import demo_razorpay
+        if demo_razorpay.demo_active() and demo_razorpay.is_razorpay(ctx):
+            self._show_shortlist_streamed(chat_id, shortlist)
+        else:
+            self._show_shortlist(chat_id, shortlist)
+
+    def _pick_buttons(self, shortlist: list[dict]) -> list[list[tuple[str, str]]]:
+        buttons: list[list[tuple[str, str]]] = []
+        for i, p in enumerate(shortlist):
+            company = p.get("company_name", "?")
+            buttons.append([(f"🎯 Build for {i+1}. {company[:22]}", f"pick:{i}")])
+        buttons.append([("♻️ Try a different brief", "pick:cancel")])
+        return buttons
+
+    def _show_shortlist_streamed(self, chat_id: int, shortlist: list[dict]) -> None:
+        """On-stage demo: reveal the merchants ONE at a time over ~20s, then
+        drop the tap-to-build buttons — so research feels like live work."""
+        import time as _t
+        with _TypingLoop(self.api, chat_id):
+            self.api.send_message(
+                chat_id, "🔎 Scanning Razorpay's ideal-customer profile across "
+                "D2C &amp; e-commerce…", disable_preview=True)
+            _t.sleep(3.5)
+            for i, p in enumerate(shortlist):
+                company = p.get("company_name", "?")
+                industry = p.get("industry", "")
+                contact = p.get("contact") or {}
+                person = contact.get("name") or ""
+                rationale = (p.get("fit_rationale") or "").strip()
+                first = rationale.split(". ")[0].strip()
+                if first and not first.endswith("."):
+                    first += "."
+                self.api.send_message(
+                    chat_id,
+                    f"✅ <b>Fit {i+1}/{len(shortlist)} — {html.escape(company)}</b> "
+                    f"<i>({html.escape(industry)})</i>"
+                    + (f"\n👤 {html.escape(person)}" if person else "")
+                    + f"\n<i>Why they fit:</i> {html.escape(first)}",
+                    disable_preview=True)
+                _t.sleep(5.5)
+        body = ("🕯 <b>Three verified fits</b> — each with a real decision-maker "
+                "+ email on file.\nTap one and I'll build a working prototype + "
+                "AI walkthrough + pitch deck.")
+        m = self.api.send_message(chat_id, body,
+                                   reply_markup=inline_keyboard(self._pick_buttons(shortlist)),
+                                   disable_preview=True)
+        self.session(chat_id).shortlist_msg_id = (
+            m.get("result", {}).get("message_id"))
 
     def _show_shortlist(self, chat_id: int, shortlist: list[dict]) -> None:
         """Render the 3 candidates side-by-side with fit rationales + tap-to-build
