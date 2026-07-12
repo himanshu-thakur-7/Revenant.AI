@@ -53,7 +53,8 @@ class Sales(Agent):
     def state(self) -> DraftState:
         return self._state
 
-    def draft(self, on_event: EventSink = None) -> dict[str, Any]:
+    def draft(self, on_event: EventSink = None,
+              extra_instruction: str = "") -> dict[str, Any]:
         opening = (
             "Draft the outbound artifact stack for this prospect. Call the "
             "read tools first, then compose the deck outline and render it "
@@ -61,6 +62,8 @@ class Sales(Agent):
             "draft, and finalize. One clean pass — do not re-render the deck "
             "twice."
         )
+        if extra_instruction:
+            opening += "\n\n" + extra_instruction.strip()
         text = self.run_turn(opening, on_event=on_event)
         finalized = self._state.finalized or bool(self._state.convex_id)
         return {

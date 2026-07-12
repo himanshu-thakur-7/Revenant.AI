@@ -505,5 +505,47 @@ def sales_cmd(
     )
 
 
+# ── telegram gateway ───────────────────────────────────────────
+@app.command("telegram")
+def telegram_cmd(
+    repo: str = typer.Option("~/shroud", "--repo", "-r",
+                             help="Founder's startup — local folder or owner/repo."),
+    chat_id: int = typer.Option(None, "--chat-id",
+                                help="Lock the bot to one chat id (recommended for demo)."),
+    lipsync: bool = typer.Option(False, "--lipsync",
+                                 help="Use D-ID lip-sync avatar (burns credits)."),
+) -> None:
+    """Launch the Telegram gateway — command Revenant from your phone."""
+    from .telegram import RevenantBot
+
+    token = settings.telegram_bot_token
+    if not token:
+        console.print(Text("  ! TELEGRAM_BOT_TOKEN not set in .env", style=ui.BLOOD))
+        raise typer.Exit(1)
+
+    ui.render_banner(console, model=settings.llm_model, ctx_source=repo)
+    console.print()
+    ui.boot_start(console)
+    with console.status(f"[dim]ingesting {repo}…[/dim]", spinner="dots"):
+        ctx = _load_context(repo)
+    ui.boot_line(console, "ingest founder context", f"{len(ctx.files)} files")
+    with console.status("[dim]briefing…[/dim]", spinner="dots"):
+        _ = ctx.summary()
+    ui.boot_line(console, "founder", f"{settings.founder_name} · {settings.founder_company or '—'}")
+    ui.boot_line(console, "telegram gateway", "online — open the chat on your phone")
+    ui.boot_line(console, "lip-sync", "D-ID" if lipsync else "off (macOS say)")
+    ui.boot_ready(console)
+    console.print(Text("  the founder now drives from Telegram. Ctrl-C to stop.\n",
+                       style=ui.MUTED))
+
+    locked = chat_id or (int(settings.telegram_chat_id)
+                         if settings.telegram_chat_id else None)
+    bot = RevenantBot(token, ctx, allowed_chat_id=locked, skip_lipsync=not lipsync)
+    try:
+        bot.run()
+    except KeyboardInterrupt:
+        console.print(Text("\n  ⌇ gateway closed", style=ui.MUTED))
+
+
 if __name__ == "__main__":  # pragma: no cover
     app()

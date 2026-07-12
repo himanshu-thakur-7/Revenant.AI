@@ -62,7 +62,9 @@ def search_people(company_domain: str, *, titles: list[str] | None = None,
         "per_page": max(limit, 5),
     }
     try:
-        resp = httpx.post(f"{_BASE}/mixed_people/search",
+        # `mixed_people/api_search` is the current API-caller endpoint;
+        # the old `mixed_people/search` is deprecated for API keys.
+        resp = httpx.post(f"{_BASE}/mixed_people/api_search",
                           headers=_headers(), json=body, timeout=20)
     except httpx.HTTPError as exc:
         raise ApolloError(f"apollo network error: {exc}") from exc
@@ -144,6 +146,11 @@ def find_best_contact(company_domain: str, *,
                 contact["email"] = revealed["email"]
                 contact["email_verified"] = revealed.get(
                     "email_status", "") == "verified"
+            # the api_search endpoint often omits the name; the reveal has it
+            if not contact["name"] and revealed.get("name"):
+                contact["name"] = revealed["name"]
+            if not contact["title"] and revealed.get("title"):
+                contact["title"] = revealed["title"]
         except ApolloError as exc:
             contact["email_note"] = str(exc)
     return contact
