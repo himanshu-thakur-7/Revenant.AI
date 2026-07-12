@@ -237,15 +237,30 @@ def action_tools(state: WalkthroughState, prototype_url: str) -> list[Tool]:
             talking_head = _did.get("path")
             avatar_warning = _did.get("warn")
 
+        # Surface the avatar outcome to the log — without this we were blind to
+        # WHY the presenter went missing while D-ID credits were still charged.
+        import sys as _sys
+        if avatar_warning:
+            print(f"[director] ⚠️ presenter missing: {avatar_warning}", file=_sys.stderr, flush=True)
+        elif talking_head and talking_head.exists():
+            print(f"[director] ✅ talking-head ready: {talking_head} "
+                  f"({talking_head.stat().st_size} bytes)", file=_sys.stderr, flush=True)
+        else:
+            print("[director] ⚠️ presenter missing: D-ID returned no file "
+                  "(no warning captured)", file=_sys.stderr, flush=True)
+
         # 5. Composite the talking head (if any) + mux narration → MP4.
         mp4_path = state.workspace / "walkthrough.mp4"
         try:
             if talking_head and talking_head.exists():
                 muxer.composite_and_mux(Path(webm), talking_head, audio_all, mp4_path)
+                print(f"[director] ✅ composited head onto walkthrough", file=_sys.stderr, flush=True)
             else:
                 muxer.mux_to_mp4(Path(webm), audio_all, mp4_path)
         except muxer.MuxError as exc:
             # composite failed → fall back to a plain mux so we still ship a video
+            print(f"[director] ⚠️ COMPOSITE FAILED (head dropped, static bubble "
+                  f"shown): {exc}", file=_sys.stderr, flush=True)
             try:
                 muxer.mux_to_mp4(Path(webm), audio_all, mp4_path)
             except muxer.MuxError:
