@@ -20,12 +20,16 @@ class Engineer(Agent):
     max_iters = 14
     temperature = 0.5          # a bit warmer — we want creative copy inside guardrails
     # The prototype is the first thing the prospect sees — quality matters
-    # more than token cost. Run it on a reasoning model (gpt-5-mini) via the
-    # strong route: better layout/styling reasoning for complex prototypes.
-    # Override with ENGINEER_MODEL. gpt-5 models reject temperature (handled
-    # in base.py) so the class temperature is ignored for them.
+    # more than token cost. Architecture: a smart PLANNER (gpt-5.6-luna) writes
+    # a rich spec into the opening, then a fast AUTHOR (gpt-4.1) executes it.
+    # This beats reasoning-only models on BOTH speed and content depth:
+    #   gpt-5-mini alone           → ~90s, ~16kB HTML
+    #   gpt-4.1 alone              → ~50s, ~10kB HTML (thin)
+    #   planner + gpt-4.1 author   → ~70s, ~22kB HTML (best)
+    # See agents/engineer/planner.py. Override author via ENGINEER_MODEL,
+    # planner via REVENANT_PLANNER_MODEL, disable planner via REVENANT_ENGINEER_PLANNER=0.
     use_strong_model = True
-    model = os.getenv("ENGINEER_MODEL", "gpt-5-mini")
+    model = os.getenv("ENGINEER_MODEL", "gpt-4.1")
 
     def __init__(self, *, founder_context: FounderContext, prospect: dict[str, Any]) -> None:
         super().__init__()
@@ -59,6 +63,35 @@ class Engineer(Agent):
             except Exception:
                 brand_brief = ""
 
+        # OPTIONAL PRE-SPEC: a fast strong-model planner writes a complete,
+        # opinionated spec (sections, copy angles, palette, demo details) BEFORE
+        # the Engineer runs. With this in the opening, a fast author (gpt-4.1 /
+        # gpt-4o) can write a 15k+ page in one iteration instead of reasoning
+        # about structure. Set REVENANT_ENGINEER_PLANNER=0 to disable.
+        prototype_spec = ""
+        try:
+            import os as _os
+            if _os.getenv("REVENANT_ENGINEER_PLANNER", "1") not in ("", "0", "false", "no"):
+                from .planner import build_prototype_spec
+                # Startup summary comes off the founder context (canned or fetched).
+                try:
+                    startup_summary = self._ctx.summary()[:800] if self._ctx else ""
+                except Exception:
+                    startup_summary = ""
+                startup_name = (getattr(self._ctx, "product_name", "")
+                                or getattr(self._ctx, "source", "")
+                                or "the startup")
+                prototype_spec = build_prototype_spec(
+                    startup=str(startup_name),
+                    startup_summary=startup_summary,
+                    merchant=self._prospect.get("company_name") or "the prospect",
+                    merchant_domain=domain,
+                    pain=self._prospect.get("fit_rationale") or "",
+                    brand_brief=brand_brief,
+                )
+        except Exception:
+            prototype_spec = ""
+
         opening = (
             "Build the prototype for the prospect. Start by calling "
             "`read_prospect_brief`, then study the founder's product, then "
@@ -73,6 +106,21 @@ class Engineer(Agent):
                 "and mirror their wordmark styling in the hero. This is what "
                 "makes it feel custom-built for them.\n\n"
                 f"{brand_brief}"
+            )
+        if prototype_spec:
+            opening += (
+                "\n\n## THE SPEC — FOLLOW IT\n"
+                "A senior designer wrote this spec for you. It's complete: every "
+                "section, every copy angle, every colour, the demo details. "
+                "Write the entire page IN ONE `write_prototype_file` call from "
+                "this spec (aim for 15,000+ characters of dense, on-brand HTML), "
+                "then deploy. Do NOT rewrite the spec — implement it. If a small "
+                "detail is missing, use judgment.\n\n"
+                "STRICT RULE: DO NOT USE `<img>` TAGS. Every image URL you "
+                "guess will 404 and render as a broken icon. Use CSS gradients, "
+                "inline SVG, or emoji for all visuals. The only external asset "
+                "allowed is Google Fonts.\n\n"
+                f"{prototype_spec}"
             )
         text = self.run_turn(opening, on_event=on_event)
 

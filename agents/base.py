@@ -377,6 +377,15 @@ class Agent:
         }
         if _reasoning:
             kwargs["max_completion_tokens"] = 16000  # room for reasoning + long HTML
+            # Optional per-agent effort control: reasoning="low" cuts thinking
+            # tokens drastically (30-60s → 10-20s on long-HTML authoring).
+            # Agents can set `reasoning_effort = "low"|"medium"|"high"` as a
+            # class attr, or override via env for demo tuning.
+            import os as _os
+            _eff = _os.getenv("REVENANT_REASONING_EFFORT") or getattr(
+                self, "reasoning_effort", None)
+            if _eff:
+                kwargs["reasoning_effort"] = _eff
         else:
             kwargs["temperature"] = self.temperature
         if tool_schemas:
