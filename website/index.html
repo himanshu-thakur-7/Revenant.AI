@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Revenant AI — the outbound engineer that never sleeps</title>
+<style>
+  :root{
+    --void:#0a0605; --ash:#160f0c; --fog:#221512; --edge:rgba(255,138,61,.12);
+    --ember:#ff5a1f; --ember-hot:#ff8a3d; --coal:#ff3410; --gold:#ffb347;
+    --bone:#f4ece6; --mist:#a5928a; --faint:#5c463d;
+    --serif:'Iowan Old Style','Palatino Linotype','Book Antiqua',Georgia,'Times New Roman',serif;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0; background:var(--void); color:var(--bone); font-family:var(--sans);
+    line-height:1.6; -webkit-font-smoothing:antialiased; overflow-x:hidden;}
+  ::selection{background:rgba(255,90,31,.32); color:#fff;}
+  a{color:inherit; text-decoration:none;}
+  h1,h2,h3{text-wrap:balance; margin:0;}
+
+  .grain,.scan{position:fixed; inset:0; pointer-events:none; z-index:60;}
+  .grain{opacity:.055; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+  .scan{opacity:.28; background:repeating-linear-gradient(to bottom,transparent 0 3px,rgba(0,0,0,.18) 3px 4px);}
+  .vignette{position:fixed; inset:0; pointer-events:none; z-index:59;
+    background:radial-gradient(120% 80% at 50% 34%,transparent 52%,rgba(6,3,2,.86) 100%);}
+
+  nav{position:fixed; top:0; left:0; right:0; z-index:80; display:flex; align-items:center;
+    justify-content:space-between; padding:18px clamp(18px,5vw,54px);
+    backdrop-filter:blur(9px); background:linear-gradient(to bottom,rgba(10,6,5,.72),transparent); transition:background .3s;}
+  nav.solid{background:rgba(10,6,5,.86); border-bottom:1px solid var(--edge);}
+  .brand{font-family:var(--serif); font-size:20px; letter-spacing:.42em; text-indent:.42em; font-weight:600; color:var(--bone);}
+  .brand b{color:var(--ember); font-weight:600;}
+  .navlinks{display:flex; gap:30px; align-items:center;}
+  .navlinks a{font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--mist); transition:color .2s;}
+  .navlinks a:hover{color:var(--ember-hot);}
+  .btn{font-family:var(--mono); font-size:12px; letter-spacing:.16em; text-transform:uppercase; padding:11px 20px;
+    border-radius:2px; cursor:pointer; border:1px solid rgba(255,90,31,.45); color:var(--ember-hot);
+    background:rgba(255,90,31,.07); transition:.25s; display:inline-block;}
+  .btn:hover{background:rgba(255,90,31,.18); box-shadow:0 0 28px rgba(255,90,31,.42); border-color:var(--ember); transform:translateY(-1px);}
+  .btn.ghost{border-color:var(--edge); color:var(--mist); background:transparent;}
+  .btn.ghost:hover{color:var(--bone); border-color:var(--faint); box-shadow:none; background:rgba(255,255,255,.03);}
+  @media(max-width:720px){ .navlinks a{display:none;} }
+
+  .hero{position:relative; min-height:100svh; display:flex; flex-direction:column; align-items:center;
+    justify-content:flex-end; overflow:hidden; padding-bottom:8vh;}
+  #fire{position:absolute; inset:0; z-index:2; pointer-events:none;}
+  .hero-photo{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:50% 22%;
+    z-index:0; will-change:transform,opacity; transform-origin:50% 30%;
+    -webkit-mask-image:radial-gradient(135% 108% at 50% 26%, #000 46%, rgba(0,0,0,.35) 72%, transparent 100%);
+            mask-image:radial-gradient(135% 108% at 50% 30%, #000 46%, rgba(0,0,0,.35) 72%, transparent 100%);}
+  .hero-scrim{position:absolute; inset:0; z-index:1; pointer-events:none;
+    background:
+      linear-gradient(180deg, rgba(10,6,5,.62) 0%, rgba(10,6,5,0) 17%, rgba(10,6,5,0) 38%, rgba(10,6,5,.66) 64%, var(--void) 96%),
+      radial-gradient(120% 82% at 50% 30%, transparent 42%, rgba(10,6,5,.55) 100%);}
+
+  .herotext{position:relative; z-index:3; text-align:center; padding:0 20px; display:flex; flex-direction:column; align-items:center; gap:22px;}
+  .kicker{font-family:var(--mono); font-size:clamp(10px,1.4vw,13px); letter-spacing:.4em; text-transform:uppercase;
+    color:var(--ember-hot); display:flex; align-items:center; gap:12px;}
+  .kicker::before,.kicker::after{content:""; width:34px; height:1px; background:linear-gradient(90deg,transparent,rgba(255,90,31,.6));}
+  .kicker::after{background:linear-gradient(90deg,rgba(255,90,31,.6),transparent);}
+  .wordmark{font-family:var(--serif); font-weight:600; font-size:clamp(3.4rem,min(15.5vw,23vh),12rem); line-height:.9; letter-spacing:.04em;
+    background:linear-gradient(180deg,#fff5ee 8%,#ffc9a6 44%,#ff7a3a 100%); -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 0 60px rgba(255,90,31,.28); animation:flicker 7s linear infinite; filter:drop-shadow(0 6px 40px rgba(0,0,0,.6));}
+  .wordmark .ai{display:inline-block; font-family:var(--mono); font-weight:500; font-size:.16em; letter-spacing:.5em;
+    vertical-align:middle; color:var(--ember-hot); -webkit-text-fill-color:var(--ember-hot); margin-left:.35em; text-indent:.5em;
+    border:1px solid rgba(255,90,31,.5); border-radius:3px; padding:.35em .3em .35em .55em; text-shadow:0 0 18px rgba(255,90,31,.7);}
+  @keyframes flicker{0%,96%,100%{opacity:1;}97%{opacity:.7;}98%{opacity:1;}98.6%{opacity:.86;}}
+  .tag{max-width:660px; color:var(--mist); font-size:clamp(15px,2.2vw,19px); line-height:1.55;}
+  .tag b{color:var(--bone); font-weight:600;}
+  .herocta{display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin-top:4px;}
+  .descend{position:absolute; bottom:22px; left:50%; transform:translateX(-50%); z-index:3; font-family:var(--mono); font-size:10px;
+    letter-spacing:.34em; text-transform:uppercase; color:var(--faint); display:flex; flex-direction:column; align-items:center; gap:8px;}
+  .descend span{width:1px; height:30px; background:linear-gradient(rgba(255,90,31,.7),transparent); animation:drop 2.4s ease-in-out infinite;}
+  @keyframes drop{0%{opacity:0; transform:scaleY(.2); transform-origin:top;}40%{opacity:1;}100%{opacity:0; transform:scaleY(1); transform-origin:top;}}
+
+  section.block{position:relative; z-index:2; max-width:1120px; margin:0 auto; padding:clamp(72px,12vh,150px) clamp(20px,5vw,40px);}
+  .eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:.28em; text-transform:uppercase; color:var(--ember-hot);
+    margin-bottom:16px; display:flex; align-items:center; gap:10px;}
+  .eyebrow s{width:22px; height:1px; background:rgba(255,90,31,.6); display:inline-block; text-decoration:none;}
+  h2.h{font-family:var(--serif); font-weight:600; letter-spacing:.01em; font-size:clamp(2rem,5vw,3.6rem); line-height:1.04; margin-bottom:20px;}
+  .lede{color:var(--mist); font-size:clamp(16px,2vw,19px); max-width:640px; line-height:1.6;}
+  .lede b{color:var(--bone); font-weight:600;}
+
+  .reveal{opacity:0; transform:translateY(34px); transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1);}
+  .reveal.in{opacity:1; transform:none;}
+  .reveal.d1{transition-delay:.08s;} .reveal.d2{transition-delay:.16s;} .reveal.d3{transition-delay:.24s;} .reveal.d4{transition-delay:.32s;}
+
+  .fleet{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:18px; margin-top:46px;}
+  .agent{position:relative; background:linear-gradient(180deg,rgba(255,138,61,.04),rgba(255,138,61,.01));
+    border:1px solid var(--edge); border-radius:5px; padding:26px 22px; overflow:hidden; transition:transform .3s,border-color .3s,box-shadow .3s;}
+  .agent::before{content:""; position:absolute; inset:0; opacity:0; transition:opacity .3s; background:radial-gradient(120% 90% at 50% -10%,rgba(255,90,31,.16),transparent 60%);}
+  .agent:hover{transform:translateY(-5px); border-color:rgba(255,90,31,.4); box-shadow:0 24px 60px -30px rgba(255,90,31,.55);}
+  .agent:hover::before{opacity:1;}
+  .agent .glyph{width:44px; height:44px; margin-bottom:18px; color:var(--ember-hot);}
+  .agent .role{font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); margin-bottom:6px;}
+  .agent h3{font-family:var(--serif); font-size:24px; font-weight:600; margin-bottom:10px;}
+  .agent p{color:var(--mist); font-size:14.5px; line-height:1.55; margin:0;}
+
+  .pipe{margin-top:52px; position:relative;}
+  .track{display:grid; grid-template-columns:repeat(5,1fr); gap:14px; position:relative;}
+  .railwrap{position:absolute; left:6%; right:6%; top:29px; height:2px; z-index:0; background:rgba(255,255,255,.08); border-radius:2px; overflow:hidden;}
+  .rail{position:absolute; inset:0; width:0; background:linear-gradient(90deg,var(--gold),var(--ember),var(--coal)); transition:width 1.8s ease .2s; box-shadow:0 0 16px rgba(255,90,31,.6);}
+  .in .rail{width:100%;}
+  .node{position:relative; z-index:1; text-align:center; display:flex; flex-direction:column; align-items:center; gap:14px;}
+  .orb{width:58px; height:58px; border-radius:50%; display:grid; place-items:center; background:var(--ash); border:1.5px solid rgba(255,90,31,.5);
+    color:var(--ember-hot); font-family:var(--mono); font-weight:600; box-shadow:0 0 0 6px rgba(10,6,5,.9),0 0 24px rgba(255,90,31,.28); transition:.4s;}
+  .node:hover .orb{border-color:var(--ember); box-shadow:0 0 0 6px rgba(10,6,5,.9),0 0 34px rgba(255,90,31,.6); transform:scale(1.08);}
+  .node .pn{font-family:var(--serif); font-size:19px; font-weight:600;}
+  .node .pd{font-size:12.5px; color:var(--mist); line-height:1.45; max-width:170px;}
+  .node.won .orb{border-color:var(--gold); color:var(--gold); box-shadow:0 0 0 6px rgba(10,6,5,.9),0 0 30px rgba(255,179,71,.55);}
+  .node.won .pn{color:var(--gold);}
+  @media(max-width:760px){
+    .track{grid-template-columns:1fr; gap:0;}
+    .railwrap{left:29px; right:auto; top:6%; bottom:6%; width:2px; height:auto;}
+    .in .rail{width:2px; height:100%;} .rail{height:0; width:2px; background:linear-gradient(180deg,var(--gold),var(--ember),var(--coal));}
+    .node{flex-direction:row; text-align:left; gap:18px; padding:18px 0;} .node .pd{max-width:none;}
+  }
+
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:1px; margin-top:46px;
+    background:var(--edge); border:1px solid var(--edge); border-radius:6px; overflow:hidden;}
+  .stat{background:var(--ash); padding:34px 26px;}
+  .stat .num{font-family:var(--serif); font-size:clamp(2.4rem,5vw,3.4rem); line-height:1; font-weight:600; font-variant-numeric:tabular-nums;
+    background:linear-gradient(180deg,#fff,#ffab7a); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .stat .lbl{font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin-top:12px;}
+  .stat p{color:var(--mist); font-size:14px; margin:8px 0 0; line-height:1.5;}
+
+  .steps{margin-top:44px; display:flex; flex-direction:column; gap:2px;}
+  .step{display:grid; grid-template-columns:64px 1fr; gap:22px; align-items:baseline; padding:26px 4px; border-top:1px solid var(--edge);}
+  .step:last-child{border-bottom:1px solid var(--edge);}
+  .step .no{font-family:var(--mono); font-size:13px; color:var(--ember-hot); letter-spacing:.1em; padding-top:6px;}
+  .step h3{font-family:var(--serif); font-size:clamp(1.3rem,3vw,1.9rem); font-weight:600; margin-bottom:8px;}
+  .step p{color:var(--mist); margin:0; max-width:620px;}
+  .step code{font-family:var(--mono); font-size:.85em; color:var(--ember-hot); background:rgba(255,90,31,.09); padding:2px 7px; border-radius:3px; border:1px solid rgba(255,90,31,.18);}
+
+  .summon{position:relative; text-align:center; padding:clamp(90px,16vh,180px) 20px; overflow:hidden;}
+  .summon::before{content:""; position:absolute; left:50%; top:40%; transform:translate(-50%,-50%); width:800px; height:800px; max-width:150vw;
+    background:radial-gradient(circle,rgba(255,90,31,.14),transparent 60%); pointer-events:none;}
+  .summon h2{position:relative; font-family:var(--serif); font-weight:600; font-size:clamp(2.6rem,8vw,6rem); line-height:1; letter-spacing:.02em;
+    background:linear-gradient(180deg,#fff,#ff8a3d); -webkit-background-clip:text; background-clip:text; color:transparent; text-shadow:0 0 50px rgba(255,90,31,.24);}
+  .summon p{position:relative; color:var(--mist); margin:20px auto 30px; max-width:520px; font-size:17px;}
+  .summon .herocta{position:relative;}
+
+  footer{border-top:1px solid var(--edge); padding:40px clamp(20px,5vw,40px); display:flex; flex-wrap:wrap; gap:14px;
+    justify-content:space-between; align-items:center; color:var(--faint); font-family:var(--mono); font-size:11.5px; letter-spacing:.08em;}
+  footer .brand{font-size:15px; letter-spacing:.3em; text-indent:.3em;}
+
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none !important; transition-duration:.001s !important;}
+    .reveal{opacity:1; transform:none;} html{scroll-behavior:auto;}
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div><div class="scan"></div><div class="vignette"></div>
+
+<nav id="nav">
+  <div class="brand">REVENANT<b>·</b></div>
+  <div class="navlinks">
+    <a href="#fleet">The Fleet</a><a href="#pipeline">The Kill-Chain</a><a href="#impact">Impact</a>
+    <a class="btn" href="#summon">Raise yours</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <img class="hero-photo" id="figure" src="revenant-hero.jpg" alt="A hooded revenant with a glowing ember cyber-mask" draggable="false">
+  <div class="hero-scrim"></div>
+  <canvas id="fire"></canvas>
+
+  <div class="herotext">
+    <div class="kicker">Autonomous outbound · while you sleep</div>
+    <h1 class="wordmark">REVENANT<span class="ai">AI</span></h1>
+    <p class="tag">It hunts your next customer, builds them a <b>working prototype</b>, films an
+      <b>AI walkthrough</b>, and drafts the pitch — then waits for your nod. One brief in.
+      A whole campaign out. In minutes.</p>
+    <div class="herocta">
+      <a class="btn" href="#summon">Summon a demo</a>
+      <a class="btn ghost" href="#pipeline">See the kill-chain</a>
+    </div>
+  </div>
+  <div class="descend">descend<span></span></div>
+</header>
+
+<section class="block" id="reckoning">
+  <div class="eyebrow reveal"><s></s>The reckoning</div>
+  <h2 class="h reveal d1">Outbound is a graveyard of<br>half-personalized templates.</h2>
+  <p class="lede reveal d2">Revenant does the work a great SDR only <b>wishes</b> they had time for —
+    real research, a live prototype built on the prospect's own use case, a filmed walkthrough,
+    a grounded pitch — for <b>every single lead</b>. It doesn't get tired. It doesn't skip the homework.
+    It delivers the campaign to your chat and waits for you to hit send.</p>
+</section>
+
+<section class="block" id="fleet">
+  <div class="eyebrow reveal"><s></s>The fleet · five specialists, one kill-chain</div>
+  <h2 class="h reveal d1">Not one bot. A crew of assassins.</h2>
+  <p class="lede reveal d2">Each agent owns one job and does it ruthlessly well, handing the kill down the line.</p>
+  <div class="fleet">
+    <div class="agent reveal d1">
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5L19 19M19 5l-2.5 2.5M7.5 16.5L5 19"/></svg>
+      <div class="role">Agent 0</div><h3>Orchestrator</h3>
+      <p>Reads your company from repo, product site, and docs — even if the repo's private — and sets the target.</p>
+    </div>
+    <div class="agent reveal d2">
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="11" cy="11" r="7"/><path d="M16 16l5 5"/><path d="M11 8v6M8 11h6"/></svg>
+      <div class="role">Agent 1</div><h3>Research</h3>
+      <p>Hunts verified decision-makers with real, reachable emails — three strong fits, ranked, every time.</p>
+    </div>
+    <div class="agent reveal d3">
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6M13 4l-2 16"/></svg>
+      <div class="role">Agent 2</div><h3>Engineer</h3>
+      <p>Builds a live, on-brand prototype on the prospect's own use case — styled to match their site.</p>
+    </div>
+    <div class="agent reveal d1">
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 9l4-2v10l-4-2"/><circle cx="9.5" cy="12" r="2.2"/></svg>
+      <div class="role">Agent 3</div><h3>Director</h3>
+      <p>Films an AI-narrated walkthrough with a talking-head presenter, then hosts it — a Loom you never recorded.</p>
+    </div>
+    <div class="agent reveal d2">
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 6h18v12H3z"/><path d="M3 7l9 6 9-6"/></svg>
+      <div class="role">Agent 4</div><h3>Sales</h3>
+      <p>Writes the deck and a pitch email grounded in real evidence — straight into your Gmail drafts. Never auto-sent.</p>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="pipeline">
+  <div class="eyebrow reveal"><s></s>The kill-chain</div>
+  <h2 class="h reveal d1">One brief. Five moves. A closed loop.</h2>
+  <p class="lede reveal d2">Watch a single instruction become a complete, send-ready campaign.</p>
+  <div class="pipe reveal d2" id="pipe">
+    <div class="track">
+      <div class="railwrap"><div class="rail"></div></div>
+      <div class="node"><div class="orb">01</div><div class="pn">Hunt</div><div class="pd">A verified prospect with a reachable decision-maker.</div></div>
+      <div class="node"><div class="orb">02</div><div class="pn">Build</div><div class="pd">A live prototype on their exact use case.</div></div>
+      <div class="node"><div class="orb">03</div><div class="pn">Film</div><div class="pd">An AI-narrated walkthrough, hosted and ready.</div></div>
+      <div class="node"><div class="orb">04</div><div class="pn">Pitch</div><div class="pd">A tailored deck and a grounded email.</div></div>
+      <div class="node won"><div class="orb">✦</div><div class="pn">Close</div><div class="pd">Drafted to your Gmail. You approve. You win.</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="impact">
+  <div class="eyebrow reveal"><s></s>Impact</div>
+  <h2 class="h reveal d1">The output of a team,<br>at the cost of a message.</h2>
+  <div class="stats">
+    <div class="stat reveal d1"><div class="num">~4<small style="font-size:.4em"> min</small></div><div class="lbl">brief → full campaign</div><p>Research, prototype, video, deck, and email — end to end.</p></div>
+    <div class="stat reveal d2"><div class="num">3</div><div class="lbl">verified fits per hunt</div><p>Real decision-makers, real emails. You pick who to pursue.</p></div>
+    <div class="stat reveal d3"><div class="num">1<small style="font-size:.4em">-of-</small>1</div><div class="lbl">prototype per prospect</div><p>Built for that exact company, styled to their brand.</p></div>
+    <div class="stat reveal d4"><div class="num">0</div><div class="lbl">sent without your nod</div><p>Everything lands in your drafts. You always pull the trigger.</p></div>
+  </div>
+</section>
+
+<section class="block" id="how">
+  <div class="eyebrow reveal"><s></s>How it's summoned</div>
+  <h2 class="h reveal d1">You brief it. It does the rest.</h2>
+  <div class="steps">
+    <div class="step reveal d1"><div class="no">i</div><div>
+      <h3>Point it at your startup</h3>
+      <p>A GitHub repo, your product site, docs — or all three. Send <code>github.com/you/repo and yourcompany.com</code>. A private repo it can't reach? Fine — it learns you from the rest.</p></div></div>
+    <div class="step reveal d1"><div class="no">ii</div><div>
+      <h3>Tell it who to hunt</h3>
+      <p>Plain language: <code>find fintechs who'd need us</code>. It infers your ideal customer and surfaces three verified fits to choose from.</p></div></div>
+    <div class="step reveal d1"><div class="no">iii</div><div>
+      <h3>It delivers the campaign to your chat</h3>
+      <p>Prototype link, walkthrough video, pitch deck, and a drafted email — with a live intel brief on the prospect while it builds.</p></div></div>
+    <div class="step reveal d1"><div class="no">iv</div><div>
+      <h3>You approve. It drafts to Gmail. You close.</h3>
+      <p>Amend anything in plain English. Nothing sends until you say so — the revenant hunts, you take the shot.</p></div></div>
+  </div>
+</section>
+
+<section class="summon" id="summon">
+  <h2>Raise your Revenant.</h2>
+  <p>Give it your startup and one instruction. Watch a full outbound campaign rise from the dark.</p>
+  <div class="herocta">
+    <a class="btn" href="#">Request access</a>
+    <a class="btn ghost" href="#fleet">Meet the fleet</a>
+  </div>
+</section>
+
+<footer>
+  <div class="brand">REVENANT<b style="color:var(--ember)">·</b></div>
+  <div>The outbound engineer that never sleeps · built for the GrowthX × Hermes buildathon</div>
+</footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var nav = document.getElementById('nav');
+  addEventListener('scroll', function(){ nav.classList.toggle('solid', scrollY > 40); }, {passive:true});
+
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, {threshold:0.16});
+  document.querySelectorAll('.reveal, #pipe').forEach(function(el){ io.observe(el); });
+
+  var fig = document.getElementById('figure');
+  if(!reduce){
+    addEventListener('scroll', function(){
+      var y = scrollY;
+      if(y < innerHeight){ fig.style.transform = 'scale('+(1 + y/innerHeight*0.09)+')'; fig.style.opacity = Math.max(0, 1 - y/(innerHeight*0.95)); }
+    }, {passive:true});
+  }
+
+  var c = document.getElementById('fire'), x = c.getContext('2d'), W, H, DPR;
+  function size(){ DPR=Math.min(2,devicePixelRatio||1); W=c.width=innerWidth*DPR; H=c.height=innerHeight*DPR; c.style.width=innerWidth+'px'; c.style.height=innerHeight+'px'; }
+  size(); addEventListener('resize', size);
+  var embers=[], streaks=[];
+  for(var i=0;i<64;i++) embers.push({x:Math.random()*W, y:Math.random()*H, r:(Math.random()*1.7+.4)*DPR, s:(Math.random()*.5+.2)*DPR,
+    drift:(Math.random()-.5)*.35*DPR, a:Math.random()*.6+.25, hue: Math.random()<0.7 ? '255,120,40' : '255,60,20'});
+  for(var j=0;j<6;j++) streaks.push({x:Math.random()*W, y:H*(.55+Math.random()*.5), len:(120+Math.random()*220)*DPR, a:.04+Math.random()*.05, vx:(Math.random()-.5)*.1*DPR});
+  function frame(){
+    x.clearRect(0,0,W,H); x.globalCompositeOperation='lighter';
+    streaks.forEach(function(s){ s.x+=s.vx; if(s.x<-s.len) s.x=W+s.len; if(s.x>W+s.len) s.x=-s.len;
+      var g=x.createLinearGradient(s.x,s.y,s.x+s.len,s.y-s.len*.18); g.addColorStop(0,'rgba(255,80,25,0)'); g.addColorStop(.5,'rgba(255,90,31,'+s.a+')'); g.addColorStop(1,'rgba(255,120,40,0)');
+      x.strokeStyle=g; x.lineWidth=2*DPR; x.beginPath(); x.moveTo(s.x,s.y); x.lineTo(s.x+s.len,s.y-s.len*.18); x.stroke(); });
+    embers.forEach(function(p){ p.y-=p.s; p.x+=p.drift; if(p.y<-6){ p.y=H+6; p.x=Math.random()*W; }
+      var fl=p.a*(0.55+0.45*Math.sin((p.y+p.x)*0.02)); x.fillStyle='rgba('+p.hue+','+fl+')'; x.beginPath(); x.arc(p.x,p.y,p.r,0,7); x.fill(); });
+    x.globalCompositeOperation='source-over'; requestAnimationFrame(frame);
+  }
+  if(!reduce){ frame(); }
+  else { x.globalCompositeOperation='lighter'; var g=x.createRadialGradient(W/2,H*0.4,0,W/2,H*0.4,H*0.6); g.addColorStop(0,'rgba(255,90,31,.09)'); g.addColorStop(1,'rgba(255,90,31,0)'); x.fillStyle=g; x.fillRect(0,0,W,H); }
+})();
+</script>
+</body>
+</html>
