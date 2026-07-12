@@ -1,0 +1,13 @@
+{
+  "name": "revenant-convex",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Convex backend for Revenant.AI — truth ledger, Razorpay webhook, persistence cron.",
+  "scripts": {
+    "dev": "convex dev",
+    "deploy": "convex deploy"
+  },
+  "dependencies": {
+    "convex": "^1.16.0"
+  }
+}

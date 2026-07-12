@@ -22,6 +22,10 @@ node_modules/
 console/dist/
 console/.vite/
 
+# Generated demo data (produced by scripts/sync_console.py)
+console/public/ledger.json
+console/public/sites/
+
 # Convex
 convex/_generated/
 .convex/
