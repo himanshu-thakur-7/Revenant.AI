@@ -15,6 +15,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlparse
 
 
 class _TypingLoop:
@@ -117,6 +118,19 @@ _RUN_NOUNS = ("customer", "client", "prospect", "lead", "buyer", "account",
               "pilot", "design partner", "merchant", "merchants", "brand",
               "brands", "store", "stores", "shop", "shops", "seller", "sellers",
               "shopper", "shoppers")
+_RESEARCH_ONLY_VERBS = (
+    "research", "analyse", "analyze", "map", "market map", "list", "show me",
+    "identify", "profile", "find out about", "look into", "study", "who are",
+)
+_RESEARCH_ONLY_GUARDS = (
+    "just research", "only research", "research only", "without building",
+    "without build", "don't build", "dont build", "no build", "no prototype",
+    "no outreach", "no email", "not campaign", "not a campaign",
+)
+_BUILD_WORDS = (
+    "build", "prototype", "walkthrough", "video", "deck", "email", "outreach",
+    "campaign", "send", "draft", "sales package",
+)
 _SETUP_WORDS = ("set up", "setup", "set-up", "onboard", "use this repo",
                 "sell for", "represent", "load my", "here's my startup",
                 "here is my startup", "my startup is", "configure", "switch to")
@@ -131,6 +145,22 @@ _VERTICAL_WORDS = (
     "e-commerce", "retail tech", "adtech", "foodtech", "agritech", "traveltech",
     "real estate", "insurance", "healthcare", "finance", "financial",
 )
+_VERTICAL_CANON = {
+    "fin-tech": "fintech",
+    "fin tech": "fintech",
+    "health-tech": "healthtech",
+    "health tech": "healthtech",
+    "insur-tech": "insurtech",
+    "ed-tech": "edtech",
+    "cyber security": "cybersecurity",
+    "cyber-security": "cybersecurity",
+    "dev tools": "developer tools",
+    "devtools": "developer tools",
+    "med-tech": "medtech",
+    "hr tech": "hrtech",
+    "e-commerce": "ecommerce",
+    "cleantech": "climate tech",
+}
 
 
 _EMAIL_RX = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
@@ -146,6 +176,8 @@ def _keyword_intent(text: str) -> str | None:
     None (→ fall through to the LLM classifier for genuinely ambiguous text)."""
     t = " " + text.lower().strip() + " "
     tsp = t.replace("-", " ")  # so "fin-tech" matches "fin tech"
+    if _research_only_intent(text):
+        return "research_companies"
     if any(w in t or w in tsp for w in _SETUP_WORDS):
         return "configure"
     has_verb = any(v in t or v in tsp for v in _RUN_VERBS)
@@ -160,6 +192,54 @@ def _keyword_intent(text: str) -> str | None:
             " customers ", " clients ", " domain ", " space ", " market ")):
         return "run_campaign"
     return None
+
+
+def _research_only_intent(text: str) -> bool:
+    """True when the founder wants a market/company scan, not the full fleet.
+
+    This path deliberately does NOT require setup and does NOT trigger Engineer,
+    Director, Sales, or the PR watcher. It catches demo-safe asks like
+    "just research companies in healthtech" and "market map payments startups".
+    """
+    t = " " + text.lower().strip() + " "
+    tsp = t.replace("-", " ")
+    has_company_shape = any(n in t or n in tsp for n in _RUN_NOUNS) or any(
+        w in t or w in tsp for w in ("domain", "space", "market", "vertical",
+                                    "industry", "sector"))
+    has_vertical = any(v in t or v in tsp for v in _VERTICAL_WORDS)
+    guarded = any(g in t or g in tsp for g in _RESEARCH_ONLY_GUARDS)
+    has_research_verb = any(v in t or v in tsp for v in _RESEARCH_ONLY_VERBS)
+    wants_build = any(w in t or w in tsp for w in _BUILD_WORDS)
+    if guarded and (has_company_shape or has_vertical):
+        return True
+    if has_research_verb and (has_company_shape or has_vertical) and not wants_build:
+        return True
+    return False
+
+
+def _extract_research_query(text: str) -> str:
+    """Best-effort vertical/market query from a casual Telegram message."""
+    low = " ".join(text.lower().strip().split())
+    padded = f" {low} "
+    hyphenless = padded.replace("-", " ")
+    for vertical in sorted(_VERTICAL_WORDS, key=len, reverse=True):
+        if f" {vertical} " in padded or f" {vertical.replace('-', ' ')} " in hyphenless:
+            return _VERTICAL_CANON.get(vertical, vertical).strip()
+
+    # Prefer the phrase after "in/about/for/around" because founders tend to
+    # say "research companies in X" or "map startups around X".
+    m = re.search(
+        r"\b(?:in|about|around|for|within|across)\s+(.+)$",
+        low,
+    )
+    q = m.group(1) if m else low
+    q = re.sub(r"\b(?:companies|company|startups|startup|businesses|brands|"
+               r"prospects|customers|clients|domain|space|market|vertical|"
+               r"industry|sector|please|pls|just|only|research|analyse|"
+               r"analyze|map|list|show me|identify|profile|do|some|certain|"
+               r"a|an|the)\b", " ", q)
+    q = re.sub(r"\s+", " ", q).strip(" .,!?:;-")
+    return q or "B2B software"
 
 from ghost.config import settings
 
@@ -408,13 +488,16 @@ class RevenantBot:
         # One or more sources (repo/website/docs) with no clear hunt intent →
         # (re)configure. Pass the WHOLE message so multi-source setup works.
         sources = _extract_sources(text)
-        if sources and _keyword_intent(text) != "run_campaign":
+        if sources and _keyword_intent(text) not in ("run_campaign",
+                                                     "research_companies"):
             self._do_setup(chat_id, text)
             return
 
         intent = self._classify(chat_id, text)
         if intent == "run_campaign":
             self._run_campaign(chat_id, text)
+        elif intent == "research_companies":
+            self._research_companies(chat_id, text)
         elif intent == "configure" and sources:
             self._do_setup(chat_id, text)
         else:
@@ -434,6 +517,9 @@ class RevenantBot:
             "- run_campaign: explicitly asks to find/hunt/target prospects, "
             "run outbound, build a campaign, or names a vertical to pursue "
             "(e.g. 'find me a healthtech prospect', 'go after fintech CTOs')\n"
+            "- research_companies: asks ONLY to research/list/map/profile "
+            "companies in a domain, market, industry, or vertical without "
+            "building a prototype, creating outreach, or running a campaign\n"
             "- configure: asks to switch/load a different startup/company "
             "context, or shares a repo/docs link\n"
             "- question: asks about their company, the product, a past run, "
@@ -445,8 +531,9 @@ class RevenantBot:
             offline={"intent": "question"},
         )
         intent = str(result.get("intent", "question")).strip().lower()
-        return intent if intent in {"run_campaign", "configure", "question",
-                                    "smalltalk"} else "question"
+        return intent if intent in {"run_campaign", "research_companies",
+                                    "configure", "question", "smalltalk"} \
+            else "question"
 
     def _answer(self, chat_id: int, text: str) -> None:
         """Conversational reply grounded in the session's founder context."""
@@ -675,6 +762,223 @@ class RevenantBot:
         self._run_campaign(
             chat_id,
             f"PR-triggered: {pr.title} (#{pr.number})")
+
+    # ── research-only path ────────────────────────────────────
+    def _research_companies(self, chat_id: int, brief: str) -> None:
+        """Standalone company/domain research.
+
+        This is intentionally separate from ``_run_campaign``: it works before
+        startup setup, does not require a PR merge, never starts Engineer /
+        Director / Sales, and does not reveal Apollo emails.
+        """
+        sess = self.session(chat_id)
+        sess.mode = "running"
+        sess.last_brief = brief
+        sess.shortlist = []
+        sess.shortlist_msg_id = None
+
+        query = _extract_research_query(brief)
+        limit = self._research_limit(brief)
+        start = self.api.send_message(
+            chat_id,
+            f"🔎 Research-only scan: <b>{html.escape(query)}</b>\n"
+            "No PR merge, no prototype, no outreach — just company research.",
+            disable_preview=True,
+        )
+        mid = start.get("result", {}).get("message_id")
+
+        errors: list[str] = []
+        rows: list[dict[str, Any]] = []
+        source = ""
+        with _TypingLoop(self.api, chat_id):
+            rows = self._research_from_apollo(query, limit, errors)
+            if rows:
+                source = "Apollo organization search"
+            else:
+                rows = self._research_from_linkup(query, limit, errors)
+                if rows:
+                    source = "Linkup web search"
+            if not rows:
+                rows = self._offline_research_rows(query, limit)
+                source = "offline seed list"
+
+        body = self._format_research_results(query, rows, source, errors)
+        if mid:
+            self.api.edit_message(chat_id, mid, body, reply_markup={})
+        else:
+            self.api.send_message(chat_id, body, disable_preview=True)
+        sess.mode = "idle"
+
+    def _research_limit(self, text: str) -> int:
+        m = re.search(r"\b([3-9]|10)\b", text)
+        return max(3, min(10, int(m.group(1)))) if m else 5
+
+    def _research_from_apollo(self, query: str, limit: int,
+                              errors: list[str]) -> list[dict[str, Any]]:
+        from ..research import apollo
+
+        if not settings.apollo_api_key:
+            errors.append("Apollo is not configured")
+            return []
+        try:
+            orgs = apollo.search_companies([query], limit=limit)
+        except apollo.ApolloError as exc:
+            errors.append(str(exc))
+            return []
+
+        out: list[dict[str, Any]] = []
+        for org in orgs[:limit]:
+            contact: dict[str, str] = {}
+            try:
+                people = apollo.search_people(org.get("domain", ""), limit=1)
+                if people:
+                    contact = {
+                        "name": people[0].get("name", ""),
+                        "title": people[0].get("title", ""),
+                        "linkedin_url": people[0].get("linkedin_url", ""),
+                    }
+            except apollo.ApolloError as exc:
+                if len(errors) < 3:
+                    errors.append(str(exc))
+            out.append({
+                "company_name": org.get("name") or org.get("domain", ""),
+                "company_domain": org.get("domain", ""),
+                "industry": org.get("industry", query),
+                "employees": org.get("employees", ""),
+                "founded_year": org.get("founded_year"),
+                "short_description": org.get("short_description", ""),
+                "contact": contact,
+                "source_url": org.get("linkedin_url") or (
+                    f"https://{org.get('domain')}" if org.get("domain") else ""),
+            })
+        return out
+
+    def _research_from_linkup(self, query: str, limit: int,
+                              errors: list[str]) -> list[dict[str, Any]]:
+        from ..research import linkup
+
+        try:
+            hits = linkup.search(f"{query} companies startups", max_results=limit * 2)
+        except RuntimeError as exc:
+            errors.append(str(exc))
+            return []
+
+        out: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for hit in hits:
+            url = hit.get("url", "")
+            parsed = urlparse(url if "://" in url else f"https://{url}")
+            domain = parsed.netloc.lower().removeprefix("www.")
+            if not domain or domain in seen:
+                continue
+            seen.add(domain)
+            title = (hit.get("name") or hit.get("title") or domain).strip()
+            title = re.split(r"\s[-|•]\s", title)[0].strip() or domain
+            out.append({
+                "company_name": title[:80],
+                "company_domain": domain,
+                "industry": query,
+                "employees": "",
+                "short_description": (hit.get("snippet") or "")[:360],
+                "contact": {},
+                "source_url": url,
+            })
+            if len(out) >= limit:
+                break
+        return out
+
+    def _offline_research_rows(self, query: str, limit: int) -> list[dict[str, Any]]:
+        """Last-resort seed data so the Telegram flow never dead-ends."""
+        seeds = {
+            "fintech": [
+                ("Setu", "setu.co", "API infrastructure for financial services"),
+                ("Decentro", "decentro.tech", "Banking and payments APIs"),
+                ("M2P Fintech", "m2pfintech.com", "Card issuing and payments infra"),
+                ("Zaggle", "zaggle.in", "Spend management and corporate cards"),
+                ("Niyo", "goniyo.com", "Consumer banking and travel finance"),
+            ],
+            "healthtech": [
+                ("Clinikk", "clinikk.com", "Digital-first primary care"),
+                ("MediBuddy", "medibuddy.in", "Digital healthcare access"),
+                ("HealthPlix", "healthplix.com", "EMR platform for doctors"),
+                ("Dozee", "dozee.io", "Remote patient monitoring"),
+                ("Pristyn Care", "pristyncare.com", "Surgery care network"),
+            ],
+            "edtech": [
+                ("Classplus", "classplusapp.com", "Creator-led education platform"),
+                ("Teachmint", "teachmint.com", "School and classroom software"),
+                ("Cuemath", "cuemath.com", "Online math learning"),
+                ("Newton School", "newtonschool.co", "Outcome-driven tech education"),
+                ("Unacademy", "unacademy.com", "Online learning marketplace"),
+            ],
+            "ecommerce": [
+                ("Nykaa", "nykaa.com", "Beauty and lifestyle commerce"),
+                ("boAt", "boat-lifestyle.com", "Consumer electronics commerce"),
+                ("Lenskart", "lenskart.com", "Omnichannel eyewear commerce"),
+                ("The Souled Store", "thesouledstore.com", "D2C apparel commerce"),
+                ("Heads Up For Tails", "headsupfortails.com", "Pet commerce"),
+            ],
+        }
+        key = _VERTICAL_CANON.get(query.lower(), query.lower())
+        chosen = seeds.get(key) or seeds.get("fintech", [])
+        return [{
+            "company_name": name,
+            "company_domain": domain,
+            "industry": key,
+            "employees": "",
+            "short_description": desc,
+            "contact": {},
+            "source_url": f"https://{domain}",
+            "offline_seed": True,
+        } for name, domain, desc in chosen[:limit]]
+
+    def _format_research_results(self, query: str, rows: list[dict[str, Any]],
+                                 source: str, errors: list[str]) -> str:
+        lines = [
+            f"🔎 <b>Company research: {html.escape(query)}</b>",
+            f"<i>Source: {html.escape(source)}</i>",
+            "",
+        ]
+        if source == "offline seed list":
+            lines.append(
+                "⚠️ Live providers were unavailable, so this is a seed list "
+                "to keep the flow moving — verify before outreach.\n")
+
+        for i, row in enumerate(rows, 1):
+            name = row.get("company_name") or "Unknown company"
+            domain = row.get("company_domain") or ""
+            desc = (row.get("short_description") or "").strip()
+            if len(desc) > 220:
+                desc = desc[:217] + "…"
+            emp = row.get("employees")
+            industry = row.get("industry") or query
+            contact = row.get("contact") or {}
+            contact_line = ""
+            if contact.get("name") or contact.get("title"):
+                contact_line = ("\n👤 "
+                                + html.escape(contact.get("name") or "Likely buyer")
+                                + (f" — {html.escape(contact.get('title', ''))}"
+                                   if contact.get("title") else ""))
+            meta = f"{html.escape(str(industry))}"
+            if emp:
+                meta = f"{html.escape(str(emp))} emp · {meta}"
+            lines.append(
+                f"<b>{i}. {html.escape(name)}</b>"
+                + (f" — <code>{html.escape(domain)}</code>" if domain else "")
+                + f"\n<i>{meta}</i>"
+                + contact_line
+                + (f"\n{html.escape(desc)}" if desc else "")
+                + "\n"
+            )
+
+        if errors:
+            compact = "; ".join(dict.fromkeys(errors))[:260]
+            lines.append(f"<i>Provider notes: {html.escape(compact)}</i>\n")
+        lines.append(
+            "Reply with a narrower domain for another scan, or set up your "
+            "startup when you want me to build prototypes and outreach."
+        )
+        return "\n".join(lines)[:4096]
 
     # ── run the fleet ─────────────────────────────────────────
     def _run_campaign(self, chat_id: int, brief: str) -> None:
