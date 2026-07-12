@@ -645,9 +645,47 @@ class RevenantBot:
             msg = template.format(a=html.escape(detail)) if "{a}" in template else template
             self.api.send_message(chat_id, msg, disable_preview=True)
 
-        with _TypingLoop(self.api, chat_id):
-            art = build_campaign_for(picked, ctx, on_stage=on_stage,
-                                      skip_lipsync=self.skip_lipsync)
+        # ── Live Deal Room — runs IN PARALLEL with the build ──────
+        # The gpt-5-mini Engineer takes ~2 min. Fill it with a real, useful
+        # pre-call brief on the prospect (+ a cheeky diversion), streamed while
+        # the fleet works in the background. Independent of the build — a
+        # failure here never touches the campaign.
+        build_done = threading.Event()
+
+        def _deal_room() -> None:
+            try:
+                from ..dossier import build_dossier_cards, diversion_card
+                self.api.send_message(
+                    chat_id, f"🕵️ <b>While I build, let me do my homework on "
+                    f"{html.escape(picked.get('company_name','them'))}</b> — "
+                    "you'll want this for the call.")
+                summary = ""
+                try:
+                    summary = (ctx.summary() if ctx else "")[:600]
+                except Exception:
+                    pass
+                cards = build_dossier_cards(picked, summary)
+                for card in cards:
+                    if build_done.is_set():
+                        return
+                    self.api.send_message(chat_id, card, disable_preview=True)
+                    build_done.wait(11)         # pace; wake early if build ends
+                if not build_done.is_set():
+                    self.api.send_message(chat_id, diversion_card(),
+                                          disable_preview=True)
+            except Exception as exc:            # never let filler break the run
+                print(f"[deal-room] {exc!r}")
+
+        deal_thread = threading.Thread(target=_deal_room, daemon=True,
+                                       name=f"dealroom-{chat_id}")
+        deal_thread.start()
+
+        try:
+            with _TypingLoop(self.api, chat_id):
+                art = build_campaign_for(picked, ctx, on_stage=on_stage,
+                                          skip_lipsync=self.skip_lipsync)
+        finally:
+            build_done.set()                    # stop the filler once artifacts land
 
         if not art.ok:
             self.api.send_message(
