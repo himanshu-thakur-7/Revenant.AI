@@ -30,13 +30,28 @@ class Sales(Agent):
     ) -> None:
         from ghost.config import settings
 
+        # The COMPANY comes from whatever startup was set up (the ingested
+        # repo), NOT a hardcoded name — so we sell for Weaviate, Shroud, or
+        # anyone. The sender NAME stays the configured operator.
+        company_name = ""
+        try:
+            company_name = (founder_context.product_name if founder_context
+                            else "") or ""
+        except Exception:
+            company_name = ""
+        company_name = company_name or settings.founder_company or ""
+
         identity = (
             "## Founder identity (NON-NEGOTIABLE)\n"
             f"You write on behalf of **{settings.founder_name}**"
-            + (f" of **{settings.founder_company}**" if settings.founder_company else "")
+            + (f" of **{company_name}**" if company_name else "")
             + ".\n"
             f"- Sign the email exactly: `{settings.founder_name.split()[0]}`\n"
             + (f"- Reply-to address: {settings.founder_email}\n" if settings.founder_email else "")
+            + f"- The product/company you represent is **{company_name or 'the founder’s product'}** — "
+              "describe ITS capabilities only, from the product summary. Never "
+              "reference a different company's product (no 'redaction'/'PII' "
+              "unless THIS product actually does that).\n"
             + "- NEVER invent a different sender name. No 'Alex', no aliases."
         )
         super().__init__(system_extra=identity)

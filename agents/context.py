@@ -73,6 +73,26 @@ class FounderContext:
     _tmp: str | None = None                  # cleanup handle for cloned repos
     _summary_cache: str | None = None
 
+    @property
+    def product_name(self) -> str:
+        """Best-effort product/company name derived from the INGESTED repo, so
+        Revenant sells for whatever startup was set up — not a hardcoded name.
+        Prefers a clean README H1, falls back to the repo/folder slug."""
+        for p, body in self.files.items():
+            if Path(p).name.lower().startswith("readme"):
+                m = re.search(r"^\s{0,3}#\s+(.+)$", body, re.M)
+                if m:
+                    raw = m.group(1)
+                    # strip badges/emoji/taglines after a separator
+                    raw = re.split(r"[—:|–]|\s-\s", raw)[0]
+                    raw = re.sub(r"[*_`#\[\]()!]|<[^>]+>|https?://\S+", "", raw)
+                    name = " ".join(raw.split()).strip()
+                    if 1 < len(name) <= 40 and not name.lower().startswith(("welcome", "the ")):
+                        return name
+                break
+        slug = self.source.rstrip("/").split("/")[-1].replace(".git", "")
+        return slug.replace("-", " ").replace("_", " ").title() if slug else "our product"
+
     # ── ingestion ─────────────────────────────────────────────
     @classmethod
     def from_folder(cls, path: str | Path) -> "FounderContext":

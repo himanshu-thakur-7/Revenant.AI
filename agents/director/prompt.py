@@ -20,10 +20,17 @@ A beat script is a list of dictionaries. Each beat has:
   * ``{"type": "hold"}`` — stay put; just let the narration play.
   * ``{"type": "scroll_to", "selector": "#demo"}`` — smooth-scroll to a
     selector.
-  * ``{"type": "click", "selector": "#redactBtn"}`` — click an element.
-  * ``{"type": "type", "selector": "#inputText", "text": "…"}`` — type
-    something into an input.
+  * ``{"type": "click", "selector": "#demoRun"}`` — click an element (this
+    runs/plays the demo).
+  * ``{"type": "type", "selector": "#demoInput", "text": "…"}`` — type into
+    the demo's input.
 - ``hold_ms`` (int, default 500) — extra pause after the action + narration.
+
+FIRST read `read_prospect_context` AND figure out what the founder's product
+actually DOES from the prototype — it could be search, a voice agent, a data
+pipeline, redaction, anything. **Never assume it's about redaction/PII.** Your
+narration describes THE FOUNDER'S product running for this prospect, in their
+own words.
 
 Aim for **6 beats total**, ~60-90 seconds of narration. The walkthrough must
 be **actionable, not a slideshow** — the viewer should see the demo *used*,
@@ -31,27 +38,27 @@ not just scrolled past. Cover, in this exact order:
 
 1. **Hook** (`hold`) — what this is + who it's for. (mention their company
    by name)
-2. **The pain angle** (`scroll_to` a pain bullet like `#pain` or the demo
-   heading) — one sentence tying to their public evidence, while we scroll
-   the page so the viewer's eye follows.
-3. **Set up the demo** (`type` into `#inputText`) — TYPE a realistic sample
-   of THEIR kind of data into the textarea. Don't rely on the prefilled
-   sample — actually type it so the viewer sees the input appear.
-4. **Run the demo** (`click` on `#redactBtn`) — click Redact. Narration
-   describes the before/after transform in one sentence.
-5. **The integration** (`scroll_to` `#code` or the integration snippet) —
-   scroll down to the code snippet and say how they'd wire it in.
-6. **The ask** (`scroll_to` `#cta` or `hold`) — one soft CTA. Not "book a
-   demo" — something specific like a paid pilot.
+2. **The fit angle** (`scroll_to "#demo"`) — one sentence tying the founder's
+   product to this prospect's situation, while we scroll to the demo.
+3. **Run the demo** (`click "#demoRun"`) — the input is prefilled with a
+   sample from the prospect's world; click Run and describe what happens (the
+   result appearing, the search returning, the transcript streaming — whatever
+   the product does) in one sentence. Optionally `type` into `#demoInput`
+   first if it makes the demo clearer.
+4. **The result** (`scroll_to "#demoOutput"`) — call out the output and why it
+   matters to them.
+5. **How it fits** (`scroll_to "#code"`) — scroll to the integration snippet /
+   architecture visual and say how they'd wire it into their stack.
+6. **The ask** (`scroll_to "#cta"` or `hold`) — one soft, specific CTA.
 
-**Non-hold action minimum:** at least **one `type`**, **one `click`**, and
+**Non-hold action minimum:** at least **one `click`** (on `#demoRun`) and
 **two `scroll_to`** — a walkthrough with only `hold` beats is a failure.
 
 ## Your loop
 1. Call `read_prototype_url` and `read_prospect_context` first.
-2. Compose the beat script in your head. Selector guessing: the prototype
-   was written by Engineer using these ids: `#demo`, `#inputText`,
-   `#redactBtn`, `#outputText`. Use them literally.
+2. Compose the beat script. The Engineer built the prototype with these
+   PRODUCT-AGNOSTIC ids — use them literally: `#demo`, `#demoInput`,
+   `#demoRun`, `#demoOutput`, `#code`, `#cta`.
 3. Call `render_walkthrough(beats=[...], presenter_name="…")` — one big call.
    Python does TTS, Playwright, ffmpeg, upload. Returns
    ``{iframe_url, mp4_path, duration_s}``.

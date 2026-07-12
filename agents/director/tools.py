@@ -28,24 +28,25 @@ _FALLBACK_PRESENTER = Path(_os.getenv(
 
 
 # ── deterministic action injection ────────────────────────────────
-# Nous Hermes-4 often composes beautiful narration but leaves every
-# `action` as `{"type": "hold"}`. The Engineer's prototype uses a
-# consistent id vocabulary (#inputText, #redactBtn, #outputText, plus
-# a #demo section and — when we can add them — #pain, #code, #cta).
-# We upgrade the beats *without* touching the narration, so the story
-# stays the LLM's but the video actually shows the product in use.
-
-# Ordered target actions the walkthrough must include. If the LLM's
-# beats don't already include these, we swap the corresponding beat's
-# `hold` action for the target action (leaving the narration intact).
+# The LLM often composes beautiful narration but leaves every `action`
+# as `{"type": "hold"}`. Every Revenant prototype (whatever the founder
+# sells) uses a PRODUCT-AGNOSTIC id contract: #demo, #demoInput,
+# #demoRun, #demoOutput, #code, #cta. We upgrade the beats *without*
+# touching the narration, so the story stays the LLM's but the video
+# actually shows the product being used.
+#
+# We drive the demo by CLICKING #demoRun — the Engineer prefills
+# #demoInput with a domain-relevant sample, so a click runs it whether
+# the product is redaction, semantic search, a voice agent, etc. No
+# hardcoded input text (that leaked one product's data into another's).
+# Legacy selectors (#redactBtn…) are kept as comma fallbacks for old
+# prototypes.
 _TARGET_ACTIONS: list[dict[str, Any]] = [
-    {"type": "scroll_to", "selector": "#demo, #pain, h2"},
-    {"type": "type", "selector": "#inputText",
-     "text": ("Patient MRN: 4471029 · Card 4111 1111 1111 1234 · "
-              "Total USD $8,420.00 · john.doe@example.com · SSN 123-45-6789")},
-    {"type": "click", "selector": "#redactBtn, button:has-text('Redact')"},
-    {"type": "scroll_to", "selector": "#outputText, #code, pre code"},
-    {"type": "scroll_to", "selector": "#cta, a[href*='pilot'], footer"},
+    {"type": "scroll_to", "selector": "#demo, h2"},
+    {"type": "click", "selector": "#demoRun, #redactBtn, #demo button, button"},
+    {"type": "scroll_to", "selector": "#demoOutput, #outputText"},
+    {"type": "scroll_to", "selector": "#code, pre"},
+    {"type": "scroll_to", "selector": "#cta, footer"},
 ]
 
 
@@ -86,13 +87,13 @@ def _ensure_actions(beats: list[dict[str, Any]], *,
     # reuse the same line (that produced a walkthrough that said the same
     # sentence 3-4 times). One canned line per action type, used at most once.
     _NARRATION_FOR = {
-        "type":      "Here's a real record — exactly the kind of data you handle every day.",
-        "click":     "One click, and every identifier is masked in place.",
+        "type":      "Here's a realistic input from your world.",
+        "click":     "One click — watch it run live.",
         "scroll_to": "And here's how it drops into your stack.",
     }
     _SCROLL_LINES = [
-        "And here's how it drops into your stack — two lines.",
-        "That's the whole pitch. Your data never leaves clean.",
+        "And here's how it fits into your stack.",
+        "That's the whole idea — built around what you do.",
     ]
     scroll_i = 0
     used_lines = {(b.get("narration") or "").strip() for b in beats}

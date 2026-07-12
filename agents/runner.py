@@ -86,20 +86,27 @@ def _llm_name_startups(brief: str, vertical: str,
     from ghost.llm import complete_strong_json
     result = complete_strong_json(
         f"The founder briefed us: {brief!r}\n\n"
-        f"Founder's product context (what they sell / core capability):\n"
-        f"{founder_gist[:1500] or '(none supplied)'}\n\n"
-        f"Name 12 real, well-known {vertical} startups (Seed to Series-B, "
-        "US-based, founded 2018 or later — no huge public companies, no "
-        "fabrications). For EACH candidate, write a **two-sentence fit "
-        "rationale** that is SPECIFIC to this founder's product — name the "
-        "pain angle, the trigger (e.g. recent hire, product launch, "
-        "regulatory pressure), and the exact capability of the founder's "
-        "product that lands. Do NOT be generic. Skip a candidate rather "
-        "than write a vague rationale.\n\n"
-        "Order candidates strongest-fit-first. Include the primary domain.\n\n"
-        'Respond with JSON exactly of shape:\n'
-        '{"startups": [{"name": "<CompanyName>", "domain": "<primary-domain>", '
-        '"fit_rationale": "<two sentence specific fit rationale>"}]}',
+        f"Founder's product context (what they sell / their IDEAL CUSTOMER):\n"
+        f"{founder_gist[:1800] or '(none supplied)'}\n\n"
+        "Name 12 real US companies that would genuinely benefit from THIS "
+        "founder's product. Rules that matter for reliability:\n"
+        "- If the brief is vague or generic (e.g. 'best companies who can use "
+        "us'), IGNORE the vagueness and target the founder's IDEAL CUSTOMER "
+        "PROFILE from the product context above.\n"
+        "- Pick **recognizable scale-ups / growth companies** (roughly "
+        "Series A–D or well-known private companies) so a real decision-maker "
+        "with a real work email exists and is findable — but NOT mega-cap "
+        "giants (Google, OpenAI, Nvidia, Salesforce, Meta, Amazon…) who build "
+        "everything in-house and would never buy, and NOT tiny unknown seed "
+        "startups we can't reach anyone at. Aim for the realistic-buyer sweet "
+        f"spot in the '{vertical}' space.\n"
+        "- No fabrications — only companies you're confident exist.\n"
+        "- For EACH: a **two-sentence fit rationale** SPECIFIC to this founder's "
+        "product — the pain angle, a plausible trigger, and the exact capability "
+        "that lands. Never generic.\n\n"
+        "Order strongest-fit-first. Include the primary domain.\n\n"
+        'Respond JSON: {"startups": [{"name": "<CompanyName>", '
+        '"domain": "<primary-domain>", "fit_rationale": "<two sentences>"}]}',
         agent="runner.startups",
         offline={"startups": []},
     )
@@ -117,10 +124,13 @@ def _llm_name_startups(brief: str, vertical: str,
     return picks
 
 
-def _verify_and_enrich(cand: dict, vertical: str) -> dict[str, Any] | None:
+def _verify_and_enrich(cand: dict, vertical: str, *,
+                       relaxed: bool = False) -> dict[str, Any] | None:
     """Verify one LLM-named candidate against Apollo + fetch a real contact
-    with an email. Returns a Research-shaped prospect dict, or None if
-    Apollo can't resolve the org OR no contact-with-email exists."""
+    with an email. Returns a Research-shaped prospect dict, or None if Apollo
+    can't resolve the org. In strict mode also requires a contact-with-email;
+    in ``relaxed`` mode a verified real company with a best-guess generic
+    inbox is kept (so a vague brief still surfaces reachable prospects)."""
     from .research import apollo, email_guess, web as _web
 
     try:
@@ -164,11 +174,18 @@ def _verify_and_enrich(cand: dict, vertical: str) -> dict[str, Any] | None:
             email_candidates = [g["email"] for g in email_guess.guess(
                 parts[0], parts[-1], best["domain"])[:3]]
 
-    # HARD FILTER: no contact + no email → drop the candidate. The user's
-    # feedback was explicit — a target the founder can't email is worse
-    # than no target at all.
+    # STRICT: drop candidates we can't email a real person at. RELAXED (second
+    # pass): a verified real company is kept with a best-guess generic inbox so
+    # we never dead-end on "couldn't find anyone" — the founder can refine the
+    # exact contact later.
     if not contact_name or not email_candidates:
-        return None
+        if not relaxed:
+            return None
+        if not email_candidates:
+            email_candidates = [f"hello@{best['domain']}",
+                                f"contact@{best['domain']}"]
+        contact_name = contact_name or ""
+        contact_title = contact_title or "team"
 
     # Homepage excerpt (pain-adjacent paragraph) — a nicer evidence
     # source than the Apollo short description alone. Skip boilerplate: an
@@ -249,17 +266,25 @@ def _apollo_shortlist(brief: str, stage_cb,
     if not candidates:
         return []
 
+    def _run_pass(relaxed: bool) -> None:
+        seen = {p["company_domain"] for p in shortlist}
+        for cand in candidates:
+            if len(shortlist) >= want:
+                return
+            prospect = _verify_and_enrich(cand, vertical, relaxed=relaxed)
+            if prospect is None or prospect["company_domain"] in seen:
+                continue
+            seen.add(prospect["company_domain"])
+            shortlist.append(prospect)
+            who = prospect["contact"]["name"] or prospect["contact"]["title"] or "team"
+            stage_cb("apollo_pick",
+                     f"Verified {len(shortlist)}/{want}: "
+                     f"{prospect['company_name']} · {who}")
+
     shortlist: list[dict[str, Any]] = []
-    for cand in candidates:
-        prospect = _verify_and_enrich(cand, vertical)
-        if prospect is None:
-            continue
-        shortlist.append(prospect)
-        stage_cb("apollo_pick",
-                 f"Verified {len(shortlist)}/{want}: {prospect['company_name']} "
-                 f"· {prospect['contact']['name']} ({prospect['contact']['title']})")
-        if len(shortlist) >= want:
-            break
+    _run_pass(relaxed=False)               # strict: real contact + email
+    if len(shortlist) < want:              # fill remaining with verified orgs
+        _run_pass(relaxed=True)
     return shortlist
 
 
@@ -408,11 +433,14 @@ def build_campaign_for(
         stage("engineer_fallback",
               "LLM prototype didn't ship — using the guaranteed template.")
         product_gist = ""
+        product_name = ""
         try:
             product_gist = founder_context.summary()[:600]
+            product_name = founder_context.product_name
         except Exception:
             pass
-        html = render_fallback_html(prospect, product_gist=product_gist)
+        html = render_fallback_html(prospect, product_gist=product_gist,
+                                    product_name=product_name)
         pstate = PrototypeState.for_prospect(art.company)
         pstate.write("index.html", html)
         deploy = deploy_dir(pstate.workspace)
@@ -450,8 +478,14 @@ def build_campaign_for(
               "Director agent didn't ship a film — using template beats.")
         try:
             from .director.tools import action_tools as _director_action_tools
+            _pn = ""
+            try:
+                _pn = (founder_context.product_name if founder_context else "") or ""
+            except Exception:
+                _pn = ""
             beats = _fallback_beats(prospect,
-                                    prototype_url=art.prototype_url)
+                                    prototype_url=art.prototype_url,
+                                    founder_company=_pn)
             tools = _director_action_tools(d.state,
                                            art.prototype_url or "https://example.com")
             render = next(t for t in tools if t.name == "render_walkthrough")
@@ -512,53 +546,51 @@ def build_campaign_for(
 
 
 def _fallback_beats(prospect: dict[str, Any], *,
-                    prototype_url: str) -> list[dict[str, Any]]:
-    """Deterministic 4-beat walkthrough script. Used when the Director agent
-    fails to compose beats (LLM auth failure, outage, etc.). Beats reference
-    the canonical prototype element ids (#inputText, #redactBtn, #outputText,
-    #code, #cta) that Engineer's prompts + fallback template both produce.
+                    prototype_url: str,
+                    founder_company: str = "") -> list[dict[str, Any]]:
+    """Deterministic 5-beat walkthrough script used when the Director agent
+    fails to compose beats. PRODUCT-AGNOSTIC: it drives the demo by clicking
+    #demoRun (the Engineer prefills #demoInput with a domain sample), so it
+    works whatever the founder sells — never hardcodes redaction/PII text.
+    Uses the canonical ids (#demo/#demoRun/#demoOutput/#code/#cta) with legacy
+    fallbacks in the selectors.
     """
     company = prospect.get("company_name") or "your team"
-    industry = prospect.get("industry") or "your space"
-    founder_company = settings.founder_company or "Shroud"
+    founder_company = founder_company or settings.founder_company or "our product"
+    fit = (prospect.get("fit_rationale") or "").strip().rstrip(".")
     return [
         {
             "narration": (f"Hi — this is a working prototype of {founder_company} "
                            f"built specifically for {company}. Under two minutes, "
-                           "then you can poke at it yourself."),
+                           "then it's yours to try."),
             "action": {"type": "hold"},
             "hold_ms": 900,
         },
         {
-            "narration": (f"Every team in {industry} handles data that shouldn't "
-                           "leak. Here's what that looks like on a real record — "
-                           "let me paste it in."),
-            "action": {"type": "type", "selector": "#inputText",
-                       "text": ("Patient MRN 4471029 · Card 4111 1111 1111 1234 · "
-                                "Total USD $8,420.00 · john.doe@example.com · "
-                                "SSN 123-45-6789")},
+            "narration": (f"{fit}." if fit else
+                          f"Here's how {founder_company} fits right into what "
+                          f"{company} does — let me show you live."),
+            "action": {"type": "scroll_to", "selector": "#demo, h2"},
             "hold_ms": 900,
         },
         {
-            "narration": ("One click — and every identifier is redacted in place. "
-                           "Same schema, same fields, zero PII."),
+            "narration": ("The input's already set to a realistic example from "
+                           "your world — one click and it runs live."),
             "action": {"type": "click",
-                       "selector": "#redactBtn, button:has-text('Redact')"},
+                       "selector": "#demoRun, #redactBtn, #demo button, button"},
+            "hold_ms": 1000,
+        },
+        {
+            "narration": ("There's the result. And wiring it into your stack is "
+                           "a couple of lines — it drops in wherever you need it."),
+            "action": {"type": "scroll_to",
+                       "selector": "#code, #demoOutput, pre"},
             "hold_ms": 900,
         },
         {
-            "narration": ("Two lines of code to wire it into your stack — same "
-                           "call whether it's a support handoff, an analytics "
-                           "pipeline, or a model prompt."),
-            "action": {"type": "scroll_to",
-                       "selector": "#code, pre code, #outputText"},
-            "hold_ms": 900,
-        },
-        {
-            "narration": (f"That's it. Reply if you want a private staging URL "
-                          f"you can hit from your API this week."),
-            "action": {"type": "scroll_to",
-                       "selector": "#cta, footer, a[href*='pilot']"},
+            "narration": ("That's it. Reply if you want a private staging URL you "
+                          "can put in front of your own use case this week."),
+            "action": {"type": "scroll_to", "selector": "#cta, footer"},
             "hold_ms": 900,
         },
     ]
@@ -583,7 +615,12 @@ def _fallback_email(*, prospect: dict[str, Any],
     excerpt = excerpt.strip().rstrip(".")
 
     founder_first = settings.founder_name.split()[0] if settings.founder_name else "Himanshu"
-    founder_company = settings.founder_company or "Shroud"
+    # Product name from the ingested repo (Weaviate/Shroud/…), not hardcoded.
+    try:
+        founder_company = (founder_context.product_name if founder_context else "") or ""
+    except Exception:
+        founder_company = ""
+    founder_company = founder_company or settings.founder_company or "our product"
 
     fit = (prospect.get("fit_rationale") or "").strip().rstrip(".")
 
