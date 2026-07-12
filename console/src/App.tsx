@@ -1,5 +1,5 @@
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { Campaign, MissionEvent, convexSetState, loadAll } from "./data";
+import { Campaign, MissionEvent, convexSetState, convexUpdateDraft, loadAll } from "./data";
 
 /* ────────────────────────────────────────────────────────────
    REVENANT · Mission Control
@@ -153,6 +153,12 @@ export function App() {
           <Board campaigns={surfaced} liveState={liveState} selected={active?.id ?? null}
             onSelect={setSelected} sentIds={sentIds} />
           <Detail campaign={active} liveState={liveState} sent={active ? sentIds.has(active.id) : false}
+            onAmend={async (id, email_subject, email_body) => {
+              setCampaigns((rows) => rows.map((c) => (
+                c.id === id ? { ...c, email_subject, email_body, state: "awaiting_review" } : c
+              )));
+              return convexUpdateDraft(id, email_subject, email_body);
+            }}
             onApprove={async (id) => {
               setSentIds((s) => new Set(s).add(id));
               await convexSetState(id, "sent");
@@ -326,15 +332,51 @@ function StateBadge({ state }: { state: string }) {
 }
 
 /* ── detail / review pane ──────────────────────────────────── */
-function Detail({ campaign, liveState, sent, onApprove }: {
+function Detail({ campaign, liveState, sent, onApprove, onAmend }: {
   campaign: Campaign | null; liveState: Record<string, string>;
   sent: boolean; onApprove: (id: string) => void;
+  onAmend: (id: string, email_subject: string, email_body: string) => Promise<boolean>;
 }) {
   const [tab, setTab] = useState<"missive" | "site" | "proof">("missive");
+  const [editing, setEditing] = useState(false);
+  const [instruction, setInstruction] = useState("");
+  const [draftSubject, setDraftSubject] = useState("");
+  const [draftBody, setDraftBody] = useState("");
+  const [amendStatus, setAmendStatus] = useState("");
+
+  useEffect(() => {
+    setEditing(false);
+    setInstruction("");
+    setDraftSubject(campaign?.email_subject ?? "");
+    setDraftBody(campaign?.email_body ?? "");
+    setAmendStatus("");
+  }, [campaign?.id]);
+
   if (!campaign) return null;
   const st = sent ? "sent" : liveState[campaign.id] ?? campaign.state;
   const canReview = st === "awaiting_review";
   const evidence = campaign.lead.score?.evidence ?? [];
+  const shownSubject = editing ? draftSubject : campaign.email_subject;
+  const shownBody = editing ? draftBody : campaign.email_body;
+
+  const applyAmend = async () => {
+    const next = amendDraft({
+      subject: draftSubject || campaign.email_subject || "",
+      body: draftBody || campaign.email_body || "",
+      instruction,
+      company: campaign.lead.company_name,
+      contact: campaign.lead.person_name,
+    });
+    setDraftSubject(next.subject);
+    setDraftBody(next.body);
+    setAmendStatus("Updating draft…");
+    const persisted = await onAmend(campaign.id, next.subject, next.body);
+    setAmendStatus(
+      persisted
+        ? "Draft updated and synced to the live console."
+        : "Draft updated locally. Live persistence is unavailable in this mode.",
+    );
+  };
 
   return (
     <section className="rv-panel rv-panel-glow" style={{ overflow: "hidden" }}>
@@ -353,11 +395,40 @@ function Detail({ campaign, liveState, sent, onApprove }: {
             <div style={{ fontSize: 11, color: "var(--muted)" }}>
               to <b style={{ color: "var(--ink)" }}>{campaign.lead.person_name}</b> · {campaign.lead.person_title}, {campaign.lead.company_name}
             </div>
-            <div style={{ fontWeight: 600, marginTop: 3, fontSize: 14 }}>{campaign.email_subject || "—"}</div>
+            <div style={{ fontWeight: 600, marginTop: 3, fontSize: 14 }}>{shownSubject || "—"}</div>
           </div>
           <pre style={{ margin: 0, padding: "14px 18px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#c3cbdb", whiteSpace: "pre-wrap", lineHeight: 1.6, maxHeight: 240, overflowY: "auto" }}>
-            {campaign.email_body || "(this campaign stopped before outreach)"}
+            {shownBody || "(this campaign stopped before outreach)"}
           </pre>
+          {editing && (
+            <div style={{ padding: "12px 16px", borderTop: "1px solid var(--line)", display: "grid", gap: 10 }}>
+              <input
+                className="rv-input"
+                value={draftSubject}
+                onChange={(e) => setDraftSubject(e.target.value)}
+                placeholder="Subject"
+              />
+              <textarea
+                className="rv-input rv-textarea"
+                value={draftBody}
+                onChange={(e) => setDraftBody(e.target.value)}
+                placeholder="Email body"
+              />
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 10 }}>
+                <input
+                  className="rv-input"
+                  value={instruction}
+                  onChange={(e) => setInstruction(e.target.value)}
+                  placeholder='e.g. "make it more formal", "shorter", "stronger CTA"'
+                />
+                <button className="rv-btn rv-btn-primary" style={{ padding: "9px 14px", fontSize: 13 }}
+                  disabled={!canReview} onClick={applyAmend}>
+                  Apply
+                </button>
+              </div>
+              {amendStatus && <div className="rv-mono" style={{ fontSize: 11, color: "var(--wisp)" }}>{amendStatus}</div>}
+            </div>
+          )}
         </div>
       )}
 
@@ -398,11 +469,77 @@ function Detail({ campaign, liveState, sent, onApprove }: {
           disabled={!canReview} onClick={() => onApprove(campaign.id)}>
           {sent ? "✓ sent" : "Approve & Send"}
         </button>
-        <button className="rv-btn rv-btn-ghost" style={{ padding: "9px 14px", fontSize: 13 }} disabled={!canReview}>Edit</button>
+        <button className="rv-btn rv-btn-ghost" style={{ padding: "9px 14px", fontSize: 13 }}
+          disabled={!canReview}
+          onClick={() => {
+            setDraftSubject(campaign.email_subject || "");
+            setDraftBody(campaign.email_body || "");
+            setEditing((v) => !v);
+            setTab("missive");
+          }}>
+          {editing ? "Close editor" : "Edit"}
+        </button>
         <button className="rv-btn rv-btn-danger" style={{ padding: "9px 14px", fontSize: 13, marginLeft: "auto" }} disabled={!canReview}>Suppress</button>
       </div>
     </section>
   );
+}
+
+function amendDraft(input: {
+  subject: string;
+  body: string;
+  instruction: string;
+  company: string;
+  contact: string;
+}): { subject: string; body: string } {
+  const instruction = input.instruction.trim().toLowerCase();
+  let subject = input.subject.trim();
+  let body = input.body.trim();
+
+  if (!instruction) return { subject, body };
+
+  if (/\bformal|professional|polished|exec|executive\b/.test(instruction)) {
+    subject = subject
+      .replace(/\bnot a pitch\b/gi, "a tailored prototype for review")
+      .replace(/\bfor you\b/gi, `for ${input.company}`);
+
+    body = body
+      .replace(/^Hi\b/m, "Hello")
+      .replace(/\bI've\b/g, "I have")
+      .replace(/\bit's\b/g, "it is")
+      .replace(/\bI'd\b/g, "I would")
+      .replace(/\bthat's\b/g, "that is")
+      .replace(/\bSo instead of pitching,\s*/g, "")
+      .replace(/\bto poke at\b/g, "to review")
+      .replace(/Reply "yes" and I'll send a slot\./g, "If useful, I would be glad to share a few available times.")
+      .replace(/\nHimanshu\s*$/g, "\n\nRegards,\nHimanshu");
+
+    if (!/^Hello\b/m.test(body)) {
+      body = `Hello ${input.contact || "there"},\n\n${body}`;
+    }
+    if (!/Regards,\nHimanshu$/.test(body)) {
+      body = body
+        .replace(/\n+Himanshu\s*$/g, "\n\nRegards,\nHimanshu")
+        .replace(/\n+[—-]\s*The .+ team\s*$/i, "\n\nRegards,\nHimanshu");
+    }
+    if (!/Regards,\nHimanshu$/.test(body)) {
+      body = `${body}\n\nRegards,\nHimanshu`;
+    }
+  }
+
+  if (/\bshort|shorter|concise|tighten\b/.test(instruction)) {
+    const lines = body.split("\n").filter((line) => line.trim());
+    body = lines.slice(0, 8).join("\n\n");
+  }
+
+  if (/\bcta|call to action|stronger ask\b/.test(instruction)) {
+    body = body.replace(
+      /(?:15 minutes this week[\s\S]*?)(?:\n\nRegards,|\n\nHimanshu|$)/,
+      "Would you be open to a 15-minute walkthrough this week to review the prototype against a real workflow?\n\nRegards,",
+    );
+  }
+
+  return { subject, body };
 }
 
 function WonBanner({ company }: { company: string }) {

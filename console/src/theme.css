@@ -273,6 +273,28 @@ body {
 .rv-btn-danger:hover { background: rgba(255, 87, 115, 0.1); }
 .rv-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; filter: none; box-shadow: none; }
 
+/* review editor */
+.rv-input {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: rgba(6, 7, 13, 0.72);
+  color: var(--ink);
+  font: 13px/1.5 "Space Grotesk", system-ui, sans-serif;
+  padding: 10px 12px;
+  outline: none;
+}
+.rv-input:focus {
+  border-color: rgba(82, 224, 196, 0.58);
+  box-shadow: 0 0 0 2px rgba(82, 224, 196, 0.12);
+}
+.rv-input::placeholder { color: var(--faint); }
+.rv-textarea {
+  min-height: 190px;
+  resize: vertical;
+  white-space: pre-wrap;
+}
+
 /* stat readouts */
 .rv-stat-num {
   font-family: "Cinzel", serif;

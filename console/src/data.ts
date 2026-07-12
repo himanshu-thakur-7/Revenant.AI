@@ -121,3 +121,25 @@ export async function convexSetState(campaign_id: string, state: string): Promis
     return false;
   }
 }
+
+export async function convexUpdateDraft(
+  campaign_id: string,
+  email_subject: string,
+  email_body: string,
+): Promise<boolean> {
+  if (!CONVEX_URL) return false;
+  try {
+    const res = await fetch(`${CONVEX_URL}/api/mutation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: "ledger:updateDraft",
+        args: { campaign_id, email_subject, email_body },
+        format: "json",
+      }),
+    });
+    return (await res.json()).status === "success";
+  } catch {
+    return false;
+  }
+}
