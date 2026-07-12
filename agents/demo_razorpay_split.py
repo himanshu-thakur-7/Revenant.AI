@@ -72,8 +72,10 @@ def is_razorpay_ctx(founder_context) -> bool:
 # classic demo_razorpay pinned assets when the split demo is armed.
 RIGI_PROTOTYPE_URL = os.getenv(
     "RIGI_PROTOTYPE_URL",
-    "https://razorpay-magic-demo.pages.dev")  # will swap to rigi build after we ship it
-RIGI_WALKTHROUGH_URL = os.getenv("RIGI_WALKTHROUGH_URL", "")
+    "https://e93acf6d.rigi-route-demo.pages.dev")
+RIGI_WALKTHROUGH_URL = os.getenv(
+    "RIGI_WALKTHROUGH_URL",
+    "https://9968a978.revenant-walkthroughs.pages.dev/walkthrough.mp4")
 RIGI_WALKTHROUGH_MP4 = Path(__file__).parent / "demo_razorpay_split_assets" / "rigi-walkthrough.mp4"
 
 

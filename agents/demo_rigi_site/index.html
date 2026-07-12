@@ -1,0 +1,337 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rigi × Razorpay Route — one payment, four ledgers</title>
+<style>
+  :root{
+    --purple:#7C3AED; --coral:#F97316; --violet-1:#8B5CF6; --violet-2:#EC4899;
+    --ink:#0F0A24; --navy:#1E1B4B; --muted:#5E5B7B; --line:#EEE7F5;
+    --bg:#FFFDF9; --panel:#FFFFFF; --lift:#F6F1FB;
+    --creator:#7C3AED; --platform:#EC4899; --gst:#F97316; --tds:#0EA5E9;
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{max-width:100%;overflow-x:hidden}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1160px;margin:0 auto;padding:0 24px}
+  nav{position:sticky;top:0;z-index:50;background:rgba(255,253,249,.86);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;justify-content:space-between;align-items:center;padding:14px 24px}
+  .rigi-logo{display:inline-flex;align-items:center;gap:8px;font-weight:800;font-size:19px;letter-spacing:-.01em}
+  .rigi-mark{width:26px;height:26px;border-radius:8px;
+    background:conic-gradient(from 210deg,#7C3AED,#EC4899,#F97316,#7C3AED);
+    box-shadow:0 4px 12px rgba(124,58,237,.32)}
+  .rzp{color:var(--muted);font-size:14px;font-weight:600;padding:6px 12px;border-radius:999px;
+    background:linear-gradient(90deg,rgba(124,58,237,.10),rgba(236,72,153,.10));
+    border:1px solid rgba(124,58,237,.18)}
+  section{padding:64px 0;border-bottom:1px solid var(--line)}
+  section:last-of-type{border-bottom:0}
+  .eyebrow{font-size:12.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--purple);margin-bottom:14px}
+  h1{font-size:clamp(38px,5.6vw,64px);line-height:1.02;letter-spacing:-.025em;margin:0 0 20px;
+    font-weight:800;color:var(--ink)}
+  h1 .grad{background:linear-gradient(90deg,var(--violet-1),var(--violet-2) 60%,var(--coral));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  h2{font-size:clamp(26px,3.4vw,36px);line-height:1.15;letter-spacing:-.015em;margin:0 0 12px;font-weight:800}
+  .sub{color:var(--muted);font-size:17px;max-width:640px}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:12px;
+    font-weight:700;font-size:15px;cursor:pointer;border:0;transition:transform .15s,box-shadow .2s;text-decoration:none}
+  .btn.primary{background:linear-gradient(90deg,var(--violet-1),var(--violet-2));color:#fff;
+    box-shadow:0 8px 22px rgba(124,58,237,.32)}
+  .btn.primary:hover{transform:translateY(-1px);box-shadow:0 12px 30px rgba(124,58,237,.42)}
+  .btn.ghost{background:var(--panel);border:1px solid var(--line);color:var(--ink)}
+
+  /* ── HERO ─────────────────────────────────────── */
+  .hero{padding-top:80px}
+  .hero-grid{display:grid;grid-template-columns:1.15fr 1fr;gap:56px;align-items:center}
+  @media (max-width:900px){.hero-grid{grid-template-columns:1fr;gap:36px}}
+  .hero .cta-row{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}
+  .hero-signals{display:flex;gap:24px;margin-top:36px;flex-wrap:wrap}
+  .signal{display:flex;flex-direction:column}
+  .signal b{font-size:22px;font-weight:800;color:var(--ink)}
+  .signal span{font-size:12.5px;color:var(--muted);letter-spacing:.02em}
+
+  /* Right-side "phone" mockup — Rigi's paid community */
+  .mock{position:relative;background:linear-gradient(140deg,#F5EEFF,#FFF1E4 70%);
+    border:1px solid var(--line);border-radius:24px;padding:22px;box-shadow:0 20px 60px rgba(31,20,73,.10)}
+  .mock-head{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--navy)}
+  .mock-head .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#7C3AED,#EC4899)}
+  .comm{margin-top:14px;background:#fff;border-radius:16px;padding:16px;border:1px solid var(--line)}
+  .comm .creator{display:flex;align-items:center;gap:10px}
+  .comm .creator .av{width:38px;height:38px;border-radius:50%;
+    background:linear-gradient(135deg,#F97316,#EC4899);color:#fff;display:grid;place-items:center;font-weight:800}
+  .comm .creator .who{font-weight:700}
+  .comm .creator .who small{display:block;color:var(--muted);font-weight:500}
+  .comm .body{margin-top:12px;font-size:14.5px;color:#2b2440}
+  .comm .price{margin-top:14px;display:flex;justify-content:space-between;align-items:center;
+    padding-top:12px;border-top:1px dashed var(--line)}
+  .comm .price .p{font-weight:800;font-size:19px}
+  .join{margin-top:14px;padding:12px 14px;border-radius:12px;background:linear-gradient(90deg,var(--violet-1),var(--violet-2));
+    color:#fff;font-weight:700;text-align:center;font-size:14.5px;box-shadow:0 6px 18px rgba(124,58,237,.32)}
+
+  /* ── PAIN CARDS ────────────────────────────────── */
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:34px}
+  @media (max-width:800px){.cards{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 20px}
+  .card .k{font-size:34px;font-weight:800;letter-spacing:-.02em;
+    background:linear-gradient(90deg,var(--violet-1),var(--coral));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .card .h{font-weight:700;margin-top:6px;color:var(--ink)}
+  .card .b{color:var(--muted);font-size:14.5px;margin-top:6px}
+
+  /* ── LIVE DEMO ─────────────────────────────────── */
+  #demo{background:linear-gradient(180deg,#FAF6FF,#FFF7EE 90%)}
+  .demo-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:32px;margin-top:36px}
+  @media (max-width:900px){.demo-grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:24px;
+    box-shadow:0 6px 24px rgba(31,20,73,.06)}
+  .panel h3{margin:0 0 4px;font-size:18px;font-weight:800}
+  .panel .lbl{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .form-row{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+  .form-row label{font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:.02em}
+  .form-row .val{font-weight:700;font-size:17px}
+  .amount-bar{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-radius:14px;
+    background:linear-gradient(90deg,#F1E9FF,#FFE7D6);border:1px solid rgba(124,58,237,.18)}
+  .amount-bar .a{font-size:26px;font-weight:800}
+  .amount-bar select,.amount-bar input{background:transparent;border:0;font-size:26px;font-weight:800;color:var(--ink);text-align:right;width:130px;outline:0}
+  .presets{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .preset{padding:6px 12px;font-size:13px;border-radius:999px;background:#fff;border:1px solid var(--line);cursor:pointer;font-weight:600;color:var(--muted)}
+  .preset:hover{border-color:var(--purple);color:var(--purple)}
+  .buy{margin-top:18px;width:100%;padding:14px 20px;border-radius:12px;font-weight:800;font-size:15px;border:0;cursor:pointer;
+    background:linear-gradient(90deg,var(--violet-1),var(--violet-2));color:#fff;box-shadow:0 8px 22px rgba(124,58,237,.32)}
+  .buy:disabled{opacity:.6;cursor:default}
+
+  /* Right panel — the settlement ledger */
+  .ledger-head{display:flex;justify-content:space-between;align-items:center}
+  .badge{padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800;background:#F6F1FB;color:var(--purple);letter-spacing:.02em}
+  .ledger-lines{margin-top:18px;display:grid;gap:12px}
+  .lline{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:12px;background:#FBFAFF;border:1px solid var(--line);opacity:0;transform:translateY(6px);transition:opacity .35s,transform .35s}
+  .lline.show{opacity:1;transform:none}
+  .lswatch{width:12px;height:36px;border-radius:4px}
+  .lline .li{flex:1}
+  .lline .li b{font-weight:700}
+  .lline .li small{display:block;color:var(--muted);font-size:12.5px}
+  .lline .amt{font-weight:800;font-size:17px;font-variant-numeric:tabular-nums}
+  .lline .pct{color:var(--muted);font-size:12px;margin-left:6px}
+  .bar{margin-top:20px;height:14px;border-radius:10px;background:#F6F1FB;overflow:hidden;display:flex}
+  .bar span{height:100%;display:block;transition:width .5s ease}
+  .success{margin-top:20px;padding:14px 16px;border-radius:12px;background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;font-weight:700;display:flex;align-items:center;gap:10px;font-size:14.5px;opacity:0;transition:opacity .3s}
+  .success.show{opacity:1}
+  .success .ok{width:22px;height:22px;border-radius:50%;background:#10B981;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800}
+
+  /* ── INTEGRATION SNIPPET ─────────────────────── */
+  #code pre{background:#0F0A24;color:#F7F1FF;border-radius:16px;padding:22px;font-size:13.5px;
+    font-family:ui-monospace,'SF Mono',Menlo,monospace;overflow-x:auto;line-height:1.55;box-shadow:0 14px 34px rgba(31,20,73,.16)}
+  #code pre .k{color:#F472B6}
+  #code pre .s{color:#FBBF24}
+  #code pre .c{color:#7C6E9A}
+  #code pre .n{color:#A78BFA}
+
+  /* ── CTA ─────────────────────────────────────── */
+  #cta-section{background:linear-gradient(120deg,#7C3AED,#EC4899 60%,#F97316);color:#fff;text-align:center;border-bottom:0}
+  #cta-section h2{color:#fff}
+  #cta-section .sub{color:rgba(255,255,255,.90);margin:0 auto}
+  #cta-section .btn.primary{background:#fff;color:var(--navy);box-shadow:0 8px 22px rgba(0,0,0,.20);margin-top:18px}
+
+  footer{padding:24px 0 40px;color:var(--muted);font-size:13px;text-align:center}
+</style>
+
+<nav>
+  <div class="wrap">
+    <span class="rigi-logo"><span class="rigi-mark"></span>rigi</span>
+    <span class="rzp">⚡ Powered by <b style="color:var(--ink)">Razorpay&nbsp;Route</b></span>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <!-- ═════════ HERO ═════════ -->
+  <section class="hero">
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow">For Rigi · a working prototype</div>
+        <h1>The paid‑community stack for creators — <span class="grad">now with instant multi‑party payouts</span>.</h1>
+        <p class="sub">Every course renewal, community pass, and paid webinar on Rigi splits four ways: the creator, Rigi's fee, GST, TDS. Today it's a monthly reconciliation nightmare across thousands of micro‑creators. Razorpay Route settles it in one call — at checkout, per transaction, into four separate ledgers. No spreadsheet. No two‑week delay.</p>
+        <div class="cta-row">
+          <a class="btn primary" href="#demo">See the split flow →</a>
+          <a class="btn ghost" href="#code">Integration snippet</a>
+        </div>
+        <div class="hero-signals">
+          <div class="signal"><b>4 ledgers</b><span>Creator · Platform · GST · TDS</span></div>
+          <div class="signal"><b>&lt; 1 s</b><span>End-to-end split at checkout</span></div>
+          <div class="signal"><b>Zero</b><span>Manual monthly reconciliation</span></div>
+        </div>
+      </div>
+
+      <div class="mock">
+        <div class="mock-head"><span class="dot"></span>Rigi Community · Priya's Yoga Path</div>
+        <div class="comm">
+          <div class="creator">
+            <div class="av">P</div>
+            <div class="who">Priya Sharma<small>Yoga · WhatsApp community · 2,400 members</small></div>
+          </div>
+          <div class="body">Monthly access to live classes, recipe library, and daily nudges. Priya keeps 78% of every renewal — automated.</div>
+          <div class="price"><span>Monthly renewal</span><span class="p">₹1,000</span></div>
+          <div class="join">Renew for ₹1,000 →</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ PAIN CARDS ═════════ -->
+  <section>
+    <div class="eyebrow">The reconciliation tax</div>
+    <h2>What every renewal costs Rigi today</h2>
+    <p class="sub">Rigi processes thousands of tiny transactions across paid communities, courses, and webinars. Each one owes money to four different places. Today, that's a monthly reconciliation grind. Below is what a working Route drop-in kills.</p>
+    <div class="cards">
+      <div class="card">
+        <div class="k">4×</div>
+        <div class="h">Ledgers per transaction</div>
+        <div class="b">Creator payout, Rigi's platform fee, 18% GST reserve, 1% TDS under 194‑O — all owed on the same ₹500‑₹5,000 UPI in.</div>
+      </div>
+      <div class="card">
+        <div class="k">14 days</div>
+        <div class="h">Manual monthly close</div>
+        <div class="b">Ops team pulls transactions, splits by creator, deducts TDS, files GST, disburses payouts. Done by hand across thousands of micro-creators.</div>
+      </div>
+      <div class="card">
+        <div class="k">₹0</div>
+        <div class="h">Additional integration cost</div>
+        <div class="b">Route drops onto Rigi's existing Razorpay checkout — one JSON block on <code>createOrder</code>. Live in a day. No re‑platform.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ LIVE DEMO ═════════ -->
+  <section id="demo">
+    <div class="eyebrow">Live prototype</div>
+    <h2>Watch ₹1,000 land in four ledgers at once</h2>
+    <p class="sub">A fan renews Priya's community for ₹1,000. Below is the live Route call — creator, Rigi, GST, TDS all settled instantly on the sub-merchant IDs Rigi already stores.</p>
+
+    <div class="demo-grid">
+      <!-- LEFT: input -->
+      <div class="panel">
+        <h3>Fan renewal</h3>
+        <div class="lbl">Priya's yoga community · monthly pass</div>
+        <div class="form-row"><label>Creator</label><span class="val">Priya Sharma · Yoga Path</span></div>
+        <div class="form-row"><label>Fan</label><span class="val">Sanya M. · WhatsApp #+91 98••• ••021</span></div>
+        <label style="font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:.02em">Renewal amount (₹)</label>
+        <div class="amount-bar">
+          <input id="demoInput" type="number" value="1000" min="100" max="10000" step="100">
+          <span class="a">₹</span>
+        </div>
+        <div class="presets">
+          <span class="preset" data-a="500">₹500</span>
+          <span class="preset" data-a="1000">₹1,000</span>
+          <span class="preset" data-a="2500">₹2,500</span>
+          <span class="preset" data-a="5000">₹5,000</span>
+        </div>
+        <button id="demoRun" class="buy" onclick="runSplit()">⚡ Run Razorpay Route split</button>
+      </div>
+
+      <!-- RIGHT: ledger -->
+      <div class="panel" id="demoOutput">
+        <div class="ledger-head">
+          <h3>Settlement ledger</h3><span class="badge" id="stateBadge">idle</span>
+        </div>
+        <div class="lbl">One payment · four beneficiary ledgers</div>
+        <div class="ledger-lines" id="lines"></div>
+        <div class="bar" id="splitBar"></div>
+        <div class="success" id="ok">
+          <span class="ok">✓</span>
+          <div>
+            Split settled to <b id="okN">4</b> ledgers in <b><span id="okMs">0</span>ms</b> — reconciliation ID <code id="okId">rp_route_2f31</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ INTEGRATION ═════════ -->
+  <section id="code">
+    <div class="eyebrow">The whole integration</div>
+    <h2>One JSON block on <code>orders.create</code>. Done.</h2>
+    <p class="sub">Rigi's existing Razorpay checkout stays. Add a <code>transfers</code> array with the sub-merchant IDs and Route handles the rest — split at checkout, per transaction, per ledger.</p>
+    <pre><span class="c">// Rigi's server, when Priya's fan hits "Renew" —</span>
+<span class="c">// one call, four ledgers.</span>
+<span class="k">const</span> order <span class="k">=</span> <span class="k">await</span> razorpay.orders.<span class="n">create</span>({
+  <span class="s">"amount"</span>: <span class="n">100000</span>,        <span class="c">// ₹1,000 in paise</span>
+  <span class="s">"currency"</span>: <span class="s">"INR"</span>,
+  <span class="s">"transfers"</span>: [
+    { <span class="s">"account"</span>: <span class="s">"acc_priya_yoga"</span>,   <span class="s">"amount"</span>: <span class="n">78000</span> }, <span class="c">// 78% → creator</span>
+    { <span class="s">"account"</span>: <span class="s">"acc_rigi_platform"</span>, <span class="s">"amount"</span>: <span class="n">15000</span> }, <span class="c">// 15% → Rigi</span>
+    { <span class="s">"account"</span>: <span class="s">"acc_rigi_gst"</span>,      <span class="s">"amount"</span>:  <span class="n">5000</span> }, <span class="c">//  5% → GST reserve</span>
+    { <span class="s">"account"</span>: <span class="s">"acc_rigi_tds"</span>,      <span class="s">"amount"</span>:  <span class="n">2000</span> }  <span class="c">//  2% → TDS under 194-O</span>
+  ]
+})
+<span class="c">// That's it. No monthly close. No spreadsheet.</span></pre>
+  </section>
+
+  <!-- ═════════ CTA ═════════ -->
+  <section id="cta-section">
+    <div class="eyebrow" style="color:rgba(255,255,255,.9)">The ask</div>
+    <h2>A 30-day Route pilot on one Rigi community</h2>
+    <p class="sub">We ship the drop-in, wire the four ledgers, and report on transactions cleared vs. today's manual close. You only scale what pays.</p>
+    <a class="btn primary" id="cta" href="#demo">Book the pilot →</a>
+  </section>
+
+  <footer>
+    Built autonomously for Rigi · Simulated Razorpay Route split — no live transaction executed.
+  </footer>
+</div>
+
+<script>
+/* ─────── 4-way split simulation (Rigi × Razorpay Route) ─────── */
+const SPLITS = [
+  { key:'creator',  pct:78, label:'Priya (creator)',       sub:'acc_priya_yoga · payout',     c:'var(--creator)'  },
+  { key:'platform', pct:15, label:'Rigi platform fee',     sub:'acc_rigi_platform',           c:'var(--platform)' },
+  { key:'gst',      pct: 5, label:'18% GST reserve',       sub:'acc_rigi_gst · auto-swept',   c:'var(--gst)'      },
+  { key:'tds',      pct: 2, label:'1% TDS (Sec 194-O)',    sub:'acc_rigi_tds · auto-swept',   c:'var(--tds)'      },
+];
+function inr(n){ return '₹'+Math.round(n).toLocaleString('en-IN') }
+function reset(){
+  document.getElementById('lines').innerHTML='';
+  document.getElementById('splitBar').innerHTML='';
+  document.getElementById('ok').classList.remove('show');
+  document.getElementById('stateBadge').textContent='idle';
+}
+function runSplit(){
+  const btn=document.getElementById('demoRun'); btn.disabled=true; btn.textContent='● Splitting…';
+  document.getElementById('stateBadge').textContent='routing';
+  reset();
+  const amt = Math.max(100, Math.min(10000, +document.getElementById('demoInput').value || 1000));
+  const lines=document.getElementById('lines');
+  // ledger rows
+  SPLITS.forEach((s,i)=>{
+    const row=document.createElement('div'); row.className='lline';
+    row.innerHTML='<div class="lswatch" style="background:'+s.c+'"></div>'+
+      '<div class="li"><b>'+s.label+'</b><small>'+s.sub+'</small></div>'+
+      '<div class="amt">'+inr(amt*s.pct/100)+' <span class="pct">'+s.pct+'%</span></div>';
+    lines.appendChild(row);
+    setTimeout(()=>row.classList.add('show'), 250+i*500);
+  });
+  // split bar
+  const bar=document.getElementById('splitBar');
+  SPLITS.forEach((s,i)=>{
+    const seg=document.createElement('span');
+    seg.style.background=s.c; seg.style.width='0%';
+    bar.appendChild(seg);
+    setTimeout(()=>seg.style.width=s.pct+'%', 300+i*500);
+  });
+  // success
+  const totalWait = 300 + SPLITS.length*500 + 600;
+  setTimeout(()=>{
+    const ms = 130 + Math.floor(Math.random()*90);
+    document.getElementById('okMs').textContent = ms;
+    document.getElementById('okN').textContent  = SPLITS.length;
+    document.getElementById('okId').textContent = 'rp_route_'+Math.random().toString(36).slice(2,6);
+    document.getElementById('ok').classList.add('show');
+    document.getElementById('stateBadge').textContent='settled';
+    btn.disabled=false; btn.textContent='↻ Try another amount';
+  }, totalWait);
+}
+document.querySelectorAll('.preset').forEach(p=>{
+  p.onclick=()=>{document.getElementById('demoInput').value=p.dataset.a; runSplit();};
+});
+// auto-play once on load so a viewer sees the flow
+window.addEventListener('load', ()=>{ setTimeout(runSplit, 900); });
+</script>
