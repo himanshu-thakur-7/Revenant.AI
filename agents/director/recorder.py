@@ -12,6 +12,7 @@ recording starts so it's captured for free (no ffmpeg compositing).
 from __future__ import annotations
 
 import base64
+import os
 import shutil
 import time
 from pathlib import Path
@@ -144,7 +145,13 @@ def record_prototype(
             record_video_size={"width": viewport[0], "height": viewport[1]},
         )
         page = context.new_page()
-        page.goto(url, wait_until="networkidle", timeout=30_000)
+        # `networkidle` blocks for the full 30s on ad/analytics-heavy sites
+        # that never actually idle. `domcontentloaded` fires when the DOM is
+        # ready and static content is styled — enough for our recording.
+        # Saves 15-25s on typical prospect walkthroughs. Override with
+        # REVENANT_RECORDER_WAIT_UNTIL=networkidle for premium demos.
+        _wait_until = os.getenv("REVENANT_RECORDER_WAIT_UNTIL", "domcontentloaded")
+        page.goto(url, wait_until=_wait_until, timeout=20_000)
 
         # Inject the presenter bubble first so it's on-screen from beat 1.
         page.add_style_tag(content=PRESENTER_CSS)

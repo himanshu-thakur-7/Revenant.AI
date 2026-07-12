@@ -135,7 +135,11 @@ class Settings(BaseModel):
     # D-ID (avatar lip-sync)
     did_api_key: str | None = None
     did_presenter_id: str = "amy-Aq6OmGZnMt"  # stock: warm business tone
-    skip_lipsync: bool = False  # DIRECTOR_SKIP_LIPSYNC=1 to save credits
+    # Default TRUE so real prospect walkthroughs render in ~30s instead of
+    # ~250s (D-ID trial queue can idle 3 min before rendering starts). The
+    # Razorpay/boAt demo path uses a pre-built mp4 and never hits this. Set
+    # DIRECTOR_SKIP_LIPSYNC=0 for premium demos when D-ID credits are healthy.
+    skip_lipsync: bool = True
 
     # D-ID interactive agent (Sana) — embedded in prototypes to answer
     # prospect questions about the startup. Needs its embed domain
@@ -236,7 +240,7 @@ def get_settings() -> Settings:
         apollo_api_key=os.getenv("APOLLO_API_KEY"),
         did_api_key=os.getenv("DID_API_KEY"),
         did_presenter_id=os.getenv("DID_PRESENTER_ID", "amy-Aq6OmGZnMt"),
-        skip_lipsync=_flag("DIRECTOR_SKIP_LIPSYNC", False),
+        skip_lipsync=_flag("DIRECTOR_SKIP_LIPSYNC", True),
         did_agent_id=os.getenv("DID_AGENT_ID"),
         did_agent_client_key=os.getenv("DID_AGENT_CLIENT_KEY"),
         did_knowledge_id=os.getenv("DID_KNOWLEDGE_ID"),
