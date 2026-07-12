@@ -452,7 +452,11 @@ def build_campaign_for(
 
     if not art.walkthrough_url or art.walkthrough_url.startswith("file:"):
         art.warnings.append("walkthrough hosted locally only")
-    stage("director_done", "walkthrough ready")
+    # Pass the public URL as the detail so front-ends can surface it as an
+    # early link (falls back to a neutral string when only local).
+    stage("director_done",
+          art.walkthrough_url if art.walkthrough_url.startswith("http")
+          else "walkthrough ready")
 
     # ── 4. Sales ──────────────────────────────────────────────
     stage("sales", "Drafting the deck + email…")

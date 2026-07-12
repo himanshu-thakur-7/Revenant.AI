@@ -41,11 +41,34 @@ class Engineer(Agent):
         """Run one autonomous build for the bound prospect. Returns the
         finalized payload (URL + summary), regardless of whether the LLM
         called finalize_prototype explicitly."""
+        # Pre-fetch the prospect's live brand (colours/fonts/wordmark) so the
+        # prototype can match their site instead of a generic template. Baked
+        # into the opening so the LLM can't skip it (best-effort; empty on fail).
+        brand_brief = ""
+        domain = (self._prospect.get("company_domain")
+                  or self._prospect.get("domain") or "")
+        if domain:
+            try:
+                from .brand import fetch_brand
+                brand_brief = fetch_brand(domain)
+            except Exception:
+                brand_brief = ""
+
         opening = (
             "Build the prototype for the prospect. Start by calling "
             "`read_prospect_brief`, then study the founder's product, then "
             "write the single-page prototype and deploy."
         )
+        if brand_brief:
+            opening += (
+                "\n\n## The prospect's live brand — MATCH IT\n"
+                "I pulled these signals straight from their homepage. Make the "
+                "prototype look like it belongs on THEIR site: use their accent "
+                "colours, echo their font choices (via Google Fonts if needed), "
+                "and mirror their wordmark styling in the hero. This is what "
+                "makes it feel custom-built for them.\n\n"
+                f"{brand_brief}"
+            )
         text = self.run_turn(opening, on_event=on_event)
 
         finalized = self._state.finalized or bool(self._state.deployment_url)

@@ -18,8 +18,14 @@ specific data.
 - **Personalised.** The company's name appears in the hero. The sample data
   is drawn from their industry, not generic. The pain angles cite the
   evidence Research surfaced.
-- **On-brand.** Match the founder's website styling if you can (dark theme,
-  their accent colour). Look sharp, not templated.
+- **On-brand — match the PROSPECT.** When the opening includes a
+  "prospect's live brand" block (accent colours, fonts, wordmark, hero copy
+  pulled from their homepage), design the prototype to look like it belongs
+  on THEIR site: use their exact accent hex colours, load their fonts (Google
+  Fonts link when needed), and echo their wordmark/hero tone. This custom feel
+  is the whole point — a prospect should see their own brand reflected back.
+  Absent that block, match the founder's product styling (dark theme, their
+  accent). Either way: look sharp, never templated.
 
 ## This must look like a real, funded product — not a class assignment
 The prospect's first impression is this page. Flat, centered, default-Tailwind

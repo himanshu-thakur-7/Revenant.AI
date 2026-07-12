@@ -97,6 +97,14 @@ _VERTICAL_WORDS = (
 )
 
 
+_EMAIL_RX = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
+
+def _extract_email(text: str) -> str:
+    m = _EMAIL_RX.search(text or "")
+    return m.group(0) if m else ""
+
+
 def _keyword_intent(text: str) -> str | None:
     """Fast, deterministic intent for the obvious cases. Returns a category or
     None (→ fall through to the LLM classifier for genuinely ambiguous text)."""
@@ -257,8 +265,42 @@ class RevenantBot:
         if sess.mode == "awaiting_amendment":
             self._do_amend(chat_id, text)
             return
+        # After a draft is delivered we stay in "reviewing" so ANY free-text
+        # the founder types is understood — approve/send, a tweak, or a pivot
+        # to a new hunt — instead of falling to a generic answer.
+        if sess.mode == "reviewing" and sess.art is not None:
+            self._on_review_text(chat_id, text)
+            return
 
         self._route_text(chat_id, text)
+
+    def _on_review_text(self, chat_id: int, text: str) -> None:
+        """Interpret whatever the founder types while a draft is on the table."""
+        sess = self.session(chat_id)
+        art = sess.art
+        low = text.lower().strip()
+
+        # 1. Approve / send — with or without an explicit recipient.
+        email = _extract_email(text)
+        if email or any(w in low for w in (
+                "approve", "send it", "send that", "ship it", "looks good",
+                "lgtm", "go ahead", "yes send", "send to", "email it")):
+            self._do_send(chat_id, email or (art.recipient_email if art else ""))
+            return
+        # 2. Discard.
+        if low in ("discard", "cancel", "scrap it", "delete", "no"):
+            sess.mode = "idle"; sess.art = None
+            self.api.send_message(chat_id, "❌ Draft discarded. Say the word "
+                                  "when you want to hunt again.")
+            return
+        # 3. Pivot — a new hunt, a different pick, or reconfigure. Leave review.
+        if _extract_url(text) or _keyword_intent(text) in ("run_campaign", "configure") \
+                or re.match(r"^\s*(build|pick)\s*[123]\b", low) or "search again" in low:
+            sess.mode = "idle"
+            self._route_text(chat_id, text)
+            return
+        # 4. Anything else → treat as an amendment to the email.
+        self._do_amend(chat_id, text)
 
     # ── intent routing (the bot's brain) ──────────────────────
     def _route_text(self, chat_id: int, text: str) -> None:
@@ -523,8 +565,22 @@ class RevenantBot:
         picked = sess.shortlist[index]
         ctx = sess.ctx or self.ctx
         sess.mode = "running"
+        sent_links: set[str] = set()
 
         def on_stage(stage: str, detail: str) -> None:
+            # Push artifact links the MOMENT they're live — filler that covers
+            # the time the later stages (walkthrough, deck) take.
+            if stage == "engineer_done" and detail.startswith("http") \
+                    and "prototype" not in sent_links:
+                sent_links.add("prototype")
+                self.api.send_message(
+                    chat_id, f"🕸 <b>Live prototype</b> (open while I keep "
+                             f"building):\n{detail}")
+            if stage == "director_done" and detail.startswith("http") \
+                    and "walkthrough" not in sent_links:
+                sent_links.add("walkthrough")
+                self.api.send_message(
+                    chat_id, f"🎬 <b>Walkthrough video</b>:\n{detail}")
             template = _STAGE_NARR.get(stage, "")
             if not template:
                 return
@@ -544,7 +600,9 @@ class RevenantBot:
 
         sess.art = art
         self._deliver(chat_id, art)
-        sess.mode = "idle"
+        # Stay in review so the founder's next message (tweak / approve / send
+        # / pivot) is understood instead of answered generically.
+        sess.mode = "reviewing"
 
     def _needs_setup(self, chat_id: int, *, before_hunt: bool = False) -> None:
         prefix = ("Before I hunt anything, I need to know who I'm selling for. "
@@ -573,15 +631,9 @@ class RevenantBot:
         if not video_sent and art.walkthrough_url and not art.walkthrough_url.startswith("file:"):
             self.api.send_message(chat_id, f"{cap}\n{art.walkthrough_url}")
 
-        # 2. Live prototype — link preview shows a rich card
-        if art.prototype_url and not art.prototype_url.startswith("file:"):
-            self.api.send_message(
-                chat_id,
-                f"🕸 <b>Live prototype</b> — built for {html.escape(art.company)}\n"
-                f"{art.prototype_url}")
-        elif art.prototype_url:
-            # deploy fell back to file:// — say so honestly, don't paste a
-            # useless local path
+        # 2. Live prototype — the http link was already sent EARLY (filler)
+        # during the build, so here we only flag a failed deploy.
+        if art.prototype_url and art.prototype_url.startswith("file:"):
             self.api.send_message(
                 chat_id,
                 "⚠️ Prototype deploy failed — Cloudflare Pages didn't accept "
@@ -760,12 +812,20 @@ class RevenantBot:
             return
         self.api.send_chat_action(chat_id, "typing")
         m = self.api.send_message(chat_id, "✏️ Reworking the draft…")
-        redraft_email(art, amendment, sess.ctx or self.ctx)
-        sess.mode = "idle"
+        try:
+            redraft_email(art, amendment, sess.ctx or self.ctx)
+        except Exception as exc:
+            self.api.send_message(chat_id, "⚠️ Couldn't rework that: "
+                                  f"{html.escape(str(exc)[:200])}. The previous "
+                                  "draft still stands — try rephrasing.")
+            sess.mode = "reviewing"
+            return
         mid = m.get("result", {}).get("message_id")
         if mid:
             self.api.edit_message(chat_id, mid, "✅ Draft updated.")
         self._send_draft(chat_id, art)
+        # Stay in review so further tweaks / approve keep working.
+        sess.mode = "reviewing"
 
 def _me(api: TelegramAPI) -> str:
     try:

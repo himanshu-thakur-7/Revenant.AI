@@ -8,6 +8,7 @@ Two categories:
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from ghost.config import settings
@@ -15,6 +16,15 @@ from ghost.config import settings
 from ..tools import Tool, tool
 from . import avatar, hosting, muxer, recorder, tts
 from .walkthrough import WalkthroughState
+
+# Pre-rendered Fiona talking-head used as the presenter bubble when a fresh
+# D-ID render isn't available (0 credits / trial 402). Saved once from a real
+# talk; see HANDOFF §16.1b. Override with REVENANT_FALLBACK_PRESENTER.
+import os as _os
+_FALLBACK_PRESENTER = Path(_os.getenv(
+    "REVENANT_FALLBACK_PRESENTER",
+    str(Path.home() / "Revenant.AI" / "out" / "fallback" / "presenter-fiona.mp4"),
+))
 
 
 # ── deterministic action injection ────────────────────────────────
@@ -242,17 +252,29 @@ def action_tools(state: WalkthroughState, prototype_url: str) -> list[Tool]:
             talking_head = _did.get("path")
             avatar_warning = _did.get("warn")
 
+        import sys as _sys
+        # Fallback presenter: when D-ID couldn't produce a fresh talking-head
+        # (out of credits / trial 402 / API hiccup), reuse a pre-rendered Fiona
+        # clip so the bubble still shows a real face instead of the static "RE".
+        # Its audio is discarded by composite_and_mux (narration is mapped from
+        # the clean track), so a mismatched-lips muted corner bubble is fine.
+        if (not (talking_head and talking_head.exists())) and _FALLBACK_PRESENTER.exists():
+            talking_head = _FALLBACK_PRESENTER
+            avatar_warning = None
+            print(f"[director] ↩ using fallback presenter clip "
+                  f"({_FALLBACK_PRESENTER.name}) — D-ID unavailable",
+                  file=_sys.stderr, flush=True)
+
         # Surface the avatar outcome to the log — without this we were blind to
         # WHY the presenter went missing while D-ID credits were still charged.
-        import sys as _sys
         if avatar_warning:
             print(f"[director] ⚠️ presenter missing: {avatar_warning}", file=_sys.stderr, flush=True)
         elif talking_head and talking_head.exists():
             print(f"[director] ✅ talking-head ready: {talking_head} "
                   f"({talking_head.stat().st_size} bytes)", file=_sys.stderr, flush=True)
         else:
-            print("[director] ⚠️ presenter missing: D-ID returned no file "
-                  "(no warning captured)", file=_sys.stderr, flush=True)
+            print("[director] ⚠️ presenter missing: no talking-head and no "
+                  "fallback clip", file=_sys.stderr, flush=True)
 
         # 5. Composite the talking head (if any) + mux narration → MP4.
         mp4_path = state.workspace / "walkthrough.mp4"
