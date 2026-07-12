@@ -69,6 +69,54 @@ def _extract_url(text: str) -> str:
             return cand
     return ""
 
+
+# ── deterministic intent signals ───────────────────────────────
+# Checked BEFORE the LLM classifier so common natural phrasings route
+# reliably ("find clients in fintech", "get me some healthtech customers",
+# "set up my startup") instead of hanging on the model's guess. Kept broad
+# on purpose — the founder types casually.
+_RUN_VERBS = ("find", "hunt", "get", "source", "target", "pursue", "reach out",
+              "go after", "look for", "sell to", "prospect", "scout", "land",
+              "chase", "close", "acquire", "win", "drum up", "dig up", "bring me")
+_RUN_NOUNS = ("customer", "client", "prospect", "lead", "buyer", "account",
+              "company", "companies", "startup", "startups", "logo", "deal",
+              "pilot", "design partner")
+_SETUP_WORDS = ("set up", "setup", "set-up", "onboard", "use this repo",
+                "sell for", "represent", "load my", "here's my startup",
+                "here is my startup", "my startup is", "configure", "switch to")
+# Verticals in every casual spelling we can think of.
+_VERTICAL_WORDS = (
+    "fintech", "fin-tech", "fin tech", "healthtech", "health-tech", "health tech",
+    "insurtech", "insur-tech", "legaltech", "legal tech", "edtech", "ed-tech",
+    "cybersecurity", "cyber security", "cyber-security", "infosec", "saas",
+    "developer tools", "devtools", "dev tools", "medtech", "med-tech", "proptech",
+    "hrtech", "hr tech", "martech", "biotech", "climate tech", "cleantech",
+    "govtech", "banking", "payments", "crypto", "web3", "logistics", "ecommerce",
+    "e-commerce", "retail tech", "adtech", "foodtech", "agritech", "traveltech",
+    "real estate", "insurance", "healthcare", "finance", "financial",
+)
+
+
+def _keyword_intent(text: str) -> str | None:
+    """Fast, deterministic intent for the obvious cases. Returns a category or
+    None (→ fall through to the LLM classifier for genuinely ambiguous text)."""
+    t = " " + text.lower().strip() + " "
+    tsp = t.replace("-", " ")  # so "fin-tech" matches "fin tech"
+    if any(w in t or w in tsp for w in _SETUP_WORDS):
+        return "configure"
+    has_verb = any(v in t or v in tsp for v in _RUN_VERBS)
+    has_noun = any(n in t or n in tsp for n in _RUN_NOUNS)
+    has_vertical = any(v in t or v in tsp for v in _VERTICAL_WORDS)
+    # hunt-verb + (a target noun OR a named vertical) → run a campaign
+    if has_verb and (has_noun or has_vertical):
+        return "run_campaign"
+    # a vertical + an outbound-flavoured word, even without a hunt verb
+    if has_vertical and any(w in t for w in (
+            " outbound ", " campaign ", " pipeline ", " deals ", " prospects ",
+            " customers ", " clients ", " domain ", " space ", " market ")):
+        return "run_campaign"
+    return None
+
 from ghost.config import settings
 
 from ..context import FounderContext
@@ -232,6 +280,11 @@ class RevenantBot:
             self._answer(chat_id, text)
 
     def _classify(self, chat_id: int, text: str) -> str:
+        # Deterministic fast-path for the obvious phrasings — no LLM guess.
+        kw = _keyword_intent(text)
+        if kw:
+            return kw
+
         from ghost.llm import complete_json
 
         result = complete_json(
