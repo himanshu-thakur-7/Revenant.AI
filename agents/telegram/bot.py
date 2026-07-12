@@ -632,8 +632,6 @@ class RevenantBot:
                                   f"({n} files)")
         elif cmd == "whoami":
             self.api.send_message(chat_id, f"chat id: <code>{chat_id}</code>")
-        elif cmd in ("demo_pr", "simulate_pr"):
-            self._simulate_pr_merge(chat_id, arg)
         else:
             self.api.send_message(chat_id, "Unknown command. Send /help.")
 
@@ -658,49 +656,6 @@ class RevenantBot:
         )
         w.start()
         sess.pr_watcher = w
-
-    def _simulate_pr_merge(self, chat_id: int, title: str = "") -> None:
-        """Manual rehearsal trigger for the split demo.
-
-        The real demo path is still the GitHub watcher. This command lets us
-        dry-run the exact same narration + shortlist without burning time on a
-        real PR merge. It only works after the founder has armed the split demo
-        via `/setup razorpay.com github.com/razorpayInc/Razorpay`.
-        """
-        from .. import demo_razorpay_split
-        sess = self.session(chat_id)
-        if not (sess.setup_done and demo_razorpay_split.demo_active()):
-            self.api.send_message(
-                chat_id,
-                "Arm the split demo first:\n"
-                "<code>/setup razorpay.com github.com/razorpayInc/Razorpay</code>",
-                disable_preview=True)
-            return
-        if sess.mode == "running" or sess.mode == "awaiting_pick" or sess.shortlist:
-            self.api.send_message(
-                chat_id,
-                "A split-demo shortlist is already active. Pick Rigi or start a "
-                "fresh /setup before simulating another PR.")
-            return
-
-        from .pr_watcher import MergedPR
-        pr = MergedPR(
-            number=int(os.getenv("RAZORPAY_TRIGGER_DEMO_PR", "47")),
-            title=(title or os.getenv(
-                "RAZORPAY_TRIGGER_DEMO_TITLE",
-                "feat(route): Marketplace Payout Splits v1")),
-            body="Manual Telegram rehearsal trigger; no GitHub PR was merged.",
-            merged_at="demo",
-            author="demo",
-            html_url=os.getenv(
-                "RAZORPAY_TRIGGER_DEMO_URL",
-                "https://github.com/razorpayInc/Razorpay/pulls"),
-        )
-        threading.Thread(
-            target=lambda: self._on_pr_merged(chat_id, pr),
-            daemon=True,
-            name=f"demo-pr-{chat_id}",
-        ).start()
 
     def _on_pr_merged(self, chat_id: int, pr) -> None:
         """Callback: a PR just merged in the trigger repo → play the ack

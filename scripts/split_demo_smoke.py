@@ -4,7 +4,7 @@ No Telegram, GitHub, Cloudflare, or real sleeps. This verifies the branch can:
 - arm only on the trigger repo,
 - shortlist Rigi/Convosight/Coto,
 - hit the deterministic Rigi artifact path, and
-- accept the manual /demo_pr rehearsal command after setup.
+- fire a watcher callback when a merged PR appears.
 """
 
 from __future__ import annotations
@@ -13,19 +13,7 @@ import time
 
 from agents import demo_razorpay, demo_razorpay_split
 from agents.runner import build_campaign_for, find_shortlist
-from agents.telegram.bot import RevenantBot
-
-
-class FakeAPI:
-    def __init__(self) -> None:
-        self.messages: list[str] = []
-
-    def send_message(self, _chat_id: int, text: str, **_kwargs):
-        self.messages.append(text)
-        return {"ok": True, "result": {"message_id": len(self.messages)}}
-
-    def send_chat_action(self, *_args, **_kwargs):
-        return {"ok": True}
+from agents.telegram.pr_watcher import MergedPR, PRWatcher
 
 
 def _no_sleep(_seconds: float) -> None:
@@ -57,22 +45,27 @@ def main() -> None:
     assert art.walkthrough_url == demo_razorpay_split.RIGI_WALKTHROUGH_URL
     assert demo_razorpay_split.RIGI_WALKTHROUGH_MP4.exists()
 
-    bot = RevenantBot("dummy-token", ctx)
-    fake = FakeAPI()
-    bot.api = fake
-    sess = bot.session(8135896882)
-    sess.ctx = ctx
-    sess.ctx_label = "razorpay.com + github.com/razorpayInc/Razorpay"
-    sess.setup_done = True
-    bot._on_command(8135896882, "/demo_pr feat(route): Marketplace Payout Splits v1")
-
-    # /demo_pr runs in a daemon thread. Wait for the first ack, not the full
-    # staged shortlist. This keeps the smoke test under a second.
+    fired: list[MergedPR] = []
+    watcher = PRWatcher(
+        "razorpayInc/Razorpay",
+        on_merge=lambda pr: fired.append(pr),
+        poll_seconds=60,
+    )
+    watcher._fetch_once = lambda: [MergedPR(
+        number=47,
+        title="feat(route): Marketplace Payout Splits v1",
+        body="dummy",
+        merged_at="2026-07-12T09:00:00Z",
+        author="demo",
+        html_url="https://github.com/razorpayInc/Razorpay/pull/47",
+    )]
+    watcher.start()
     deadline = time.time() + 2
-    while time.time() < deadline and not fake.messages:
+    while time.time() < deadline and not fired:
         time.sleep(0.02)
-    assert any("PR #47 just merged" in msg for msg in fake.messages)
-    assert any("Marketplace Payout Splits" in msg for msg in fake.messages)
+    watcher.stop()
+    assert len(fired) == 1
+    assert fired[0].title == "feat(route): Marketplace Payout Splits v1"
 
     print("split demo smoke ok")
 
