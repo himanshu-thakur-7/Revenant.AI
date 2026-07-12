@@ -114,7 +114,9 @@ _RUN_VERBS = ("find", "hunt", "get", "source", "target", "pursue", "reach out",
               "chase", "close", "acquire", "win", "drum up", "dig up", "bring me")
 _RUN_NOUNS = ("customer", "client", "prospect", "lead", "buyer", "account",
               "company", "companies", "startup", "startups", "logo", "deal",
-              "pilot", "design partner")
+              "pilot", "design partner", "merchant", "merchants", "brand",
+              "brands", "store", "stores", "shop", "shops", "seller", "sellers",
+              "shopper", "shoppers")
 _SETUP_WORDS = ("set up", "setup", "set-up", "onboard", "use this repo",
                 "sell for", "represent", "load my", "here's my startup",
                 "here is my startup", "my startup is", "configure", "switch to")
@@ -503,6 +505,16 @@ class RevenantBot:
         a private repo we can't access) is skipped; as long as ONE works we
         still build a solid understanding."""
         sess = self.session(chat_id)
+
+        # A /setup starts a NEW campaign — clear any stale review state from
+        # the prior run (a draft-on-the-table would otherwise trap the next
+        # message in _on_review_text, treating "find merchants" as a question
+        # about the OLD draft instead of a hunt request).
+        sess.mode = "idle"
+        sess.art = None
+        sess.draft_msg_id = None
+        sess.shortlist = []
+        sess.shortlist_msg_id = None
 
         # ── on-stage Razorpay demo: canned context, no repo/site fetch ──
         # Onboarding "Razorpay" self-arms the demo — no env flag / restart needed.
