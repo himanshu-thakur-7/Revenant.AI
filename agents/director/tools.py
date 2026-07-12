@@ -188,24 +188,35 @@ def action_tools(state: WalkthroughState, prototype_url: str) -> list[Tool]:
         except muxer.MuxError as exc:
             return {"error": f"audio concat failed: {exc}"}
 
-        # 3. Lip-sync avatar via D-ID (optional — degrades to static bubble).
+        # 3 + 4 run IN PARALLEL — the D-ID lip-sync (~40s) and the Playwright
+        #      screen capture (~45s) no longer wait on each other. The head is
+        #      composited onto the recording afterward (step 5) instead of
+        #      being DOM-injected before recording. Saves ~40s wall-clock.
+        import threading
         talking_head: Path | None = None
         avatar_warning: str | None = None
         talking_head_path = state.workspace / "talking-head.mp4"
+        _did: dict[str, Any] = {}
+
+        def _run_did() -> None:
+            try:
+                _did["path"] = avatar.generate_lipsync_mp4(
+                    audio_all, talking_head_path)
+            except avatar.DIDError as exc:
+                _did["warn"] = f"D-ID lip-sync unavailable: {exc}"
+            except Exception as exc:  # network hiccup, JSON quirk, etc.
+                _did["warn"] = f"D-ID unexpected error: {exc}"
+
+        did_thread: threading.Thread | None = None
         if settings.skip_lipsync:
             avatar_warning = "lip-sync skipped (DIRECTOR_SKIP_LIPSYNC=1)"
         else:
-            try:
-                talking_head = avatar.generate_lipsync_mp4(
-                    audio_all, talking_head_path,
-                )
-            except avatar.DIDError as exc:
-                avatar_warning = f"D-ID lip-sync unavailable: {exc}"
-            except Exception as exc:  # network hiccup, JSON quirk, etc.
-                avatar_warning = f"D-ID unexpected error: {exc}"
+            did_thread = threading.Thread(target=_run_did, daemon=True)
+            did_thread.start()
 
-        # 4. Record the prototype driving the beats' UI actions, embedding
-        #    the talking-head video in the presenter bubble when available.
+        # Record the prototype with the STATIC bubble as a placeholder. If the
+        # D-ID head lands, ffmpeg overlays it exactly on top of that bubble; if
+        # D-ID fails, the static bubble stays as the graceful fallback.
         try:
             webm = recorder.record_prototype(
                 url=prototype_url,
@@ -214,18 +225,31 @@ def action_tools(state: WalkthroughState, prototype_url: str) -> list[Tool]:
                 video_dir=state.video_dir,
                 presenter_initial=(presenter_name or "R")[:2].upper(),
                 presenter_label=(presenter_name or "R")[:16],
-                talking_head_path=talking_head,
+                talking_head_path=None,  # decoupled — composited in step 5
             )
         except Exception as exc:
             return {"error": f"playwright capture failed: {exc}"}
         state.webm_path = str(webm)
 
-        # 5. Mux narration onto video → MP4.
+        # Join the D-ID worker (it's almost certainly done by now).
+        if did_thread is not None:
+            did_thread.join(timeout=180)
+            talking_head = _did.get("path")
+            avatar_warning = _did.get("warn")
+
+        # 5. Composite the talking head (if any) + mux narration → MP4.
         mp4_path = state.workspace / "walkthrough.mp4"
         try:
-            muxer.mux_to_mp4(Path(webm), audio_all, mp4_path)
+            if talking_head and talking_head.exists():
+                muxer.composite_and_mux(Path(webm), talking_head, audio_all, mp4_path)
+            else:
+                muxer.mux_to_mp4(Path(webm), audio_all, mp4_path)
         except muxer.MuxError as exc:
-            return {"error": f"ffmpeg mux failed: {exc}", "webm_path": str(webm)}
+            # composite failed → fall back to a plain mux so we still ship a video
+            try:
+                muxer.mux_to_mp4(Path(webm), audio_all, mp4_path)
+            except muxer.MuxError:
+                return {"error": f"ffmpeg failed: {exc}", "webm_path": str(webm)}
         state.mp4_path = str(mp4_path)
 
         # 6. Deploy the workspace to Cloudflare Pages so the MP4 is a URL.

@@ -65,5 +65,48 @@ def mux_to_mp4(webm: Path, audio: Path, out_path: Path) -> Path:
     return out_path
 
 
+def composite_and_mux(webm: Path, talking_head: Path, audio: Path,
+                      out_path: Path, *, size: int = 132, pad: int = 34) -> Path:
+    """Overlay the D-ID talking-head as a circular corner bubble onto the
+    screen recording AND mux the clean narration — in a single ffmpeg pass.
+
+    This decouples the D-ID lip-sync from the Playwright capture: the head is
+    composited AFTER both finish (in parallel), instead of being DOM-injected
+    before recording. The circular crop + bottom-right placement match the
+    static bubble the recorder draws, so the head sits exactly where the
+    placeholder was. We use the clean ``audio`` track (what D-ID lip-synced
+    to) — never the head's own audio — to avoid a doubled voice.
+    """
+    if not _ffmpeg():
+        raise MuxError("ffmpeg not on PATH")
+    r = size // 2
+    filt = (
+        # scale the head to the bubble size, mask to a circle (alpha 0 outside)
+        f"[1:v]scale={size}:{size},format=yuva420p,"
+        f"geq=lum='p(X,Y)':cb='p(X,Y)':cr='p(X,Y)':"
+        f"a='if(gt(hypot(X-{r},Y-{r}),{r}),0,255)'[head];"
+        # place it bottom-right with the same padding as the recorder bubble
+        f"[0:v][head]overlay=W-w-{pad}:H-h-{pad}:shortest=1[v]"
+    )
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", str(webm),            # 0: screen recording
+        "-i", str(talking_head),    # 1: D-ID talking head (video only used)
+        "-i", str(audio),           # 2: clean narration
+        "-filter_complex", filt,
+        "-map", "[v]", "-map", "2:a",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "128k",
+        "-movflags", "+faststart",
+        "-shortest",
+        str(out_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    if proc.returncode != 0:
+        tail = "\n".join((proc.stderr or "").strip().splitlines()[-10:])
+        raise MuxError(f"ffmpeg composite exit {proc.returncode}: {tail}")
+    return out_path
+
+
 def _ffmpeg() -> str | None:
     return shutil.which("ffmpeg")
