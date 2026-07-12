@@ -352,9 +352,17 @@ function Detail({ campaign, liveState, sent, onApprove }: {
               <span style={{ color: "#c3cbdb", fontStyle: "italic" }}>"{e.excerpt}"</span>
             </div>
           ))}
-          <div className="rv-mono" style={{ fontSize: 11, color: "var(--muted)", paddingTop: 8, borderTop: "1px solid var(--line)" }}>
-            🎬 walkthrough {campaign.walkthrough_url ? "✓" : "—"} · 🎙 memo {campaign.voice_memo_ref ? "✓" : "—"} ·
-            💳 pilot {campaign.payment_link ? "✓" : "—"} · <span style={{ color: "var(--wisp)" }}>${campaign.cost_usd.toFixed(2)} all-in</span>
+          <div className="rv-mono" style={{ fontSize: 11, color: "var(--muted)", paddingTop: 8, borderTop: "1px solid var(--line)", display: "flex", flexWrap: "wrap", gap: 10 }}>
+            {campaign.walkthrough_url && (
+              <a href={campaign.walkthrough_url} target="_blank" rel="noreferrer" className="rv-link">🎬 walkthrough</a>
+            )}
+            {campaign.deck_url && (
+              <a href={campaign.deck_url} target="_blank" rel="noreferrer" className="rv-link">📊 pitch deck</a>
+            )}
+            {campaign.microsite_url && (
+              <a href={campaign.microsite_url} target="_blank" rel="noreferrer" className="rv-link">🕸 prototype</a>
+            )}
+            <span style={{ marginLeft: "auto", color: "var(--wisp)" }}>${campaign.cost_usd.toFixed(4)} all-in</span>
           </div>
         </div>
       )}

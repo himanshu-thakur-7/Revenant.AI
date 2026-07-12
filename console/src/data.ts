@@ -33,6 +33,7 @@ export type Campaign = {
   voice_memo_ref: string;
   email_subject: string;
   email_body: string;
+  deck_url?: string;
   payment_link: string;
   cost_usd: number;
   lead: {
