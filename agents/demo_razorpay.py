@@ -37,7 +37,7 @@ SITE_DIR = Path(__file__).parent / "demo_razorpay_site"
 #   revenant director <PROTOTYPE_URL> --company boAt ...   (DIRECTOR_SKIP_LIPSYNC=1)
 WALKTHROUGH_URL = os.getenv(
     "RAZORPAY_WALKTHROUGH_URL",
-    "https://542dde7f.revenant-walkthroughs.pages.dev/walkthrough.mp4")
+    "https://43b11f25.revenant-walkthroughs.pages.dev/walkthrough.mp4")
 WALKTHROUGH_MP4 = Path(__file__).parent / "demo_razorpay_assets" / "boat-walkthrough.mp4"
 
 

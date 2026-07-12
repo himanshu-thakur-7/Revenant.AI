@@ -33,12 +33,25 @@ _ELEVEN_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 _DEFAULT_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 
 
+# Pronunciation fixes for TTS — brand names the engines mangle. Applied to the
+# spoken narration ONLY; on-screen/UI text is untouched. "boAt" (capital A
+# mid-word) is otherwise read as "bo-A-T".
+_SPOKEN_FIXES: dict[str, str] = {"boAt": "boat", "BoAt": "boat", "BOAT": "boat"}
+
+
+def _fix_pronunciation(text: str) -> str:
+    for wrong, right in _SPOKEN_FIXES.items():
+        text = text.replace(wrong, right)
+    return text
+
+
 def narrate(text: str, out_path: Path, *, voice_id: str | None = None) -> tuple[Path, float]:
     """Render ``text`` to an MP3 at ``out_path``. Returns (path, duration_seconds).
 
     Voice chain, each falling through on failure so a dead key never kills the
     film: ElevenLabs (if key) → **OpenAI TTS** (natural, uses the LLM key we
     already have) → macOS ``say`` (robotic last resort)."""
+    text = _fix_pronunciation(text)
     # 1. ElevenLabs — only if a key is configured.
     if settings.elevenlabs_api_key:
         try:
