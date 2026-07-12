@@ -444,8 +444,10 @@ def build_prototype(startup: str, merchant: str, merchant_domain: str = "",
         "fit_rationale": pain,
     }
 
-    # 3. Build via the Engineer, then a VISION QA pass (render → spot visual
-    #    bugs → fix) so the single prototype is foolproof, then (re)deploy.
+    # 3. Build via the Engineer (already deploys to Cloudflare Pages as its
+    #    finalize step — that's our sponsor URL). Then a VISION QA pass; we
+    #    ONLY redeploy if polish actually changed the HTML. Ngrok stays as a
+    #    fallback if CF is unreachable.
     try:
         from agents.engineer import Engineer
         from agents.engineer import polish as _polish
@@ -455,22 +457,30 @@ def build_prototype(startup: str, merchant: str, merchant_domain: str = "",
         with _quiet_stdout():
             eng = Engineer(founder_context=ctx, prospect=prospect)
             res = eng.build()
-            url = (res or {}).get("url", "")          # CF (byproduct) = fallback
+            url = (res or {}).get("url", "")          # Engineer's own CF Pages URL
             ws = Path(res.get("workspace") or eng._state.workspace)
             idx = ws / "index.html"
             if idx.exists():
-                improved = _harden_html(_polish.polish_html(
-                    idx.read_text(encoding="utf-8"),
-                    startup=startup, merchant=merchant, passes=1))
-                idx.write_text(improved, encoding="utf-8")
-                # Primary hosting: local server + ngrok (no CF quota/deploy wait).
-                # Fall back to a fresh CF deploy of the polished file if ngrok is down.
-                slug = _re.sub(r"[^a-z0-9]+", "-", merchant.lower()).strip("-") or "merchant"
-                try:
-                    from agents.engineer import local_host
-                    url = local_host.publish(slug, improved)
-                except Exception:
-                    url = deploy_dir(ws).get("url") or url
+                original = idx.read_text(encoding="utf-8")
+                polished = _polish.polish_html(
+                    original, startup=startup, merchant=merchant, passes=1)
+                # Vision QA often returns +0 (nothing to fix). Only rewrite +
+                # redeploy when it actually changed things — saves ~12s of a
+                # redundant CF deploy on clean builds.
+                if polished and polished != original:
+                    improved = _harden_html(polished)
+                    idx.write_text(improved, encoding="utf-8")
+                    redeploy = deploy_dir(ws)
+                    url = redeploy.get("url") or url
+                # If the Engineer's CF deploy fell back to file:// (no CF creds
+                # / wrangler failure), publish via local + ngrok as a safety net.
+                if not url or url.startswith("file:"):
+                    slug = _re.sub(r"[^a-z0-9]+", "-", merchant.lower()).strip("-") or "merchant"
+                    try:
+                        from agents.engineer import local_host
+                        url = local_host.publish(slug, idx.read_text(encoding="utf-8"))
+                    except Exception:
+                        pass
     except Exception as exc:  # noqa: BLE001
         return f"Build failed for {merchant}: {exc}"
 
