@@ -188,10 +188,22 @@ CFG.key  = CFG.key  || DEFAULT_KEY;
 if(!CFG.sid){ CFG.sid = 'web-'+Math.random().toString(36).slice(2,12); }
 setCfg(CFG);
 
-const SYSTEM = `You are Revenant, an autonomous outbound-growth AGENCY run entirely by AI agents, acting as the manager.
-You represent the founder's startup and win them new customers end to end.
-You have specialist tools from the 'revenant' server: setup_startup, find_prospects, build_campaign (researches, builds and DEPLOYS a real working prototype to Cloudflare Pages), draft_email, status — plus web_search (Linkup), files, terminal, code, and delegation for spawning sub-agents.
-Work the real job live: understand the startup, hunt a fit prospect, build & deploy a real prototype, draft outreach. Narrate briefly what you're doing and why as you go. Prefer real tools over talk. When a task is big, delegate to a sub-agent. Keep the founder's trust: never fabricate a result you didn't produce.`;
+const SYSTEM = `You are REVENANT — an autonomous outbound-growth AGENCY run by a CREW of AI agents. You are the MANAGER. You win the founder new customers, working as a real multi-agent team — never as a single assistant doing steps in one thread.
+
+HARD RULES
+- Work as a CREW. For any real work, call the delegate_task tool with a "tasks" ARRAY to spawn specialist sub-agents IN PARALLEL. Do not grind through multi-step work yourself.
+- MEMORY: remember the founder and their startup across turns. If you don't know their startup yet, ask once, then remember it and reuse it.
+- Never fabricate. Never send anything — only draft. Keep the founder in control.
+
+TOOLING RULE (important)
+- Do NOT call setup_startup or find_prospects — those are slow legacy monolith tools. Learn the founder's startup from the brief (they'll tell you; e.g. "Razorpay"). Do the real work by DELEGATING to sub-agents that use web_search.
+- build_campaign / draft_email may ONLY be used INSIDE an Engineer/Sales sub-agent during the build step, never by you directly in the research step.
+
+THE FLOW
+1) FIND CUSTOMERS → immediately spawn THREE parallel Research analysts in ONE delegate_task call (a "tasks" array of 3). Each task goal MUST be self-contained and name the startup explicitly (sub-agents share none of this chat). Use goals like: "You are a market analyst. Name ONE real, well-known company in <VERTICAL> that would be a strong CUSTOMER for <STARTUP> (<what it does>). Return: company name, a one-line why-it-fits tied to the product, and the buyer role to contact. Answer directly from your knowledge in 2-3 sentences. Do NOT call heavy tools; do NOT use find_prospects, setup_startup, or terminal." Pick three DIFFERENT verticals. Then present ALL THREE results to the founder as a numbered shortlist (1, 2, 3) with specifics, and ask which to build for.
+2) FOUNDER PICKS ONE (e.g. "build for #2") → spawn an Engineer sub-agent (delegate_task) to build & DEPLOY a real working prototype for that prospect (it may call the build_campaign tool, which deploys to Cloudflare Pages), plus a Sales sub-agent to draft the outreach email. Return the LIVE prototype URL + the draft.
+
+STYLE: narrate crisply what the crew is doing. Present results richly and specifically — real names, real URLs, real rationale. Never return a thin one-liner. You have web_search (Linkup), files, terminal, code, delegate_task, and (for sub-agents only) the revenant build tools.`;
 
 /* ---------------- element refs ---------------- */
 const $=s=>document.querySelector(s);
@@ -245,26 +257,44 @@ function pretty(tool){
   if(tool&&tool.startsWith('mcp__revenant__')) return ['◆','Revenant · '+tool.replace('mcp__revenant__','')];
   return ['▸', tool||'tool'];
 }
-const runningEv={}; // tool -> {el, t0}
+const runningEv={}; // tool -> [{el, t0}]
 function traceEmpty(){ trace.querySelector('.empty')?.remove(); }
-function evStart(tool){
-  traceEmpty();
-  const [ic,lbl]=pretty(tool);
-  const isSpawn=/deleg/i.test(tool);
-  if(isSpawn){ agentCount++; $('#stAgents').textContent=agentCount; }
-  const el=document.createElement('div'); el.className='ev run'+(isSpawn?' spawn':'');
-  el.innerHTML='<div class="ic"><span class="spin">◠</span></div><div class="txt"><span class="lbl">'+lbl+'</span></div><div class="rt">running</div>';
-  trace.appendChild(el); trace.scrollTop=trace.scrollHeight;
-  runningEv[tool]=runningEv[tool]||[]; runningEv[tool].push({el,t0:performance.now()});
-  toolCount++; $('#stTools').textContent=toolCount;
+function esc(s){ const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+// "3 tasks: A | B | C" -> ['A','B','C']
+function parseTasks(preview){
+  const m=(preview||'').match(/^\s*(\d+)\s+tasks?\s*:\s*(.+)$/i);
+  return m ? m[2].split('|').map(s=>s.trim()).filter(Boolean) : null;
 }
-function evDone(tool){
-  const stack=runningEv[tool]; if(!stack||!stack.length) return;
+function evStart(ev){
+  traceEmpty();
+  const tool=ev.tool||ev.name; const t0=performance.now();
+  toolCount++; $('#stTools').textContent=toolCount;
+  // delegate_task = a real crew spawn — render each parallel sub-agent
+  if(tool==='delegate_task'){
+    const tasks=parseTasks(ev.preview)||[ev.preview||'sub-agent'];
+    agentCount+=tasks.length; $('#stAgents').textContent=agentCount;
+    const el=document.createElement('div'); el.className='ev spawn run';
+    el.innerHTML='<div class="ic"><span class="spin">◠</span></div><div class="txt">'
+      +'<span class="lbl">Crew · spawned '+tasks.length+' specialist'+(tasks.length>1?'s':'')+' in parallel</span>'
+      +tasks.map((t,i)=>'<div class="sub">▸ agent '+(i+1)+' · '+esc(t)+'</div>').join('')
+      +'</div><div class="rt">running</div>';
+    trace.appendChild(el); trace.scrollTop=trace.scrollHeight;
+    (runningEv[tool]=runningEv[tool]||[]).push({el,t0}); return;
+  }
+  const [ic,lbl]=pretty(tool);
+  const el=document.createElement('div'); el.className='ev run';
+  el.innerHTML='<div class="ic"><span class="spin">◠</span></div><div class="txt"><span class="lbl">'+esc(lbl)+'</span>'
+    +(ev.preview?'<div class="sub">'+esc(ev.preview)+'</div>':'')+'</div><div class="rt">running</div>';
+  trace.appendChild(el); trace.scrollTop=trace.scrollHeight;
+  (runningEv[tool]=runningEv[tool]||[]).push({el,t0});
+}
+function evDone(ev){
+  const tool=ev.tool||ev.name; const stack=runningEv[tool]; if(!stack||!stack.length) return;
   const {el,t0}=stack.pop();
-  const dt=((performance.now()-t0)/1000).toFixed(1);
-  el.className=el.className.replace('run','done');
-  el.querySelector('.ic').innerHTML='✓';
-  el.querySelector('.rt').textContent=dt+'s';
+  const dt=(ev.duration!=null?ev.duration:(performance.now()-t0)/1000).toFixed(1);
+  el.classList.remove('run'); el.classList.add('done');
+  const ic=el.querySelector('.ic'); if(ic) ic.innerHTML=ev.error?'⚠':'✓';
+  const rt=el.querySelector('.rt'); if(rt) rt.textContent=dt+'s';
 }
 function sysEv(text){
   traceEmpty();
@@ -308,9 +338,13 @@ async function runTurn(text){
         let ev; try{ ev=JSON.parse(line.slice(5).trim()) }catch{ continue }
         const et=ev.event||ev.type;
         if(et==='message.delta'){ acc+=(ev.delta||''); cur.remove(); bodyEl.textContent=acc; bodyEl.appendChild(cur); chat.scrollTop=chat.scrollHeight; }
-        else if(et==='tool.started'){ evStart(ev.tool||ev.name); }
-        else if(et==='tool.completed'){ evDone(ev.tool||ev.name); }
-        else if(et==='run.completed'||et==='response.completed'){ sysEv('run complete'); }
+        else if(et==='tool.started'){ evStart(ev); }
+        else if(et==='tool.completed'){ evDone(ev); }
+        else if(et==='run.completed'||et==='response.completed'){
+          if(!acc.trim() && ev.output){ acc=ev.output; cur.remove(); bodyEl.textContent=acc; chat.scrollTop=chat.scrollHeight; }
+          sysEv('run complete · '+toolCount+' tool calls · '+agentCount+' agents this turn');
+          updateChips();
+        }
         else if(et==='run.failed'){ sysEv('run failed'); }
       }
     }
@@ -331,13 +365,18 @@ input.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preve
 form.addEventListener('submit', e=>{ e.preventDefault(); const t=input.value.trim(); if(!t||busy) return;
   if(!CFG.key){ openSettings(); return; } runTurn(t); });
 
-const CHIPS=[
-  'Set up Razorpay as my startup, then find a strong merchant to win.',
-  'Find a fit customer for Razorpay and build them a working prototype.',
+function setChips(list){
+  const wrap=$('#chips'); wrap.innerHTML='';
+  list.forEach(c=>{ const b=document.createElement('div'); b.className='chip'; b.textContent=c;
+    b.onclick=()=>{ input.value=c; autosize(); input.focus(); }; wrap.appendChild(b); });
+}
+// after the crew reports a shortlist, the breadcrumbs become the next moves
+function updateChips(){ setChips(['Build for #1','Build for #2','Build for #3','Draft the outreach email','Schedule an 8am daily run']); }
+setChips([
+  'Set up Razorpay as my startup, then hunt 3 merchants to win.',
+  'Find 3 fit customers for my startup — spin up the research crew.',
   "What's the status of my current campaign?",
-];
-$('#chips').innerHTML=''; CHIPS.forEach(c=>{ const b=document.createElement('div'); b.className='chip'; b.textContent=c;
-  b.onclick=()=>{ input.value=c; autosize(); input.focus(); }; $('#chips').appendChild(b); });
+]);
 
 /* ---------------- boot ---------------- */
 (async function(){
