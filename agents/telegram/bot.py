@@ -190,6 +190,9 @@ class Session:
     shortlist: list[dict] = field(default_factory=list)
     shortlist_msg_id: int | None = None
     last_brief: str = ""
+    # Background PR watcher for the split demo — one per chat. Deactivated
+    # (running=False) unless the founder onboarded Razorpay + the trigger repo.
+    pr_watcher: Any | None = None
 
 
 # Human narration templates per stage boundary — each fires a NEW message
@@ -518,7 +521,7 @@ class RevenantBot:
 
         # ── on-stage Razorpay demo: canned context, no repo/site fetch ──
         # Onboarding "Razorpay" self-arms the demo — no env flag / restart needed.
-        from .. import demo_razorpay
+        from .. import demo_razorpay, demo_razorpay_split
         if "razorpay" in source.lower():
             demo_razorpay.activate()
             ctx = demo_razorpay.razorpay_context()
@@ -529,13 +532,31 @@ class RevenantBot:
             with _TypingLoop(self.api, chat_id):
                 demo_razorpay.run_staged_ingest(
                     lambda m: self.api.send_message(chat_id, m, disable_preview=True))
+
+            # If the founder ALSO gave us the razorpayInc/Razorpay repo, arm
+            # the SPLIT demo v2 (Rigi/Convosight/Coto) — a PR merge on that
+            # repo becomes the trigger instead of "find merchants".
+            armed_split = demo_razorpay_split.matches_trigger_repo(source)
+            if armed_split:
+                demo_razorpay_split.activate()
+                self._start_pr_watcher(chat_id)
+                trailer = (
+                    f"\n\n👀 Watching <b>razorpayInc/Razorpay</b> for merged "
+                    f"PRs. The moment a new feature ships, I'll hunt Indian "
+                    f"startups it changes the game for."
+                )
+            else:
+                trailer = (
+                    "\n\nI'll sell on their behalf from here. When you're ready, "
+                    "tell me who to go after — e.g. "
+                    "<i>“find merchants who'd need us”</i>."
+                )
             self.api.send_message(
                 chat_id,
                 f"Got it — ingested <b>Razorpay</b>'s product.\n\n"
-                f"<i>{html.escape(ctx.summary()[:280])}</i>\n\n"
-                "I'll sell on their behalf from here. When you're ready, "
-                "tell me who to go after — e.g. "
-                "<i>“find merchants who'd need us”</i>.")
+                f"<i>{html.escape(ctx.summary()[:280])}</i>"
+                + trailer,
+                disable_preview=True)
             return
 
         sources = _extract_sources(source)
@@ -613,6 +634,47 @@ class RevenantBot:
             self.api.send_message(chat_id, f"chat id: <code>{chat_id}</code>")
         else:
             self.api.send_message(chat_id, "Unknown command. Send /help.")
+
+    # ── PR-merge trigger for the split demo v2 ────────────────
+    def _start_pr_watcher(self, chat_id: int) -> None:
+        """Kick off a background watcher on razorpayInc/Razorpay for this chat.
+        On the first merged PR seen after start(), fire the split shortlist.
+        Idempotent — replacing an existing watcher for the same chat."""
+        from .pr_watcher import PRWatcher
+        sess = self.session(chat_id)
+        if sess.pr_watcher is not None:
+            try:
+                sess.pr_watcher.stop()
+            except Exception:
+                pass
+        repo = os.getenv("RAZORPAY_TRIGGER_REPO", "razorpayInc/Razorpay")
+        w = PRWatcher(
+            repo,
+            on_merge=lambda pr, cid=chat_id: self._on_pr_merged(cid, pr),
+            on_error=lambda msg: None,      # silent — never spam the founder
+            poll_seconds=float(os.getenv("RAZORPAY_TRIGGER_POLL_S", "15")),
+        )
+        w.start()
+        sess.pr_watcher = w
+
+    def _on_pr_merged(self, chat_id: int, pr) -> None:
+        """Callback: a PR just merged in the trigger repo → play the ack
+        narration, then run the deterministic split shortlist. Fires once per
+        PR (deduped by pr_watcher.PRWatcher). No-op if the founder already
+        started a campaign this session (avoid double-firing on tap-then-merge)."""
+        sess = self.session(chat_id)
+        if sess.mode == "running" or sess.mode == "awaiting_pick" or sess.shortlist:
+            return
+        from .. import demo_razorpay_split
+        with _TypingLoop(self.api, chat_id):
+            demo_razorpay_split.run_pr_ack(
+                lambda m: self.api.send_message(chat_id, m, disable_preview=True),
+                pr_title=pr.title, pr_number=pr.number, pr_url=pr.html_url)
+        # Now stream the shortlist through the SAME path as a manual "find".
+        # ``brief`` is descriptive (used only for logging).
+        self._run_campaign(
+            chat_id,
+            f"PR-triggered: {pr.title} (#{pr.number})")
 
     # ── run the fleet ─────────────────────────────────────────
     def _run_campaign(self, chat_id: int, brief: str) -> None:

@@ -348,6 +348,13 @@ def find_shortlist(
     stage("research", "Hunting for fit prospects…")
 
     # ── on-stage Razorpay demo: deterministic, pre-vetted shortlist ──
+    # split demo (Razorpay Route × creator payouts) has priority — arms only
+    # when the founder onboarded razorpayInc/Razorpay
+    from . import demo_razorpay_split
+    if demo_razorpay_split.demo_active() and demo_razorpay_split.is_razorpay_ctx(founder_context):
+        stage("research_demo", "Matching Razorpay Route against creator-payout startups…")
+        return demo_razorpay_split.split_shortlist()[:want]
+
     from . import demo_razorpay
     if demo_razorpay.demo_active() and demo_razorpay.is_razorpay(founder_context):
         stage("research_demo", "Matching Razorpay against its ideal merchants…")
@@ -422,6 +429,27 @@ def build_campaign_for(
     # staged progress so the audience sees the build + filming happen, then
     # reveal the pinned prototype URL and deliver the pre-built video SEPARATELY
     # (never embedded in the prototype).
+    # split demo (Rigi) priority
+    from . import demo_razorpay_split
+    if (demo_razorpay_split.demo_active()
+            and demo_razorpay_split.is_razorpay_ctx(founder_context)
+            and demo_razorpay_split.is_rigi_pick(prospect)):
+        demo_razorpay_split.run_staged_build(stage)
+        art.prototype_url = demo_razorpay_split.RIGI_PROTOTYPE_URL
+        art.walkthrough_url = (demo_razorpay_split.RIGI_WALKTHROUGH_URL
+                               or demo_razorpay_split.RIGI_PROTOTYPE_URL)
+        if demo_razorpay_split.RIGI_WALKTHROUGH_MP4.exists():
+            art.walkthrough_mp4 = str(demo_razorpay_split.RIGI_WALKTHROUGH_MP4)
+        art.deck_url = ""
+        art.email_subject, art.email_body = _fallback_email(
+            prospect=prospect, founder_context=founder_context,
+            prototype_url=art.prototype_url,
+            walkthrough_url=art.walkthrough_url, deck_url=art.deck_url)
+        art.cost_usd = round(COST.cents / 100, 4)
+        art.ok = True
+        stage("done", art.company)
+        return art
+
     from . import demo_razorpay
     if (demo_razorpay.demo_active()
             and demo_razorpay.is_razorpay(founder_context)
