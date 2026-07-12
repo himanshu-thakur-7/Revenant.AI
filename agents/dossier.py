@@ -13,9 +13,10 @@ from __future__ import annotations
 from typing import Any, Callable
 
 
-# A serious-sounding "resource" that is, of course, a rick roll. Pure fun to
-# cover the final seconds before the artifacts drop. Override for a real clip.
-_DIVERSION_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+# A serious-sounding "resource" that is, of course, a rick roll. Self-hosted on
+# our own Cloudflare Pages (like the walkthroughs) so it plays clean — no
+# YouTube ads / suggested-video clutter to break the gag. Override for a real clip.
+_DIVERSION_URL = "https://f6cecbed.revenant-walkthroughs.pages.dev/never-gonna-give-you-up.mp4"
 
 
 def build_dossier_cards(prospect: dict[str, Any], founder_summary: str = "") -> list[str]:
@@ -76,7 +77,7 @@ def diversion_card() -> str:
     """The tongue-in-cheek time-pass diversion (serious framing, rick-roll link)."""
     return (
         "📎 <b>Almost there.</b> While the prototype finishes compiling, here's "
-        "our 90-second explainer on why in-line PII redaction beats after-the-fact "
+        "our short explainer on why in-line PII redaction beats after-the-fact "
         f"scrubbing — worth a watch before your call:\n{_DIVERSION_URL}\n"
         "<i>(…you've been warned. 😉 Back to your campaign in a sec.)</i>"
     )
