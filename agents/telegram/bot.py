@@ -58,6 +58,40 @@ _URL_RX = re.compile(r"(?:https?://|git@|(?:github\.com/))\S+|"
                      r"\b[\w.-]+/[\w.-]+(?=\s|$)")
 
 
+def _extract_sources(text: str) -> list[str]:
+    """Pull EVERY setup source out of a message — full URLs, github
+    owner/repo shorthand, bare domains (weaviate.io), and local paths — so
+    the founder can point us at a repo AND a website AND docs at once."""
+    t = " " + text.strip() + " "
+    found: list[str] = []
+    seen: set[str] = set()
+
+    def add(x: str) -> None:
+        x = x.strip().rstrip(".,);]!?")
+        if x and x.lower() not in seen and len(x) > 2:
+            seen.add(x.lower())
+            found.append(x)
+
+    # 1. full URLs / git@ SSH
+    for m in re.finditer(r"https?://\S+|git@[\w.-]+:\S+", t):
+        add(m.group(0))
+    rest = re.sub(r"https?://\S+|git@[\w.-]+:\S+", " ", t)
+    # 2. local paths
+    for m in re.finditer(r"(?:^|\s)((?:~|\.{1,2})?/[\w./-]+)", rest):
+        add(m.group(1))
+    # 3. github.com/owner/repo, owner/repo shorthand, bare domains
+    for m in re.finditer(
+            r"github\.com/[\w.-]+/[\w.-]+"
+            r"|\b[A-Za-z0-9][\w-]*/[\w.-]+"
+            r"|\b[A-Za-z0-9][\w-]*(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b", rest):
+        tok = m.group(0)
+        if "/" in tok and "." not in tok.split("/")[0]:
+            add(tok)                       # owner/repo or github.com/owner/repo
+        elif "." in tok:
+            add(tok)                       # bare domain with a real TLD
+    return found
+
+
 def _extract_url(text: str) -> str:
     """Pull a repo/docs URL (or owner/repo shorthand) out of a message."""
     for m in _URL_RX.finditer(text.strip()):
@@ -365,17 +399,18 @@ class RevenantBot:
         """Decide what the founder wants — never launch a 4-minute fleet run
         on 'hi'. URLs configure; explicit hunt asks run; everything else is
         answered conversationally from the founder context."""
-        # bare URL (or 'configure <url>') → reconfigure this session
-        url = _extract_url(text)
-        if url and len(text.split()) <= 6:
-            self._do_setup(chat_id, url)
+        # One or more sources (repo/website/docs) with no clear hunt intent →
+        # (re)configure. Pass the WHOLE message so multi-source setup works.
+        sources = _extract_sources(text)
+        if sources and _keyword_intent(text) != "run_campaign":
+            self._do_setup(chat_id, text)
             return
 
         intent = self._classify(chat_id, text)
         if intent == "run_campaign":
             self._run_campaign(chat_id, text)
-        elif intent == "configure" and url:
-            self._do_setup(chat_id, url)
+        elif intent == "configure" and sources:
+            self._do_setup(chat_id, text)
         else:
             self._answer(chat_id, text)
 
@@ -462,41 +497,54 @@ class RevenantBot:
                               disable_preview=True)
 
     def _do_setup(self, chat_id: int, source: str) -> None:
-        """Ingest a new startup context for this session (github URL or path)."""
+        """Ingest a startup from ONE OR MORE sources — a GitHub repo, a product
+        or docs website, a local folder, or any mix. A source that fails (e.g.
+        a private repo we can't access) is skipped; as long as ONE works we
+        still build a solid understanding."""
         sess = self.session(chat_id)
+        sources = _extract_sources(source)
+        if not sources:
+            sources = [source.strip()]
         self.api.send_chat_action(chat_id, "typing")
+        label = ", ".join(sources)
         m = self.api.send_message(
-            chat_id, f"🧬 Reading <code>{html.escape(source)}</code> — "
-                     "ingesting docs + code…")
+            chat_id, f"🧬 Reading <code>{html.escape(label)}</code> — "
+                     "pulling in code, docs, and site content…")
         mid = m.get("result", {}).get("message_id")
         try:
-            if source.startswith(("http://", "https://", "git@")) or (
-                    "/" in source and not source.startswith(("~", "/", "."))):
-                ctx = FounderContext.from_github(source)
-            else:
-                ctx = FounderContext.from_folder(source)
+            ctx = FounderContext.from_sources(sources)
             briefing = ctx.summary()
         except Exception as exc:
             if mid:
-                self.api.edit_message(chat_id, mid,
-                                      f"⚠️ Couldn't ingest that: {html.escape(str(exc)[:200])}")
+                self.api.edit_message(
+                    chat_id, mid,
+                    "⚠️ Couldn't read any of those sources — "
+                    f"{html.escape(str(exc)[:180])}\n\n"
+                    "Try a public GitHub repo, a product/docs website "
+                    "(<code>yourcompany.com</code>), or both.")
             return
         sess.ctx = ctx
-        sess.ctx_label = source
+        sess.ctx_label = label
         sess.setup_done = True
         one_liner = briefing.strip().splitlines()
-        # pull the first non-header, non-empty line as the human summary
         gist = next((ln.strip("*- #") for ln in one_liner
                      if ln.strip() and not ln.strip().startswith("#")), "")
+        rep = ctx.source_report or {}
+        skipped = rep.get("skipped") or []
+        skip_note = ""
+        if skipped:
+            skip_note = ("\n<i>(Couldn't reach: "
+                         + html.escape(", ".join(s.split(" (")[0] for s in skipped)[:120])
+                         + " — used the rest.)</i>")
         if mid:
             self.api.edit_message(
                 chat_id, mid,
-                f"Got it. Read {len(ctx.files)} files from "
-                f"<code>{html.escape(source)}</code>.\n\n"
+                f"Got it — ingested <b>{len(ctx.files)} files/pages</b> for "
+                f"<b>{html.escape(ctx.product_name)}</b>.{skip_note}\n\n"
                 f"<i>{html.escape(gist[:280])}</i>\n\n"
                 "I'll sell on their behalf from here. When you're ready, "
                 "tell me who to go after — e.g. "
-                "<i>“find a US healthtech startup”</i>.")
+                "<i>“find companies who'd need us”</i>.")
 
     def _on_command(self, chat_id: int, text: str) -> None:
         parts = text.split(maxsplit=1)
@@ -706,11 +754,11 @@ class RevenantBot:
         self.api.send_message(
             chat_id,
             prefix +
-            "Point me at your startup — send a GitHub repo or a link "
-            "to your product site and I'll ingest the whole thing:\n\n"
-            "<code>/setup github.com/you/your-startup</code>\n"
-            "or just paste the URL by itself.\n\n"
-            "Give me ~20 seconds after that and I'll brief myself.",
+            "Point me at your startup — a GitHub repo, your product/docs "
+            "website, or BOTH (I'll pull from all of them):\n\n"
+            "<code>github.com/you/your-startup and yourcompany.com</code>\n\n"
+            "A private repo I can't access is fine — I'll build understanding "
+            "from your site + docs. Give me ~20 seconds and I'll brief myself.",
             disable_preview=True)
 
     # ── deliver artifacts ─────────────────────────────────────

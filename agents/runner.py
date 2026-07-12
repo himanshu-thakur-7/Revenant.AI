@@ -260,8 +260,8 @@ def _apollo_shortlist(brief: str, stage_cb,
         vertical = "healthtech"
 
     stage_cb("brainstorm",
-             f"Brainstorming candidate {vertical} startups (gpt-4o) with "
-             "fit rationales…")
+             f"Brainstorming strong-fit {vertical} companies with tailored "
+             "rationales…")
     candidates = _llm_name_startups(brief, vertical, founder_gist=founder_gist)
     if not candidates:
         return []

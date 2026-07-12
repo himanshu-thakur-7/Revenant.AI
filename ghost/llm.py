@@ -85,10 +85,16 @@ def complete_strong(prompt: str, *, agent: str = "unknown",
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
+    # gpt-5 / o-series are reasoning models: they reject a custom temperature
+    # and reason internally, so they need a large completion budget instead.
+    kwargs: dict[str, Any] = {"model": model, "messages": messages}
+    if model.startswith(("gpt-5", "o1", "o3", "o4")):
+        kwargs["max_completion_tokens"] = 16000
+    else:
+        kwargs["temperature"] = temperature
+
     try:
-        resp = _strong_client().chat.completions.create(
-            model=model, messages=messages, temperature=temperature,
-        )
+        resp = _strong_client().chat.completions.create(**kwargs)
         text = resp.choices[0].message.content or ""
         usage = getattr(resp, "usage", None)
         n_in = getattr(usage, "prompt_tokens", _estimate_tokens(prompt))
