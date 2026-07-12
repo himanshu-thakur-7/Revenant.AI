@@ -31,7 +31,12 @@ from ghost.config import settings
 
 BASE = "https://api.d-id.com"
 POLL_SECONDS = 3
-POLL_MAX_WAIT = 180
+# D-ID's trial tier QUEUES a talk for ~3 min before it even starts rendering
+# (observed: created→started = 194s, then ~19s render = 212s total). The old
+# 180s cap gave up mid-queue → the credit was charged but we never fetched the
+# finished video → static bubble. 360s covers the queue + render with headroom.
+# Override with DID_POLL_MAX_WAIT if a paid/faster tier makes this overkill.
+POLL_MAX_WAIT = int(os.getenv("DID_POLL_MAX_WAIT", "360"))
 
 # A stock D-ID clips-presenter portrait — Fiona (business-professional,
 # black jacket, classroom backdrop). Old ``DefaultPresenters/*.jpeg`` URLs
@@ -113,7 +118,12 @@ def poll_talk(talk_id: str) -> str:
             raise DIDError(f"talk {status}: {payload.get('error', payload)!r}")
         last_status = status
         time.sleep(POLL_SECONDS)
-    raise DIDError(f"talk poll timed out after {POLL_MAX_WAIT}s (last status: {last_status})")
+    raise DIDError(
+        f"talk poll timed out after {POLL_MAX_WAIT}s (last status: {last_status!r}). "
+        "D-ID's trial queue can exceed this — raise DID_POLL_MAX_WAIT. "
+        "NOTE: the credit is already spent; the talk usually finishes later "
+        f"(fetch it manually: GET /talks/{talk_id})."
+    )
 
 
 def download(url: str, out_path: Path) -> Path:

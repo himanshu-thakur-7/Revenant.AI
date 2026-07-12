@@ -231,9 +231,14 @@ def action_tools(state: WalkthroughState, prototype_url: str) -> list[Tool]:
             return {"error": f"playwright capture failed: {exc}"}
         state.webm_path = str(webm)
 
-        # Join the D-ID worker (it's almost certainly done by now).
+        # Join the D-ID worker. Recording already overlapped part of D-ID's
+        # queue+render time, but on the trial tier the talk can still be
+        # rendering (queue alone is ~3 min). Wait up to the poll budget +
+        # headroom so a slow-but-valid talk isn't abandoned AFTER its credit
+        # was charged (the exact bug behind §16.1). avatar.POLL_MAX_WAIT is
+        # the thread's own ceiling; this join just needs to outlast it.
         if did_thread is not None:
-            did_thread.join(timeout=180)
+            did_thread.join(timeout=avatar.POLL_MAX_WAIT + 30)
             talking_head = _did.get("path")
             avatar_warning = _did.get("warn")
 
