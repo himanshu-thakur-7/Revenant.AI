@@ -431,6 +431,12 @@ def build_campaign_for(
         art.walkthrough_url = demo_razorpay.WALKTHROUGH_URL
         if demo_razorpay.WALKTHROUGH_MP4.exists():
             art.walkthrough_mp4 = str(demo_razorpay.WALKTHROUGH_MP4)
+        # Pre-built co-branded pitch deck (delivered before the video).
+        art.deck_url = demo_razorpay.DECK_URL
+        try:
+            art.deck_pptx = str(demo_razorpay.ensure_deck())
+        except Exception:
+            pass
         # Deterministic email — template only, no LLM call on stage.
         art.email_subject, art.email_body = _fallback_email(
             prospect=prospect,

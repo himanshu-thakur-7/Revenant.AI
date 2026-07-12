@@ -201,12 +201,13 @@ _STAGE_NARR: dict[str, str] = {
     "research_llm":       "🔎 Nothing matched from that list — switching to open web recon.",
     "research_retry":     "First pass came up dry — I'm broadening the search and trying again.",
     "research_done":      "⚙️ Now building them a working prototype tailored to their setup. About 90 seconds.",
-    "engineer":           "",
+    "engineer":           "⚙️ {a}",
     "engineer_fallback":  "",  # silent — the deploy line below tells the story
-    "engineer_done":      "🕸 Prototype deployed.\n\n🎬 Rolling film — an AI voice narrating a Loom-style walkthrough. Another 90 seconds.",
-    "director":           "",
-    "director_done":      "🎬 Walkthrough done.\n\n✍️ Last leg — assembling the pitch deck and drafting the email. Almost there.",
-    "sales":              "",
+    "engineer_done":      "🕸 Prototype deployed — the live link is above.",
+    "deck":               "📊 {a}",
+    "director":           "🎬 {a}",
+    "director_done":      "🎬 Walkthrough filmed.",
+    "sales":              "✍️ {a}",
     "sales_done":         "All set. Sending your bundle over now.",
     "done":               "",
     "failed":             "",
@@ -832,8 +833,7 @@ class RevenantBot:
             disable_preview=True)
 
     # ── deliver artifacts ─────────────────────────────────────
-    def _deliver(self, chat_id: int, art: CampaignArtifacts) -> None:
-        # 1. Walkthrough — upload the file so it plays inline in Telegram
+    def _deliver_video(self, chat_id: int, art: CampaignArtifacts) -> None:
         cap = f"🎬 AI walkthrough — built for {html.escape(art.company)}"
         video_sent = False
         if art.walkthrough_mp4 and os.path.exists(art.walkthrough_mp4):
@@ -845,16 +845,7 @@ class RevenantBot:
         if not video_sent and art.walkthrough_url and not art.walkthrough_url.startswith("file:"):
             self.api.send_message(chat_id, f"{cap}\n{art.walkthrough_url}")
 
-        # 2. Live prototype — the http link was already sent EARLY (filler)
-        # during the build, so here we only flag a failed deploy.
-        if art.prototype_url and art.prototype_url.startswith("file:"):
-            self.api.send_message(
-                chat_id,
-                "⚠️ Prototype deploy failed — Cloudflare Pages didn't accept "
-                "the upload. The local copy is on the laptop; open it from "
-                "there for review.")
-
-        # 3. Pitch deck — upload the .pptx so Telegram shows the icon
+    def _deliver_deck(self, chat_id: int, art: CampaignArtifacts) -> None:
         if art.deck_pptx and os.path.exists(art.deck_pptx):
             self.api.send_chat_action(chat_id, "upload_document")
             self.api.send_document(chat_id, art.deck_pptx,
@@ -862,7 +853,27 @@ class RevenantBot:
         elif art.deck_url and not art.deck_url.startswith("file:"):
             self.api.send_message(chat_id, f"📊 <b>Pitch deck</b>\n{art.deck_url}")
 
-        # 4. Email draft + inline buttons
+    def _deliver(self, chat_id: int, art: CampaignArtifacts) -> None:
+        # On stage the founder asked for the deck BEFORE the video; normal runs
+        # keep the walkthrough first (it's the headline artifact).
+        from .. import demo_razorpay
+        if demo_razorpay.demo_active():
+            self._deliver_deck(chat_id, art)
+            self._deliver_video(chat_id, art)
+        else:
+            self._deliver_video(chat_id, art)
+            self._deliver_deck(chat_id, art)
+
+        # Live prototype — the http link was already sent EARLY (filler) during
+        # the build, so here we only flag a failed deploy.
+        if art.prototype_url and art.prototype_url.startswith("file:"):
+            self.api.send_message(
+                chat_id,
+                "⚠️ Prototype deploy failed — Cloudflare Pages didn't accept "
+                "the upload. The local copy is on the laptop; open it from "
+                "there for review.")
+
+        # Email draft + inline buttons
         self._send_draft(chat_id, art)
 
     def _send_draft(self, chat_id: int, art: CampaignArtifacts) -> None:
