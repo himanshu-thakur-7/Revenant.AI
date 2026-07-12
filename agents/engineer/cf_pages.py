@@ -88,7 +88,7 @@ def _wrangler_deploy(workspace: Path, project: str, token: str, acct: str) -> st
     # deployments to the same project. `--commit-dirty` skips wrangler's
     # dirty-git-tree warning (we intentionally deploy from an out-tree dir).
     cmd = [
-        "npx", "--yes", "wrangler@latest",
+        "npx", "--yes", "wrangler@3",
         "pages", "deploy", str(workspace),
         "--project-name", project,
         "--branch", "main",
@@ -118,7 +118,7 @@ def _wrangler_deploy(workspace: Path, project: str, token: str, acct: str) -> st
 def _ensure_project(project: str, env: dict[str, str]) -> None:
     """Create the Pages project if it doesn't exist; no-op if it does."""
     cmd = [
-        "npx", "--yes", "wrangler@latest",
+        "npx", "--yes", "wrangler@3",
         "pages", "project", "create", project,
         "--production-branch", "main",
     ]

@@ -306,13 +306,42 @@ def run_campaign(
     # ── 2. Engineer ───────────────────────────────────────────
     stage("engineer", f"Building a prototype for {art.company}…")
     from .engineer import Engineer
+    from .engineer.fallback import render_fallback_html
+    from .engineer.cf_pages import deploy_dir
+    from .engineer.prototype import PrototypeState
+    from pathlib import Path as _Path
 
     eng = Engineer(founder_context=founder_context, prospect=prospect)
     ebuild = eng.build(on_event=on_event)
     art.prototype_url = ebuild.get("url", "")
+    files = ebuild.get("files") or []
+
+    # Deterministic guarantee: if the LLM skipped write_prototype_file, or if
+    # deploy fell back to file://, ship the template fallback + re-deploy.
+    needs_fallback = (
+        "index.html" not in files
+        or not art.prototype_url
+        or art.prototype_url.startswith("file:")
+    )
+    if needs_fallback:
+        stage("engineer_fallback",
+              "LLM prototype didn't ship — using the guaranteed template.")
+        product_gist = ""
+        try:
+            product_gist = founder_context.summary()[:600]
+        except Exception:
+            pass
+        html = render_fallback_html(prospect, product_gist=product_gist)
+        pstate = PrototypeState.for_prospect(art.company)
+        pstate.write("index.html", html)
+        deploy = deploy_dir(pstate.workspace)
+        art.prototype_url = deploy.get("url", "") or art.prototype_url
+        if deploy.get("warning"):
+            art.warnings.append(f"engineer: {deploy['warning']}")
+
     if not art.prototype_url or art.prototype_url.startswith("file:"):
         art.warnings.append("prototype deployed locally only (no public URL)")
-    stage("engineer_done", f"Prototype live: {art.prototype_url}")
+    stage("engineer_done", art.prototype_url or "(local only)")
 
     # ── 3. Director ───────────────────────────────────────────
     stage("director", "Filming the walkthrough…")
@@ -328,9 +357,9 @@ def run_campaign(
     dfilm = d.film(on_event=on_event)
     art.walkthrough_url = dfilm.get("video_url", "")
     art.walkthrough_mp4 = dfilm.get("mp4_path", "")
-    if not art.walkthrough_url:
+    if not art.walkthrough_url or art.walkthrough_url.startswith("file:"):
         art.warnings.append("walkthrough hosted locally only")
-    stage("director_done", f"Walkthrough ready: {art.walkthrough_url}")
+    stage("director_done", "walkthrough ready")
 
     # ── 4. Sales ──────────────────────────────────────────────
     stage("sales", "Drafting the deck + email…")

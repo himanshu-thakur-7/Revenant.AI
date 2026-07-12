@@ -63,7 +63,7 @@ def _wrangler_deploy(workspace: Path, project: str, token: str, acct: str) -> st
            "CLOUDFLARE_API_TOKEN": token,
            "CLOUDFLARE_ACCOUNT_ID": acct}
     _ensure_project(project, env)
-    cmd = ["npx", "--yes", "wrangler@latest",
+    cmd = ["npx", "--yes", "wrangler@3",
            "pages", "deploy", str(workspace),
            "--project-name", project,
            "--branch", "main",
@@ -85,7 +85,7 @@ def _wrangler_deploy(workspace: Path, project: str, token: str, acct: str) -> st
 
 
 def _ensure_project(project: str, env: dict[str, str]) -> None:
-    cmd = ["npx", "--yes", "wrangler@latest",
+    cmd = ["npx", "--yes", "wrangler@3",
            "pages", "project", "create", project,
            "--production-branch", "main"]
     try:

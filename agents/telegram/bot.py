@@ -102,11 +102,12 @@ _STAGE_NARR: dict[str, str] = {
     "apollo_contact":     "",  # silent — already narrated in apollo_pick
     "research_llm":       "🔎 Nothing matched from that list — switching to open web recon.",
     "research_retry":     "First pass came up dry — I'm broadening the search and trying again.",
-    "research_done":      "Locked in a target: <b>{a}</b>.\n\n⚙️ Now building them a working prototype tailored to their setup. About 90 seconds — I'll ping when it's live.",
+    "research_done":      "Locked in a target: <b>{a}</b>.\n\n⚙️ Now building them a working prototype tailored to their setup. About 90 seconds.",
     "engineer":           "",
-    "engineer_done":      "Prototype's live 🕸\n{a}\n\n🎬 Rolling film — narrating a Loom-style walkthrough with an AI voice. Another 90 seconds.",
+    "engineer_fallback":  "",  # silent — the deploy line below tells the story
+    "engineer_done":      "🕸 Prototype deployed.\n\n🎬 Rolling film — an AI voice narrating a Loom-style walkthrough. Another 90 seconds.",
     "director":           "",
-    "director_done":      "Walkthrough uploaded ✅\n{a}\n\n✍️ Last leg — assembling the pitch deck and drafting the email. Almost there.",
+    "director_done":      "🎬 Walkthrough done.\n\n✍️ Last leg — assembling the pitch deck and drafting the email. Almost there.",
     "sales":              "",
     "sales_done":         "All set. Sending your bundle over now.",
     "done":               "",
@@ -392,32 +393,42 @@ class RevenantBot:
 
     # ── deliver artifacts ─────────────────────────────────────
     def _deliver(self, chat_id: int, art: CampaignArtifacts) -> None:
-        # 1. the walkthrough video (upload the file so it plays inline)
-        cap = f"🎬 <b>AI walkthrough</b> for {html.escape(art.company)}"
+        # 1. Walkthrough — upload the file so it plays inline in Telegram
+        cap = f"🎬 AI walkthrough — built for {html.escape(art.company)}"
+        video_sent = False
         if art.walkthrough_mp4 and os.path.exists(art.walkthrough_mp4):
             self.api.send_chat_action(chat_id, "upload_video")
             res = self.api.send_video(chat_id, art.walkthrough_mp4, caption=cap)
-            if not res.get("ok") and art.walkthrough_url:
-                self.api.send_message(chat_id, f"{cap}\n{art.walkthrough_url}")
-        elif art.walkthrough_url:
+            video_sent = bool(res.get("ok"))
+        # only fall back to a link if the upload actually failed AND we have a
+        # public URL (never expose a file:// URL to the founder in chat)
+        if not video_sent and art.walkthrough_url and not art.walkthrough_url.startswith("file:"):
             self.api.send_message(chat_id, f"{cap}\n{art.walkthrough_url}")
 
-        # 2. the live prototype (link preview shows a card)
+        # 2. Live prototype — link preview shows a rich card
         if art.prototype_url and not art.prototype_url.startswith("file:"):
             self.api.send_message(
                 chat_id,
                 f"🕸 <b>Live prototype</b> — built for {html.escape(art.company)}\n"
                 f"{art.prototype_url}")
+        elif art.prototype_url:
+            # deploy fell back to file:// — say so honestly, don't paste a
+            # useless local path
+            self.api.send_message(
+                chat_id,
+                "⚠️ Prototype deploy failed — Cloudflare Pages didn't accept "
+                "the upload. The local copy is on the laptop; open it from "
+                "there for review.")
 
-        # 3. the pitch deck
+        # 3. Pitch deck — upload the .pptx so Telegram shows the icon
         if art.deck_pptx and os.path.exists(art.deck_pptx):
             self.api.send_chat_action(chat_id, "upload_document")
             self.api.send_document(chat_id, art.deck_pptx,
-                                   caption=f"📊 <b>Pitch deck</b> — {html.escape(art.company)}")
+                                   caption=f"📊 Pitch deck for {html.escape(art.company)}")
         elif art.deck_url and not art.deck_url.startswith("file:"):
             self.api.send_message(chat_id, f"📊 <b>Pitch deck</b>\n{art.deck_url}")
 
-        # 4. the email draft + action buttons
+        # 4. Email draft + inline buttons
         self._send_draft(chat_id, art)
 
     def _send_draft(self, chat_id: int, art: CampaignArtifacts) -> None:

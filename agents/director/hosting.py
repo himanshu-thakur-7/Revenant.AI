@@ -82,7 +82,7 @@ def _wrangler_deploy(workspace: Path, project: str, token: str, acct: str) -> st
     _ensure_project(project, env)
 
     cmd = [
-        "npx", "--yes", "wrangler@latest",
+        "npx", "--yes", "wrangler@3",
         "pages", "deploy", str(workspace),
         "--project-name", project,
         "--branch", "main",
@@ -105,7 +105,7 @@ def _wrangler_deploy(workspace: Path, project: str, token: str, acct: str) -> st
 
 
 def _ensure_project(project: str, env: dict[str, str]) -> None:
-    cmd = ["npx", "--yes", "wrangler@latest",
+    cmd = ["npx", "--yes", "wrangler@3",
            "pages", "project", "create", project,
            "--production-branch", "main"]
     try:
