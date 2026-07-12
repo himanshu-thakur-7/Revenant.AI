@@ -7,6 +7,8 @@ It hunts pain, ships a working prototype, films an AI walkthrough of it, and fol
 
 *Built for the GrowthX × Hermes Buildathon — Track: AI-as-an-Agency.*
 
+### ▸ Live console: **[revenantai-app.vercel.app](https://revenantai-app.vercel.app)**
+
 </div>
 
 ---
