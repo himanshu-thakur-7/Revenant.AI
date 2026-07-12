@@ -187,6 +187,53 @@ def _resolve_choice(choice: str, prospects: list[dict]) -> dict | None:
     return prospects[0] if prospects else None
 
 
+def _normalise_domain(domain: str) -> str:
+    dom = (domain or "").lower().replace("https://", "").replace("http://", "")
+    if dom.startswith("www."):
+        dom = dom[4:]
+    return dom.split("/", 1)[0].strip().strip(".")
+
+
+def _context_for_startup(startup: str, pain: str = "", startup_summary: str = ""):
+    if "razorpay" in (startup or "").lower():
+        from agents import demo_razorpay
+        return demo_razorpay.razorpay_context()
+    from agents.context import FounderContext
+    summary = startup_summary or f"{startup}. {pain}".strip()
+    ctx = FounderContext(source=startup or "startup", root=Path("/tmp"),
+                         files={"README.md": f"# {startup}\n\n{summary}"})
+    try:
+        ctx._summary_cache = summary
+    except Exception:
+        pass
+    return ctx
+
+
+def _apollo_contact_for_domain(domain: str) -> tuple[dict[str, Any], str]:
+    """Best-effort Apollo lookup. Returns (contact, note). Never raises."""
+    dom = _normalise_domain(domain)
+    if not dom:
+        return {}, "No merchant domain supplied, so Apollo contact lookup was skipped."
+    try:
+        from agents.research import apollo
+        contact = apollo.find_best_contact(dom)
+    except Exception as exc:  # noqa: BLE001
+        return {}, f"Apollo contact lookup failed for {dom}: {exc}"
+    if not isinstance(contact, dict):
+        return {}, f"Apollo returned no contact for {dom}."
+    if contact.get("error"):
+        return {}, str(contact.get("error"))
+    email = contact.get("email") or ""
+    if email:
+        note = (
+            f"Apollo recipient: {contact.get('name') or 'unknown'}"
+            f" ({contact.get('title') or 'buyer'}) <{email}>"
+        )
+    else:
+        note = contact.get("email_note") or f"Apollo found {contact.get('name') or 'a contact'} but no verified email."
+    return contact, note
+
+
 # ── tools ─────────────────────────────────────────────────────────────────────
 # The slow legacy monoliths (setup_startup / find_prospects / build_campaign)
 # are NOT exposed by default: the Hermes crew misuses them — it calls
@@ -449,21 +496,10 @@ async def build_prototype(startup: str, merchant: str, merchant_domain: str = ""
     get_settings.cache_clear()
 
     # 1. Founder context — canned (instant) for Razorpay, else a minimal context.
-    if "razorpay" in (startup or "").lower():
-        from agents import demo_razorpay
-        ctx = demo_razorpay.razorpay_context()
-    else:
-        from agents.context import FounderContext
-        summary = startup_summary or f"{startup}. {pain}".strip()
-        ctx = FounderContext(source=startup or "startup", root=Path("/tmp"),
-                             files={"README.md": f"# {startup}\n\n{summary}"})
-        try:
-            ctx._summary_cache = summary
-        except Exception:
-            pass
+    ctx = _context_for_startup(startup, pain=pain, startup_summary=startup_summary)
 
     # 2. Prospect from the explicit args.
-    dom = (merchant_domain or "").lower().replace("https://", "").replace("http://", "").strip("/")
+    dom = _normalise_domain(merchant_domain)
     prospect = {
         "company_name": merchant,
         "company_domain": dom,
@@ -597,9 +633,7 @@ async def film_walkthrough(prototype_url: str, merchant: str, startup: str = "Ra
     get_settings.cache_clear()
 
     # Context + prospect (mirror build_prototype).
-    if "razorpay" in (startup or "").lower():
-        from agents import demo_razorpay
-        ctx = demo_razorpay.razorpay_context()  # noqa: F841 (parity; Director uses prospect)
+    ctx = _context_for_startup(startup, pain=pain, startup_summary=startup_summary)  # noqa: F841
     prospect = {
         "company_name": merchant,
         "industry": "",
@@ -723,20 +757,15 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
     from ghost.config import get_settings
     get_settings.cache_clear()
 
-    if "razorpay" in (startup or "").lower():
-        from agents import demo_razorpay
-        ctx = demo_razorpay.razorpay_context()
-    else:
-        from agents.context import FounderContext
-        summary = startup_summary or f"{startup}. {pain}".strip()
-        ctx = FounderContext(source=startup or "startup", root=Path("/tmp"),
-                             files={"README.md": f"# {startup}\n\n{summary}"})
-        try:
-            ctx._summary_cache = summary
-        except Exception:
-            pass
+    ctx = _context_for_startup(startup, pain=pain, startup_summary=startup_summary)
 
-    dom = (merchant_domain or "").lower().replace("https://", "").replace("http://", "").strip("/")
+    dom = _normalise_domain(merchant_domain)
+    apollo_note = ""
+    if not recipient_email and dom:
+        contact, apollo_note = _apollo_contact_for_domain(dom)
+        recipient_email = contact.get("email") or ""
+        contact_name = contact_name or contact.get("name", "")
+        contact_title = contact_title or contact.get("title", "")
     prospect = {
         "company_name": merchant,
         "company_domain": dom,
@@ -800,6 +829,7 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
 
         gmail_msg = ""
         if recipient_email and subject and email_md and Path(email_md).exists():
+            from ghost.config import settings as _settings
             body = Path(email_md).read_text(encoding="utf-8")
             # Keep Gmail body focused on the email copy below the markdown
             # metadata when possible.
@@ -810,6 +840,7 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
             attachments = [p for p in [deck_pptx] if p and Path(p).exists()]
             gmail = await anyio.to_thread.run_sync(lambda: create_draft(
                 to_email=recipient_email,
+                from_email=_settings.founder_email or _settings.from_email,
                 subject=subject,
                 body=body.strip(),
                 attachments=attachments,
@@ -849,6 +880,13 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
         out.append(f"Deck: {deck_url}")
     if email_md:
         out.append(f"Email draft: {email_md}")
+    if recipient_email:
+        person = " ".join(x for x in [contact_name, contact_title] if x)
+        out.append(f"Recipient: {person + ' · ' if person else ''}{recipient_email}")
+    elif apollo_note:
+        out.append(f"Recipient: not found. {apollo_note}")
+    if apollo_note and recipient_email:
+        out.append(apollo_note)
     if walkthrough_url:
         out.append(f"Walkthrough: {walkthrough_url}")
     if prototype_url:
@@ -858,6 +896,84 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
     elif not recipient_email:
         out.append("Gmail draft: not created yet — provide a recipient email to create one.")
     return "\n".join(out)
+
+
+@mcp.tool()
+async def build_full_outreach(startup: str, merchant: str,
+                              merchant_domain: str = "", pain: str = "",
+                              startup_summary: str = "",
+                              recipient_email: str = "",
+                              contact_name: str = "",
+                              contact_title: str = "",
+                              mcp_ctx: "Context | None" = None) -> str:
+    """Run Engineer → Director → Sales automatically for one selected merchant.
+
+    Use this INSIDE a campaign/build sub-agent when the founder picks a
+    shortlisted merchant and wants the complete package. It builds the live
+    prototype, films the walkthrough, looks up the recipient with Apollo when
+    needed, drafts the deck/email, and optionally creates a Gmail draft. It
+    never sends.
+    """
+    _log_call("build_full_outreach", f"{startup} -> {merchant}")
+
+    async def _tick(msg: str) -> None:
+        if mcp_ctx is None:
+            return
+        try:
+            await mcp_ctx.info(msg)
+        except Exception:
+            pass
+
+    await _tick(f"🚀 Running full campaign crew for {merchant}…")
+
+    import re as _re
+
+    build_res = await build_prototype(
+        startup=startup,
+        merchant=merchant,
+        merchant_domain=merchant_domain,
+        pain=pain,
+        startup_summary=startup_summary,
+        mcp_ctx=mcp_ctx,
+    )
+    build_match = _re.search(r"https://\S+", build_res)
+    prototype_url = build_match.group(0) if build_match else ""
+    if not prototype_url:
+        return f"Full campaign stopped after Engineer: {build_res}"
+
+    await _tick("🎬 Engineer is done — sending Director to film…")
+    film_res = await film_walkthrough(
+        prototype_url=prototype_url,
+        merchant=merchant,
+        startup=startup,
+        pain=pain,
+        startup_summary=startup_summary,
+        mcp_ctx=mcp_ctx,
+    )
+    film_match = _re.search(r"https://\S+", film_res)
+    walkthrough_url = film_match.group(0) if film_match else ""
+
+    await _tick("✉️ Director is done — sending Sales to draft outreach…")
+    sales_res = await draft_outreach(
+        startup=startup,
+        merchant=merchant,
+        merchant_domain=merchant_domain,
+        prototype_url=prototype_url,
+        walkthrough_url=walkthrough_url,
+        pain=pain,
+        startup_summary=startup_summary,
+        recipient_email=recipient_email,
+        contact_name=contact_name,
+        contact_title=contact_title,
+        mcp_ctx=mcp_ctx,
+    )
+
+    return (
+        f"✅ {merchant}: full campaign package is ready.\n\n"
+        f"Engineer:\n{build_res}\n\n"
+        f"Director:\n{film_res}\n\n"
+        f"Sales:\n{sales_res}"
+    )
 
 
 @mcp.tool()
@@ -880,12 +996,14 @@ def draft_email(to_email: str = "") -> str:
                 "Give me an address to draft to.")
 
     from agents.sales.gmail_draft import create_draft
+    from ghost.config import settings as _settings
     attachments = [p for p in (camp.get("walkthrough_mp4"), camp.get("deck_pptx"))
                    if p and Path(p).exists()]
     try:
         with _quiet_stdout():
             res = create_draft(
                 to_email=recipient,
+                from_email=_settings.founder_email or _settings.from_email,
                 subject=camp.get("email_subject", ""),
                 body=camp.get("email_body", ""),
                 attachments=attachments,
