@@ -667,16 +667,21 @@ class RevenantBot:
                 industry = p.get("industry", "")
                 contact = p.get("contact") or {}
                 person = contact.get("name") or ""
+                title = contact.get("title") or ""
                 rationale = (p.get("fit_rationale") or "").strip()
-                first = rationale.split(". ")[0].strip()
-                if first and not first.endswith("."):
-                    first += "."
+                # Show the FULL rationale (previously truncated to the first
+                # sentence — the founder wants to SEE the reasoning per pick).
+                # Telegram's message cap is 4096 chars; each rationale is a
+                # couple sentences, well within limits.
+                who_line = f"\n👤 {html.escape(person)}"
+                if person and title:
+                    who_line += f" — <i>{html.escape(title)}</i>"
                 self.api.send_message(
                     chat_id,
                     f"✅ <b>Fit {i+1}/{len(shortlist)} — {html.escape(company)}</b> "
                     f"<i>({html.escape(industry)})</i>"
-                    + (f"\n👤 {html.escape(person)}" if person else "")
-                    + f"\n<i>Why they fit:</i> {html.escape(first)}",
+                    + (who_line if person else "")
+                    + f"\n<i>Why they fit:</i> {html.escape(rationale)}",
                     disable_preview=True)
                 _t.sleep(5.5)
         body = ("🕯 <b>Three verified fits</b> — each with a real decision-maker "
