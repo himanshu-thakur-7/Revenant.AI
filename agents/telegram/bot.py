@@ -115,8 +115,9 @@ _STAGE_NARR: dict[str, str] = {
     "engineer_fallback":  "",  # silent — the deploy line below tells the story
     "engineer_done":      "🕸 Prototype deployed.\n\n🎬 Rolling film — an AI voice narrating a Loom-style walkthrough. Another 90 seconds.",
     "director":           "",
-    "director_done":      "🎬 Walkthrough done.\n\n✍️ Last leg — assembling the pitch deck and drafting the email. Almost there.",
-    "sales":              "",
+    "director_done":      "🎬 Walkthrough done.",
+    "embed_media":        "🔗 Embedding the video + AI rep into the prototype…",
+    "sales":              "✍️ Last leg — assembling the pitch deck and drafting the email. Almost there.",
     "sales_done":         "All set. Sending your bundle over now.",
     "done":               "",
     "failed":             "",

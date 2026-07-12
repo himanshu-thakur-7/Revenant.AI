@@ -137,6 +137,13 @@ class Settings(BaseModel):
     did_presenter_id: str = "amy-Aq6OmGZnMt"  # stock: warm business tone
     skip_lipsync: bool = False  # DIRECTOR_SKIP_LIPSYNC=1 to save credits
 
+    # D-ID interactive agent (Sana) — embedded in prototypes to answer
+    # prospect questions about the startup. Needs its embed domain
+    # whitelisted in the D-ID Studio before it renders on external pages.
+    did_agent_id: str | None = None
+    did_agent_client_key: str | None = None
+    did_knowledge_id: str | None = None
+
     # Cloudinary (video host)
     cloudinary_cloud_name: str | None = None
     cloudinary_api_key: str | None = None
@@ -230,6 +237,9 @@ def get_settings() -> Settings:
         did_api_key=os.getenv("DID_API_KEY"),
         did_presenter_id=os.getenv("DID_PRESENTER_ID", "amy-Aq6OmGZnMt"),
         skip_lipsync=_flag("DIRECTOR_SKIP_LIPSYNC", False),
+        did_agent_id=os.getenv("DID_AGENT_ID"),
+        did_agent_client_key=os.getenv("DID_AGENT_CLIENT_KEY"),
+        did_knowledge_id=os.getenv("DID_KNOWLEDGE_ID"),
         cloudinary_cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
         cloudinary_api_key=os.getenv("CLOUDINARY_API_KEY"),
     )

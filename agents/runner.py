@@ -16,6 +16,7 @@ rather than losing the whole run.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -24,6 +25,85 @@ from ghost.config import settings
 from .base import EventSink
 from .bridge import bridge
 from .context import FounderContext
+
+
+# ── walkthrough + interactive-agent embedding ─────────────────────
+def _video_section_html(video_url: str, company: str) -> str:
+    """A dark-themed section with the narrated walkthrough as an inline
+    <video>. Placed near the top of the prototype so the prospect sees the
+    Loom-style tour immediately."""
+    import html as _h
+    co = _h.escape(company or "your team")
+    return (
+        '<section style="max-width:1000px;margin:0 auto;padding:40px 24px;">'
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;'
+        'letter-spacing:.28em;color:#7ee0c6;text-transform:uppercase;'
+        'margin-bottom:14px;">a 90-second walkthrough for ' + co + '</div>'
+        '<div style="background:rgba(148,163,184,0.05);border:1px solid '
+        'rgba(148,163,184,0.14);border-radius:16px;padding:14px;">'
+        f'<video controls playsinline preload="metadata" '
+        'style="width:100%;border-radius:10px;display:block;background:#000;">'
+        f'<source src="{video_url}" type="video/mp4" />'
+        'Your browser can\'t play this video.</video></div></section>'
+    )
+
+
+def _agent_embed_html() -> str:
+    """The D-ID interactive agent (Sana) floating-avatar embed. Emitted only
+    when the agent is configured. NOTE: D-ID enforces a domain allowlist set
+    in the D-ID Studio 'Embed' tab — until the deploy domain (e.g.
+    *.pages.dev) is whitelisted there, the widget stays silent (it never
+    breaks the page). Once whitelisted, it lights up automatically."""
+    aid = getattr(settings, "did_agent_id", None)
+    ckey = getattr(settings, "did_agent_client_key", None)
+    if not (aid and ckey):
+        return ""
+    return (
+        '<script type="module" src="https://agent.d-id.com/v1/index.js" '
+        'data-name="did-agent" data-mode="fabio" '
+        f'data-client-key="{ckey}" data-agent-id="{aid}" '
+        'data-monitor="true"></script>'
+    )
+
+
+def _embed_media_into_prototype(art: "CampaignArtifacts", stage_cb) -> None:
+    """Inject the walkthrough video (+ Sana agent) into the prospect's
+    already-built prototype and redeploy. Updates ``art.prototype_url`` to
+    the new deployment. No-op if the walkthrough isn't publicly hosted."""
+    if not art.walkthrough_url or art.walkthrough_url.startswith("file:"):
+        return
+    from pathlib import Path
+    from .engineer.prototype import PrototypeState
+    from .engineer.cf_pages import deploy_dir
+
+    ws = PrototypeState.for_prospect(art.company).workspace
+    idx = ws / "index.html"
+    if not idx.exists():
+        return
+    doc = idx.read_text(encoding="utf-8")
+    if "revenant-embedded-media" in doc:
+        return  # already embedded (idempotent on re-runs)
+
+    video_html = _video_section_html(art.walkthrough_url, art.company)
+    agent_html = _agent_embed_html()
+    marker = '<div id="revenant-embedded-media"></div>'
+
+    # video goes right after <body …>; agent script right before </body>
+    if re.search(r"<body[^>]*>", doc):
+        doc = re.sub(r"(<body[^>]*>)", r"\1\n" + marker + video_html, doc, count=1)
+    else:
+        doc = marker + video_html + doc
+    if agent_html:
+        doc = (doc.replace("</body>", agent_html + "\n</body>", 1)
+               if "</body>" in doc else doc + agent_html)
+
+    idx.write_text(doc, encoding="utf-8")
+    stage_cb("embed_media",
+             "Embedding the walkthrough + AI rep into the prototype…")
+    redeploy = deploy_dir(ws)
+    url = redeploy.get("url", "")
+    if url and not url.startswith("file:"):
+        art.prototype_url = url
 
 
 # ── deterministic Apollo-first prospect hunt ──────────────────────
@@ -447,6 +527,14 @@ def build_campaign_for(
     if not art.walkthrough_url or art.walkthrough_url.startswith("file:"):
         art.warnings.append("walkthrough hosted locally only")
     stage("director_done", "walkthrough ready")
+
+    # ── 3.5 Embed the walkthrough (+ interactive agent) INTO the
+    #        prospect's prototype and redeploy, so the one URL we hand the
+    #        prospect has the demo, the narrated video, and the AI rep. ──
+    try:
+        _embed_media_into_prototype(art, stage)
+    except Exception as exc:
+        art.warnings.append(f"media embed skipped: {exc}")
 
     # ── 4. Sales ──────────────────────────────────────────────
     stage("sales", "Drafting the deck + email…")
