@@ -116,6 +116,10 @@ class Engineer(Agent):
                 "this spec (aim for 15,000+ characters of dense, on-brand HTML), "
                 "then deploy. Do NOT rewrite the spec — implement it. If a small "
                 "detail is missing, use judgment.\n\n"
+                "STRICT RULE: DO NOT USE `<img>` TAGS. Every image URL you "
+                "guess will 404 and render as a broken icon. Use CSS gradients, "
+                "inline SVG, or emoji for all visuals. The only external asset "
+                "allowed is Google Fonts.\n\n"
                 f"{prototype_spec}"
             )
         text = self.run_turn(opening, on_event=on_event)
