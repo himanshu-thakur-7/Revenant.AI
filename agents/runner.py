@@ -95,9 +95,29 @@ def run_campaign(
     res = r.run_brief(f"{brief.strip()}\n\nTarget shortlist size: 1.",
                       on_event=on_event)
     prospects = res.get("prospects") or []
+
+    # If the first pass came up empty (Nous sometimes writes narrow queries),
+    # broaden the ask and try once more before giving up.
     if not prospects:
-        art.error = ("Research found no fit prospect for that brief. "
-                     "Try a broader vertical or different signals.")
+        stage("research_retry",
+              "First pass came up dry — broadening the search.")
+        r2 = Research()
+        broadened = (
+            f"{brief.strip()}\n\nTarget shortlist size: 1.\n\n"
+            "IMPORTANT: a previous attempt with this brief returned ZERO "
+            "prospects. Cast a wider net — accept *situational* fit "
+            "(company operates in the ICP + handles the kind of data the "
+            "product secures) even without a direct pain signal. If a "
+            "narrow vertical yields nothing, expand to adjacent verticals "
+            "or the broader B2B SaaS surface. Never return zero — pick the "
+            "strongest fit that search surfaces, and note it as tentative."
+        )
+        res = r2.run_brief(broadened, on_event=on_event)
+        prospects = res.get("prospects") or []
+
+    if not prospects:
+        art.error = ("Even after broadening, no fit prospect came back for "
+                     "that brief. Try a different vertical or looser signal.")
         stage("failed", art.error)
         return art
 

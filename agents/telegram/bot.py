@@ -11,8 +11,48 @@ from __future__ import annotations
 import html
 import os
 import re
+import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any
+
+
+class _TypingLoop:
+    """Keep Telegram's 'typing…' indicator alive during long stages.
+
+    Telegram's ``sendChatAction`` lasts ~5 s. We fire it every 4 s from a
+    daemon thread so the founder's phone shows a continuous "revenant is
+    working" hint even when a stage (Playwright capture, ffmpeg mux) takes
+    a minute. Exit clean via ``with`` / ``__exit__``.
+    """
+
+    def __init__(self, api, chat_id: int, action: str = "typing") -> None:
+        self.api, self.chat_id = api, chat_id
+        self._action = action
+        self._stop = threading.Event()
+        self._th: threading.Thread | None = None
+
+    def set_action(self, action: str) -> None:
+        self._action = action
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                self.api.send_chat_action(self.chat_id, self._action)
+            except Exception:
+                pass
+            self._stop.wait(4.0)
+
+    def __enter__(self) -> "_TypingLoop":
+        self._th = threading.Thread(target=self._run, daemon=True,
+                                    name=f"typing-{self.chat_id}")
+        self._th.start()
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._stop.set()
+        if self._th:
+            self._th.join(timeout=1.5)
 
 _URL_RX = re.compile(r"(?:https?://|git@|(?:github\.com/))\S+|"
                      r"\b[\w.-]+/[\w.-]+(?=\s|$)")
@@ -41,21 +81,33 @@ from .api import TelegramAPI, inline_keyboard
 class Session:
     mode: str = "idle"          # idle | running | awaiting_recipient | awaiting_amendment
     art: CampaignArtifacts | None = None
-    status_msg_id: int | None = None
     draft_msg_id: int | None = None
-    stages: dict[str, str] = field(default_factory=dict)
     # per-session founder context — /setup swaps the startup this chat
     # represents; None falls back to the bot's boot-time default
     ctx: FounderContext | None = None
     ctx_label: str = ""
+    # First-interaction gate: we ask who they're selling for once per session,
+    # regardless of what the CLI --repo default was. Feels like an agency
+    # onboarding conversation instead of a hard-coded pipeline.
+    setup_done: bool = False
 
 
-_STAGE_ROWS = [
-    ("research", "🔍", "Research"),
-    ("engineer", "⚙️", "Engineer"),
-    ("director", "🎬", "Director"),
-    ("sales", "✍️", "Sales"),
-]
+# Human narration templates per stage boundary — each fires a NEW message
+# to the founder so their phone pings when something meaningful happens.
+# ``{a}`` interpolates the stage's own detail argument (company name, url, etc).
+_STAGE_NARR: dict[str, str] = {
+    "research":           "🔎 On it — hunting for a fit prospect right now. Real web search + Apollo for the decision-maker. Takes 30-60 seconds.",
+    "research_retry":     "First pass came up dry — I'm broadening the search and trying again.",
+    "research_done":      "Locked in a target: <b>{a}</b>.\n\n⚙️ Now building them a working prototype tailored to their setup. About 90 seconds — I'll ping when it's live.",
+    "engineer":           "",
+    "engineer_done":      "Prototype's live 🕸\n{a}\n\n🎬 Rolling film — narrating a Loom-style walkthrough with an AI voice. Another 90 seconds.",
+    "director":           "",
+    "director_done":      "Walkthrough uploaded ✅\n{a}\n\n✍️ Last leg — assembling the pitch deck and drafting the email. Almost there.",
+    "sales":              "",
+    "sales_done":         "All set. Sending your bundle over now.",
+    "done":               "",
+    "failed":             "",
+}
 
 
 class RevenantBot:
@@ -169,6 +221,10 @@ class RevenantBot:
 
         self.api.send_chat_action(chat_id, "typing")
         sess = self.session(chat_id)
+        # Before setup we don't know their company — the answer must feel
+        # like an agency's first meeting, not a fake authority.
+        if not sess.setup_done:
+            return self._first_meeting_reply(chat_id, text)
         ctx = sess.ctx or self.ctx
         briefing = ctx.summary() if ctx else "(no startup context loaded)"
         reply = complete(
@@ -182,6 +238,33 @@ class RevenantBot:
                     "product facts not in the briefing."),
             offline="I'm Revenant. Tell me who to go after — e.g. “find a US "
                     "healthtech startup” — and I'll build the whole campaign.",
+        )
+        self.api.send_message(chat_id, html.escape(reply.strip()),
+                              disable_preview=True)
+
+    def _first_meeting_reply(self, chat_id: int, text: str) -> None:
+        """Answer as a new agency in its first meeting — no fake authority
+        about the founder's product until they configure a startup."""
+        from ghost.llm import complete
+
+        reply = complete(
+            f"The founder just sent their first message: {text!r}\n\n"
+            "Respond in 1-3 short sentences, plain text, warmly. You do NOT "
+            "know what their startup does yet — you have not been configured. "
+            "If the question is about their product/company, honestly say you "
+            "haven't been briefed yet and ask them to share the GitHub repo "
+            "or product URL. If it's a greeting or 'what can you do', "
+            "introduce yourself in one line and ask the same. Never invent "
+            "any product facts.",
+            agent="telegram.first",
+            system=("You are Revenant, an autonomous outbound-engineering "
+                    "agency. This is the founder's first message — treat it "
+                    "like the first meeting: warm, curious, and honest about "
+                    "what you don't yet know. You will help find prospects, "
+                    "build tailored prototypes, film walkthroughs, and draft "
+                    "outreach — but only after you've read their startup."),
+            offline="Hi — I'm Revenant, your outbound engineer. To help I need "
+                    "to know your startup: send a GitHub repo or product URL.",
         )
         self.api.send_message(chat_id, html.escape(reply.strip()),
                               disable_preview=True)
@@ -208,6 +291,7 @@ class RevenantBot:
             return
         sess.ctx = ctx
         sess.ctx_label = source
+        sess.setup_done = True
         one_liner = briefing.strip().splitlines()
         # pull the first non-header, non-empty line as the human summary
         gist = next((ln.strip("*- #") for ln in one_liner
@@ -215,11 +299,12 @@ class RevenantBot:
         if mid:
             self.api.edit_message(
                 chat_id, mid,
-                f"🧬 <b>Context configured</b> — {len(ctx.files)} files from "
-                f"<code>{html.escape(source)}</code>\n\n"
-                f"<i>{html.escape(gist[:300])}</i>\n\n"
-                "This chat now sells on behalf of that startup. "
-                "Tell me who to go after.")
+                f"Got it. Read {len(ctx.files)} files from "
+                f"<code>{html.escape(source)}</code>.\n\n"
+                f"<i>{html.escape(gist[:280])}</i>\n\n"
+                "I'll sell on their behalf from here. When you're ready, "
+                "tell me who to go after — e.g. "
+                "<i>“find a US healthtech startup”</i>.")
 
     def _on_command(self, chat_id: int, text: str) -> None:
         parts = text.split(maxsplit=1)
@@ -251,33 +336,50 @@ class RevenantBot:
     # ── run the fleet ─────────────────────────────────────────
     def _run_campaign(self, chat_id: int, brief: str) -> None:
         sess = self.session(chat_id)
+        ctx = sess.ctx or self.ctx
+        if ctx is None or not sess.setup_done:
+            # Gate on setup — feels like agency onboarding, not a hard-coded
+            # pipeline. See _needs_setup for the prompt.
+            self._needs_setup(chat_id, before_hunt=True)
+            return
+
         sess.mode = "running"
-        sess.stages = {}
-        m = self.api.send_message(chat_id, self._board(sess, "🕯️ Revenant is waking…"))
-        sess.status_msg_id = m.get("result", {}).get("message_id")
 
         def on_stage(stage: str, detail: str) -> None:
-            base = stage.replace("_done", "")
-            if stage.endswith("_done"):
-                sess.stages[base] = f"✓ {detail}" if detail else "✓"
-            elif stage in ("research", "engineer", "director", "sales"):
-                sess.stages[stage] = "⟳ …"
-            self._update_board(chat_id, sess)
+            template = _STAGE_NARR.get(stage, "")
+            if not template:
+                return
+            msg = template.format(a=html.escape(detail)) if "{a}" in template else template
+            self.api.send_message(chat_id, msg, disable_preview=True)
 
-        self.api.send_chat_action(chat_id, "record_video")
-        art = run_campaign(brief, sess.ctx or self.ctx, on_stage=on_stage,
-                           skip_lipsync=self.skip_lipsync)
+        with _TypingLoop(self.api, chat_id):
+            art = run_campaign(brief, ctx, on_stage=on_stage,
+                               skip_lipsync=self.skip_lipsync)
 
         if not art.ok:
-            self._update_board(chat_id, sess, header="✗ Run failed")
-            self.api.send_message(chat_id, "⚠️ " + html.escape(art.error))
+            self.api.send_message(
+                chat_id, f"😕 {html.escape(art.error)}\n\n"
+                         "Try a different vertical or looser signal — e.g. "
+                         "<i>“find any B2B SaaS handling sensitive data”</i>.")
             sess.mode = "idle"
             return
 
         sess.art = art
-        self._update_board(chat_id, sess, header=f"✅ Campaign ready — <b>{html.escape(art.company)}</b>")
         self._deliver(chat_id, art)
         sess.mode = "idle"
+
+    def _needs_setup(self, chat_id: int, *, before_hunt: bool = False) -> None:
+        prefix = ("Before I hunt anything, I need to know who I'm selling for. "
+                  if before_hunt else "")
+        self.api.send_message(
+            chat_id,
+            prefix +
+            "Point me at your startup — send a GitHub repo or a link "
+            "to your product site and I'll ingest the whole thing:\n\n"
+            "<code>/setup github.com/you/your-startup</code>\n"
+            "or just paste the URL by itself.\n\n"
+            "Give me ~20 seconds after that and I'll brief myself.",
+            disable_preview=True)
 
     # ── deliver artifacts ─────────────────────────────────────
     def _deliver(self, chat_id: int, art: CampaignArtifacts) -> None:
@@ -310,17 +412,23 @@ class RevenantBot:
         self._send_draft(chat_id, art)
 
     def _send_draft(self, chat_id: int, art: CampaignArtifacts) -> None:
-        to = art.recipient_email or "—"
+        to = art.recipient_email or "not-yet-verified"
+        who = art.contact_name or "team"
         body = (
-            "✉️ <b>Email draft — awaiting your call</b>\n\n"
-            f"<b>To:</b> {html.escape(art.contact_name or 'team')} "
+            "✉️ <b>Here's the draft I'd send.</b> Your call.\n\n"
+            f"<b>To:</b> {html.escape(who)} "
             f"&lt;{html.escape(to)}&gt;\n"
             f"<b>Subject:</b> {html.escape(art.email_subject)}\n\n"
-            f"{html.escape(art.email_body)}"
+            "<i>─────────────────</i>\n"
+            f"{html.escape(art.email_body)}\n"
+            "<i>─────────────────</i>\n\n"
+            "Approve and I'll drop it in your Gmail drafts with the deck + "
+            "video attached — you send when you're ready. Or amend it in "
+            "plain English and I'll rework."
         )
         cid = art.campaign_id
         kb = inline_keyboard([
-            [("✅ Approve & Send", f"approve:{cid}"), ("✏️ Amend", f"amend:{cid}")],
+            [("✅ Approve", f"approve:{cid}"), ("✏️ Amend", f"amend:{cid}")],
             [("❌ Discard", f"discard:{cid}")],
         ])
         m = self.api.send_message(chat_id, body, reply_markup=kb)
@@ -443,22 +551,6 @@ class RevenantBot:
             self.api.edit_message(chat_id, mid, "✅ Draft updated.")
         self._send_draft(chat_id, art)
 
-    # ── progress board ────────────────────────────────────────
-    def _board(self, sess: Session, header: str) -> str:
-        lines = [header, ""]
-        for key, icon, label in _STAGE_ROWS:
-            state = sess.stages.get(key, "·")
-            lines.append(f"{icon} <b>{label}</b>   {html.escape(state)}")
-        return "\n".join(lines)
-
-    def _update_board(self, chat_id: int, sess: Session,
-                      header: str | None = None) -> None:
-        if not sess.status_msg_id:
-            return
-        head = header or "🕯️ Revenant is working…"
-        self.api.edit_message(chat_id, sess.status_msg_id, self._board(sess, head))
-
-
 def _me(api: TelegramAPI) -> str:
     try:
         import httpx
@@ -468,21 +560,20 @@ def _me(api: TelegramAPI) -> str:
         return "revenant"
 
 
-_WELCOME = """🕯️ <b>Revenant</b> — your autonomous outbound engineer.
+_WELCOME = """Hey {founder} 👋 I'm Revenant — think of me as the outbound
+agency that never sleeps.
 
-I hunt a fit prospect, build them a working prototype, film an AI walkthrough,
-and draft the outreach — then hand it to you to approve.
+I hunt a fit prospect, build them a working prototype, film an AI
+walkthrough, and draft the outreach — all before you finish your coffee.
 
-<b>1. Point me at your startup</b> (or keep the default):
+<b>Before we start</b>, tell me a little about the company I'm selling for.
+The quickest way is to point me at a GitHub repo or a product URL:
+
 <code>/setup github.com/you/your-startup</code>
 
-<b>2. Tell me who to go after:</b>
-<i>“Find a US healthtech startup for {company}”</i>
+or just paste the link on its own. I'll read the docs + code (~20 s), brief
+myself, and then you can just say <i>"go find a customer in healthtech"</i> —
+I'll take it from there.
 
-I'll send back the video, the live prototype, the deck, and the email draft —
-approve, amend, or discard with a tap. Approved mail lands in your Gmail
-drafts with everything attached; nothing sends itself.
-
-You can also just ask me things — I've read the whole codebase.
-
-— on behalf of {founder}"""
+Approved drafts land in your Gmail with the deck and walkthrough attached.
+Nothing sends without your tap."""
