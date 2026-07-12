@@ -12,7 +12,10 @@ Loom-style walkthrough with an AI presenter, hosted on Cloudflare Stream.
 A beat script is a list of dictionaries. Each beat has:
 
 - ``narration`` (str) — 1-2 sentences the AI presenter will speak. Second
-  person ("You'll see…"), warm, no hype, no emoji.
+  person ("You'll see…"), warm, no hype, no emoji. **Every beat's narration
+  must be DIFFERENT — never repeat a sentence or phrase across beats.** Each
+  line advances the story; the script reads start-to-finish like one person
+  talking, never a loop.
 - ``action`` (dict) — what happens on screen during this beat. One of:
   * ``{"type": "hold"}`` — stay put; just let the narration play.
   * ``{"type": "scroll_to", "selector": "#demo"}`` — smooth-scroll to a
@@ -22,15 +25,27 @@ A beat script is a list of dictionaries. Each beat has:
     something into an input.
 - ``hold_ms`` (int, default 500) — extra pause after the action + narration.
 
-Aim for **4-6 beats total**, ~60-90 seconds of narration. Cover:
+Aim for **6 beats total**, ~60-90 seconds of narration. The walkthrough must
+be **actionable, not a slideshow** — the viewer should see the demo *used*,
+not just scrolled past. Cover, in this exact order:
 
-1. **Hook** — what this is + who it's for. (mention their company by name)
-2. **The pain angle** — one sentence tying to their public evidence.
-3. **The live demo** — scroll to the redactor, describe what they're seeing.
-4. **The interaction** — click Redact, describe the before/after transform
-   in one sentence.
-5. **The integration** — scroll to code snippet, say how they'd wire it in.
-6. **The ask** — one soft CTA. Not "book a demo" — something specific.
+1. **Hook** (`hold`) — what this is + who it's for. (mention their company
+   by name)
+2. **The pain angle** (`scroll_to` a pain bullet like `#pain` or the demo
+   heading) — one sentence tying to their public evidence, while we scroll
+   the page so the viewer's eye follows.
+3. **Set up the demo** (`type` into `#inputText`) — TYPE a realistic sample
+   of THEIR kind of data into the textarea. Don't rely on the prefilled
+   sample — actually type it so the viewer sees the input appear.
+4. **Run the demo** (`click` on `#redactBtn`) — click Redact. Narration
+   describes the before/after transform in one sentence.
+5. **The integration** (`scroll_to` `#code` or the integration snippet) —
+   scroll down to the code snippet and say how they'd wire it in.
+6. **The ask** (`scroll_to` `#cta` or `hold`) — one soft CTA. Not "book a
+   demo" — something specific like a paid pilot.
+
+**Non-hold action minimum:** at least **one `type`**, **one `click`**, and
+**two `scroll_to`** — a walkthrough with only `hold` beats is a failure.
 
 ## Your loop
 1. Call `read_prototype_url` and `read_prospect_context` first.

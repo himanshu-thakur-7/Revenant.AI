@@ -568,7 +568,20 @@ def telegram_cmd(
 
     token = settings.telegram_bot_token
     if not token:
-        console.print(Text("  ! TELEGRAM_BOT_TOKEN not set in .env", style=ui.BLOOD))
+        console.print(Text(
+            "  ! TELEGRAM_BOT_TOKEN not set. Add it to either "
+            "~/Revenant.AI/.env OR ~/.hermes/.env (Hermes fallback loads "
+            "automatically). Get one from @BotFather on Telegram.",
+            style=ui.BLOOD))
+        raise typer.Exit(1)
+
+    if not settings.llm_api_key:
+        console.print(Text(
+            "  ! No LLM key found. Revenant reads LLM_API_KEY or OPENAI_API_KEY "
+            "from ~/Revenant.AI/.env, and falls back to ~/.hermes/.env. "
+            "Ensure Hermes is set up (`hermes setup`) or add OPENAI_API_KEY to "
+            "~/Revenant.AI/.env.",
+            style=ui.BLOOD))
         raise typer.Exit(1)
 
     ui.render_banner(console, model=settings.llm_model, ctx_source=repo)
@@ -582,7 +595,8 @@ def telegram_cmd(
     ui.boot_line(console, "founder", f"{settings.founder_name} · {settings.founder_company or '—'}")
 
     # Hermes framework — reported prominently because the whole fleet is
-    # registered with it as `revenant-outbound`.
+    # registered with it as `revenant-outbound`, AND its .env now supplies
+    # the fallback LLM route + Telegram token when Revenant.AI/.env is thin.
     from .hermes_link import detect as _hermes_detect
     h = _hermes_detect()
     if h.installed:
@@ -594,11 +608,34 @@ def telegram_cmd(
         ui.boot_line(console, "Hermes framework",
                      "not installed — running skill-agnostic", ok=False)
 
-    ui.boot_line(console, "telegram gateway", "online — open the chat on your phone")
+    # Which LLM route are we actually using?
+    ui.boot_line(console, "llm route",
+                 f"{settings.llm_model} @ {settings.llm_base_url}")
+    ui.boot_line(console, "strong model",
+                 f"{settings.strong_model} @ {settings.strong_base_url}")
+
+    # Verify the token against Telegram BEFORE the ingest so the founder
+    # sees `open https://t.me/<username>` in the boot line, not buried below.
+    from .telegram.api import TelegramAPI as _TgAPI
+    _probe = _TgAPI(token)
+    _me = _probe.get_me()
+    if not _me.get("ok"):
+        desc = (_me.get("description") or _me.get("error") or "unknown")[:200]
+        console.print(Text(
+            f"  ! Telegram rejected the token: {desc}. "
+            "Regenerate at @BotFather → /token, update TELEGRAM_BOT_TOKEN.",
+            style=ui.BLOOD))
+        raise typer.Exit(1)
+    _uname = _me.get("result", {}).get("username", "revenant")
+
+    ui.boot_line(console, "telegram gateway",
+                 f"online — https://t.me/{_uname}")
     ui.boot_line(console, "lip-sync", "D-ID" if lipsync else "off (macOS say)")
     ui.boot_ready(console)
-    console.print(Text("  the founder now drives from Telegram. Ctrl-C to stop.\n",
-                       style=ui.MUTED))
+    console.print(Text(
+        f"  Open Telegram → https://t.me/{_uname} → send /start.\n"
+        "  Ctrl-C to stop.\n",
+        style=ui.MUTED))
 
     locked = chat_id or (int(settings.telegram_chat_id)
                          if settings.telegram_chat_id else None)
@@ -607,6 +644,67 @@ def telegram_cmd(
         bot.run()
     except KeyboardInterrupt:
         console.print(Text("\n  ⌇ gateway closed", style=ui.MUTED))
+
+
+# ── telegram self-check ────────────────────────────────────────
+@app.command("telegram-check")
+def telegram_check_cmd() -> None:
+    """Diagnose the Telegram gateway without launching the bot.
+
+    Runs three sanity checks against the token you have configured:
+
+    1. ``getMe`` — is the token valid? Which handle is @-named?
+    2. ``getWebhookInfo`` — is a stale webhook stealing updates?
+       (long-poll doesn't work if a webhook is set)
+    3. ``getUpdates`` (short) — does anyone else own the poll? A 409
+       means Hermes desktop, a stale ``revenant telegram``, or another
+       process is already polling the same bot.
+    """
+    from .telegram.api import TelegramAPI
+    token = settings.telegram_bot_token
+    if not token:
+        console.print(Text("  ! No TELEGRAM_BOT_TOKEN in ~/Revenant.AI/.env "
+                           "or ~/.hermes/.env.", style=ui.BLOOD))
+        raise typer.Exit(1)
+
+    api = TelegramAPI(token)
+
+    me = api.get_me()
+    if not me.get("ok"):
+        desc = (me.get("description") or me.get("error") or "?")[:200]
+        console.print(Text(f"  ✗ getMe failed — {desc}", style=ui.BLOOD))
+        raise typer.Exit(1)
+    info = me.get("result", {})
+    uname = info.get("username", "?")
+    console.print(Text(f"  ✓ token valid  · @{uname} "
+                        f"({info.get('first_name','')})", style=ui.MUTED))
+
+    import httpx
+    r = httpx.get(f"https://api.telegram.org/bot{token}/getWebhookInfo",
+                  timeout=10)
+    wh = r.json().get("result", {})
+    if wh.get("url"):
+        console.print(Text(f"  ✗ webhook is set → {wh['url']}. Long-poll "
+                            "won't receive anything. Clear it: "
+                            f"revenant telegram (auto-clears at boot) or "
+                            "call /deleteWebhook.",
+                            style=ui.BLOOD))
+    else:
+        console.print(Text(f"  ✓ no webhook  · pending updates: "
+                            f"{wh.get('pending_update_count', 0)}",
+                            style=ui.MUTED))
+
+    r = httpx.get(f"https://api.telegram.org/bot{token}/getUpdates"
+                  f"?limit=1&timeout=1", timeout=5)
+    if r.status_code == 409:
+        console.print(Text("  ✗ 409 Conflict — another process is polling "
+                            "this bot. Kill any stale `revenant telegram`, "
+                            "or remove TELEGRAM_BOT_TOKEN from ~/.hermes/.env "
+                            "so Hermes desktop stops claiming it.",
+                            style=ui.BLOOD))
+    else:
+        console.print(Text(f"  ✓ getUpdates OK · https://t.me/{uname}",
+                            style=ui.MUTED))
 
 
 if __name__ == "__main__":  # pragma: no cover

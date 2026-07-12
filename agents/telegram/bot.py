@@ -72,14 +72,17 @@ def _extract_url(text: str) -> str:
 from ghost.config import settings
 
 from ..context import FounderContext
-from ..runner import CampaignArtifacts, redraft_email, run_campaign
+from ..runner import (
+    CampaignArtifacts, build_campaign_for, find_shortlist,
+    redraft_email, run_campaign,
+)
 from .api import TelegramAPI, inline_keyboard
 
 
 # ── per-chat session ───────────────────────────────────────────
 @dataclass
 class Session:
-    mode: str = "idle"          # idle | running | awaiting_recipient | awaiting_amendment
+    mode: str = "idle"          # idle | running | awaiting_recipient | awaiting_amendment | awaiting_pick
     art: CampaignArtifacts | None = None
     draft_msg_id: int | None = None
     # per-session founder context — /setup swaps the startup this chat
@@ -90,6 +93,11 @@ class Session:
     # regardless of what the CLI --repo default was. Feels like an agency
     # onboarding conversation instead of a hard-coded pipeline.
     setup_done: bool = False
+    # After Research surfaces 3 verified candidates, they wait here until
+    # the founder taps one — no downstream agents run without a pick.
+    shortlist: list[dict] = field(default_factory=list)
+    shortlist_msg_id: int | None = None
+    last_brief: str = ""
 
 
 # Human narration templates per stage boundary — each fires a NEW message
@@ -98,11 +106,11 @@ class Session:
 _STAGE_NARR: dict[str, str] = {
     "research":           "🔎 On it — hunting a fit prospect right now.",
     "brainstorm":         "🧠 {a}",
-    "apollo_pick":        "🎯 {a} — verified in Apollo. Grabbing the decision-maker + their email.",
-    "apollo_contact":     "",  # silent — already narrated in apollo_pick
+    "apollo_pick":        "🎯 {a}",
+    "apollo_contact":     "",  # silent — apollo_pick already carries the contact
     "research_llm":       "🔎 Nothing matched from that list — switching to open web recon.",
     "research_retry":     "First pass came up dry — I'm broadening the search and trying again.",
-    "research_done":      "Locked in a target: <b>{a}</b>.\n\n⚙️ Now building them a working prototype tailored to their setup. About 90 seconds.",
+    "research_done":      "⚙️ Now building them a working prototype tailored to their setup. About 90 seconds.",
     "engineer":           "",
     "engineer_fallback":  "",  # silent — the deploy line below tells the story
     "engineer_done":      "🕸 Prototype deployed.\n\n🎬 Rolling film — an AI voice narrating a Loom-style walkthrough. Another 90 seconds.",
@@ -132,8 +140,34 @@ class RevenantBot:
     # ── main loop ─────────────────────────────────────────────
     def run(self) -> None:
         self._running = True
+
+        # Self-check: validate the token, kill any stale webhook (long-poll
+        # is dead-on-arrival if a webhook is set), and print the bot's real
+        # @username so the founder knows exactly which chat to open.
+        me = self.api.get_me()
+        if not me.get("ok"):
+            desc = (me.get("description") or me.get("error") or "unknown")[:200]
+            print(f"[telegram] ❌ getMe failed — {desc}. "
+                  "Check TELEGRAM_BOT_TOKEN in ~/Revenant.AI/.env (or "
+                  "~/.hermes/.env). Nothing to do until the token is valid.")
+            return
+        info = me.get("result", {})
+        username = info.get("username", "revenant")
+        first = info.get("first_name", "Revenant")
+
+        wh = self.api.delete_webhook(drop_pending=False)
+        if not wh.get("ok"):
+            print(f"[telegram] warning: deleteWebhook — {wh.get('description') or wh.get('error')}")
+
+        print(f"[telegram] ✅ Connected as {first} (@{username}) — "
+              f"open https://t.me/{username} in Telegram to start.")
+        if self.allowed is not None:
+            print(f"[telegram]   Locked to chat_id {self.allowed} — "
+                  "messages from any other chat will be politely rejected.")
+        else:
+            print("[telegram]   No chat-id lock — will accept any /start.")
+
         offset: int | None = None
-        print(f"[telegram] @{_me(self.api)} online — waiting for the founder…")
         while self._running:
             updates = self.api.get_updates(offset)
             for u in updates:
@@ -345,14 +379,96 @@ class RevenantBot:
 
     # ── run the fleet ─────────────────────────────────────────
     def _run_campaign(self, chat_id: int, brief: str) -> None:
+        """Stage 1: surface a shortlist of 3 verified prospects and wait
+        for the founder to pick. Engineer / Director / Sales only run after
+        the founder taps one of the buttons — see ``_build_for``."""
         sess = self.session(chat_id)
         ctx = sess.ctx or self.ctx
         if ctx is None or not sess.setup_done:
-            # Gate on setup — feels like agency onboarding, not a hard-coded
-            # pipeline. See _needs_setup for the prompt.
             self._needs_setup(chat_id, before_hunt=True)
             return
 
+        sess.mode = "running"
+        sess.last_brief = brief
+        sess.shortlist = []
+        sess.shortlist_msg_id = None
+
+        def on_stage(stage: str, detail: str) -> None:
+            template = _STAGE_NARR.get(stage, "")
+            if not template:
+                return
+            msg = template.format(a=html.escape(detail)) if "{a}" in template else template
+            self.api.send_message(chat_id, msg, disable_preview=True)
+
+        with _TypingLoop(self.api, chat_id):
+            shortlist = find_shortlist(brief, ctx, on_stage=on_stage, want=3)
+
+        if not shortlist:
+            self.api.send_message(
+                chat_id,
+                "😕 Couldn't lock in a fit prospect with a real, addressable "
+                "contact. Try a different vertical or looser signal — e.g. "
+                "<i>“find any B2B SaaS handling sensitive customer data”</i>.")
+            sess.mode = "idle"
+            return
+
+        sess.shortlist = shortlist
+        sess.mode = "awaiting_pick"
+        self._show_shortlist(chat_id, shortlist)
+
+    def _show_shortlist(self, chat_id: int, shortlist: list[dict]) -> None:
+        """Render the 3 candidates side-by-side with fit rationales + tap-to-build
+        buttons. The founder picks; only then do we burn Engineer/Director/Sales."""
+        lines = [
+            "🕯 <b>Three verified fits</b> — pick the one to build for.\n"
+            "Each has a real decision-maker + email on file.\n"
+        ]
+        buttons: list[list[tuple[str, str]]] = []
+        for i, p in enumerate(shortlist):
+            company = p.get("company_name", "?")
+            contact = p.get("contact") or {}
+            person = contact.get("name") or "—"
+            title = contact.get("title") or ""
+            email = ""
+            emails = contact.get("email_candidates") or []
+            if emails:
+                email = emails[0]
+            rationale = (p.get("fit_rationale") or "").strip()
+            # trim a 2-sentence rationale to a Telegram-safe length
+            if len(rationale) > 360:
+                rationale = rationale[:357] + "…"
+            emp = p.get("employees") or ""
+            emp_s = f"{emp} emp · " if emp else ""
+            lines.append(
+                f"<b>{i+1}. {html.escape(company)}</b>  "
+                f"<i>({emp_s}{html.escape(str(p.get('industry','')))})</i>\n"
+                f"👤 {html.escape(person)}"
+                + (f" — {html.escape(title)}" if title else "")
+                + (f"\n📧 <code>{html.escape(email)}</code>" if email else "")
+                + f"\n<i>Why they fit:</i> {html.escape(rationale)}\n"
+            )
+            buttons.append([(f"🎯 Build for {i+1}. {company[:22]}",
+                             f"pick:{i}")])
+        buttons.append([("♻️ Try a different brief", "pick:cancel")])
+        body = "\n".join(lines) + (
+            "\nTap one and I'll build them a working prototype + AI walkthrough "
+            "+ pitch deck. About 3 minutes."
+        )
+        m = self.api.send_message(chat_id, body,
+                                   reply_markup=inline_keyboard(buttons),
+                                   disable_preview=True)
+        self.session(chat_id).shortlist_msg_id = (
+            m.get("result", {}).get("message_id"))
+
+    def _build_for(self, chat_id: int, index: int) -> None:
+        """Stage 2: run Engineer → Director → Sales for the picked prospect."""
+        sess = self.session(chat_id)
+        if not sess.shortlist or index < 0 or index >= len(sess.shortlist):
+            self.api.send_message(chat_id, "That pick expired — start a new hunt.")
+            sess.mode = "idle"
+            return
+        picked = sess.shortlist[index]
+        ctx = sess.ctx or self.ctx
         sess.mode = "running"
 
         def on_stage(stage: str, detail: str) -> None:
@@ -363,14 +479,13 @@ class RevenantBot:
             self.api.send_message(chat_id, msg, disable_preview=True)
 
         with _TypingLoop(self.api, chat_id):
-            art = run_campaign(brief, ctx, on_stage=on_stage,
-                               skip_lipsync=self.skip_lipsync)
+            art = build_campaign_for(picked, ctx, on_stage=on_stage,
+                                      skip_lipsync=self.skip_lipsync)
 
         if not art.ok:
             self.api.send_message(
-                chat_id, f"😕 {html.escape(art.error)}\n\n"
-                         "Try a different vertical or looser signal — e.g. "
-                         "<i>“find any B2B SaaS handling sensitive data”</i>.")
+                chat_id,
+                f"😕 {html.escape(art.error or 'build failed')}")
             sess.mode = "idle"
             return
 
@@ -461,6 +576,34 @@ class RevenantBot:
         cb_id = cq["id"]
         action, _, _cid = data.partition(":")
         sess = self.session(chat_id)
+
+        if action == "pick":
+            payload = data.split(":", 1)[1] if ":" in data else ""
+            if payload == "cancel":
+                self.api.answer_callback(cb_id, "Cancelled")
+                if sess.shortlist_msg_id:
+                    self.api.edit_message(
+                        chat_id, sess.shortlist_msg_id,
+                        "♻️ <i>Shortlist dismissed — send a new brief when ready.</i>",
+                        reply_markup={})
+                sess.mode = "idle"
+                sess.shortlist = []
+                return
+            try:
+                idx = int(payload)
+            except ValueError:
+                self.api.answer_callback(cb_id, "Bad pick")
+                return
+            self.api.answer_callback(cb_id, f"Building for {idx+1}…")
+            if sess.shortlist_msg_id and 0 <= idx < len(sess.shortlist):
+                picked_name = sess.shortlist[idx].get("company_name", "?")
+                self.api.edit_message(
+                    chat_id, sess.shortlist_msg_id,
+                    f"✅ <b>Locked in: {html.escape(picked_name)}</b> — "
+                    "building the prototype + walkthrough + deck now.",
+                    reply_markup={})
+            self._build_for(chat_id, idx)
+            return
 
         if action == "approve":
             self.api.answer_callback(cb_id, "Approving…")

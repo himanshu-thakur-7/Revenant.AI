@@ -59,6 +59,70 @@ def _client():
     return OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
 
 
+def _strong_client():
+    from openai import OpenAI
+
+    return OpenAI(base_url=settings.strong_base_url,
+                  api_key=settings.strong_api_key or settings.openai_api_key)
+
+
+def complete_strong(prompt: str, *, agent: str = "unknown",
+                    system: str | None = None, offline: str = "",
+                    temperature: float = 0.4, model: str | None = None) -> str:
+    """Free-text completion via the *stronger* model (OpenAI gpt-4o by default).
+
+    Use for quality-critical steps where Nous Hermes-4's flakiness costs more
+    than the extra tokens: research fit-reasoning, outreach email drafting."""
+    model = model or settings.strong_model
+    key = settings.strong_api_key or settings.openai_api_key
+    if settings.offline or not key:
+        COST.record(agent, model, _estimate_tokens(prompt), _estimate_tokens(offline))
+        log.dim(f"[llm:{agent}:strong] offline stub ({len(offline)} chars)")
+        return offline
+
+    messages: list[dict[str, str]] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    try:
+        resp = _strong_client().chat.completions.create(
+            model=model, messages=messages, temperature=temperature,
+        )
+        text = resp.choices[0].message.content or ""
+        usage = getattr(resp, "usage", None)
+        n_in = getattr(usage, "prompt_tokens", _estimate_tokens(prompt))
+        n_out = getattr(usage, "completion_tokens", _estimate_tokens(text))
+        COST.record(agent, model, n_in, n_out)
+        return text
+    except Exception as exc:  # pragma: no cover
+        log.warn(f"[llm:{agent}:strong] error {exc!r}; falling back to weak model")
+        return complete(prompt, agent=agent, system=system, offline=offline,
+                        temperature=temperature)
+
+
+def complete_strong_json(prompt: str, *, agent: str = "unknown",
+                         system: str | None = None,
+                         offline: dict[str, Any] | None = None) -> dict[str, Any]:
+    """JSON completion via the stronger model. Same contract as complete_json."""
+    offline = offline or {}
+    if settings.offline or not (settings.strong_api_key or settings.openai_api_key):
+        COST.record(agent, settings.strong_model,
+                    _estimate_tokens(prompt),
+                    _estimate_tokens(json.dumps(offline)))
+        return dict(offline)
+
+    sys = (system or "") + "\nRespond with a single valid JSON object and nothing else."
+    raw = complete_strong(prompt, agent=agent, system=sys,
+                          offline=json.dumps(offline))
+    try:
+        start, end = raw.find("{"), raw.rfind("}")
+        return json.loads(raw[start:end + 1]) if start >= 0 else dict(offline)
+    except (json.JSONDecodeError, ValueError):
+        log.warn(f"[llm:{agent}:strong] JSON parse failed; using offline stub")
+        return dict(offline)
+
+
 def complete(
     prompt: str,
     *,

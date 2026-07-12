@@ -92,12 +92,12 @@ _TEMPLATE = r"""<!DOCTYPE html>
     <h1>Log everything.<br /><span class="strike">Leak nothing.</span></h1>
     <p class="sub">{gist}</p>
 
-    <div class="demo">
+    <div id="demo" class="demo">
       <div class="demo-lbl">TRY IT ON A {industry} LOG LINE</div>
-      <textarea id="in">Patient Priya Nair (DOB 1988-04-11, MRN 8471293) called from +91 98450 12233 about her prescription. Card ending 4111 charged $42.50. SSN 123-45-6789 on file.</textarea>
-      <button class="btn" onclick="run()">Redact</button>
+      <textarea id="inputText">Patient Priya Nair (DOB 1988-04-11, MRN 8471293) called from +91 98450 12233 about her prescription. Card ending 4111 charged $42.50. SSN 123-45-6789 on file.</textarea>
+      <button id="redactBtn" class="btn" onclick="run()">Redact</button>
       <div class="demo-lbl" style="margin-top:22px;">CLEANED BEFORE IT HITS YOUR PIPELINE</div>
-      <div id="out">Click Redact — sample output will appear here.</div>
+      <div id="outputText">Click Redact — sample output will appear here.</div>
     </div>
   </section>
 
@@ -111,6 +111,18 @@ _TEMPLATE = r"""<!DOCTYPE html>
     </div>
     {evidence_block}
     {fit_block}
+  </section>
+
+  <section id="code" class="container">
+    <div class="eyebrow">integration</div>
+    <h2 style="font-size:32px; font-weight:800; letter-spacing:-.02em; margin:0 0 12px;">Two lines to wire it in</h2>
+    <pre class="card" style="overflow:auto;"><code>import shroud
+clean = shroud.redact(record)  # PII stripped before it hits your pipeline</code></pre>
+  </section>
+
+  <section id="cta" class="container" style="text-align:center; padding:60px 20px;">
+    <h2 style="font-size:28px; font-weight:800; letter-spacing:-.02em;">Run it on your own {industry} data</h2>
+    <a class="btn" href="https://shroud-site.pages.dev" style="display:inline-block; margin-top:16px;">Book a 30-min pilot</a>
   </section>
 
   <footer class="container">
@@ -129,12 +141,12 @@ _TEMPLATE = r"""<!DOCTYPE html>
       {{ rx: /\b(?!Patient|The|From|Dear)[A-Z][a-z]+\s+(?!Street|Ave|Road)[A-Z][a-z]+\b/g, ph: '[NAME]' }},
     ];
     function run() {{
-      let s = document.getElementById('in').value;
+      let s = document.getElementById('inputText').value;
       const found = new Set();
       for (const p of PATTERNS) {{
         s = s.replace(p.rx, m => {{ found.add(p.ph); return `<span class="redacted">${{p.ph}}</span>`; }});
       }}
-      document.getElementById('out').innerHTML = s;
+      document.getElementById('outputText').innerHTML = s;
     }}
     // demo on load
     window.addEventListener('load', run);

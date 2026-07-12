@@ -24,8 +24,11 @@ from ghost.config import settings
 
 
 _ELEVEN_URL = "https://api.elevenlabs.io/v1/text-to-speech"
-# A reasonable default voice — "Adam" from the free ElevenLabs voice library.
-_DEFAULT_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
+# Warm female default — "Bella" from the ElevenLabs voice library. Pairs with
+# the Fiona D-ID avatar so the presenter looks + sounds like one person.
+# Override with ELEVENLABS_VOICE_ID (settings.elevenlabs_voice_id) — this
+# constant is only the last-resort fallback if settings has been cleared.
+_DEFAULT_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 
 
 def narrate(text: str, out_path: Path, *, voice_id: str | None = None) -> tuple[Path, float]:

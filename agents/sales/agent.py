@@ -16,7 +16,10 @@ class Sales(Agent):
     system = SALES_SYSTEM
     tools: list = []
     max_iters = 10
-    temperature = 0.55           # a little warmth for the copy
+    temperature = 0.6            # a little warmth for the copy
+    # Copy quality trumps token cost here — email is the founder-visible
+    # artifact. gpt-4o writes far better outbound than Nous Hermes-4.
+    use_strong_model = True
 
     def __init__(
         self, *,

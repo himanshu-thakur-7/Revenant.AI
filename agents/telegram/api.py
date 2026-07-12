@@ -29,10 +29,51 @@ class TelegramAPI:
         try:
             r = self._client.get(f"{self._base}/getUpdates", params=params,
                                  timeout=timeout + 10)
-            data = r.json()
-        except httpx.HTTPError:
+        except httpx.HTTPError as exc:
+            print(f"[telegram] getUpdates network error: {exc!r}")
             return []
+        try:
+            data = r.json()
+        except ValueError:
+            print(f"[telegram] getUpdates non-JSON response ({r.status_code})")
+            return []
+        # Surface the two common blockers loudly — silently returning []
+        # (as before) made these look like "the bot never receives anything".
+        if r.status_code == 409:
+            # Another process is polling this same token. Hermes desktop,
+            # a stale `revenant telegram`, or an accidental double-launch.
+            desc = (data.get("description") or "409 Conflict")[:200]
+            print(f"[telegram] ⚠️  409 Conflict — {desc}. "
+                  "Another poller is using this bot token. "
+                  "Kill it (or remove TELEGRAM_BOT_TOKEN from ~/.hermes/.env) "
+                  "then restart.")
+        elif r.status_code == 401:
+            print(f"[telegram] ⚠️  401 Unauthorized — the bot token is "
+                  "invalid or revoked. Regenerate at @BotFather → /token "
+                  "and update TELEGRAM_BOT_TOKEN in ~/Revenant.AI/.env.")
+        elif not data.get("ok"):
+            print(f"[telegram] getUpdates error: {data.get('description')}")
         return data.get("result", []) if data.get("ok") else []
+
+    # ── setup / self-check ────────────────────────────────────
+    def get_me(self) -> dict[str, Any]:
+        try:
+            r = self._client.get(f"{self._base}/getMe", timeout=10)
+            return r.json()
+        except httpx.HTTPError as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def delete_webhook(self, drop_pending: bool = False) -> dict[str, Any]:
+        """Long-poll doesn't work if a webhook is registered. Silently
+        clear it at boot so a leftover webhook from a previous deploy
+        doesn't strand every update in Telegram-land."""
+        try:
+            r = self._client.post(
+                f"{self._base}/deleteWebhook",
+                json={"drop_pending_updates": drop_pending}, timeout=10)
+            return r.json()
+        except httpx.HTTPError as exc:
+            return {"ok": False, "error": str(exc)}
 
     # ── send ──────────────────────────────────────────────────
     def send_message(self, chat_id: int, text: str, *,

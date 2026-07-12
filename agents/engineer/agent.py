@@ -18,6 +18,9 @@ class Engineer(Agent):
     tools: list = []           # bound per-instance
     max_iters = 14
     temperature = 0.5          # a bit warmer — we want creative copy inside guardrails
+    # The prototype is the first thing the prospect sees — quality matters
+    # more than token cost. Run it on gpt-4o (strong route), same as Sales.
+    use_strong_model = True
 
     def __init__(self, *, founder_context: FounderContext, prospect: dict[str, Any]) -> None:
         super().__init__()

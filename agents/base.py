@@ -227,6 +227,10 @@ class Agent:
     model: str | None = None       # None → use settings.llm_model
     max_iters: int = 10
     temperature: float = 0.4
+    # When True the agent uses settings.strong_* (OpenAI gpt-4o by default)
+    # instead of the default Nous Hermes-4 route. Reserve for quality-
+    # critical agents (Sales copy, Research fit reasoning).
+    use_strong_model: bool = False
 
     def __init__(
         self,
@@ -338,19 +342,28 @@ class Agent:
         """One raw call to the LLM with retry — a venue-wifi blip or a 429
         must not kill a 4-minute autopilot chain. Returns the assistant
         message object."""
-        model = self.model or settings.llm_model
+        # Strong-model agents (Sales) run on OpenAI gpt-4o for copy quality;
+        # everyone else defaults to the shared Nous Hermes-4 route.
+        if self.use_strong_model and (settings.strong_api_key
+                                      or settings.openai_api_key):
+            model = self.model or settings.strong_model
+            base_url = settings.strong_base_url
+            api_key = settings.strong_api_key or settings.openai_api_key
+        else:
+            model = self.model or settings.llm_model
+            base_url = settings.llm_base_url
+            api_key = settings.llm_api_key
 
         # Chat agents always run live. Offline mode is a pipeline-testing
         # affordance; a chat with no LLM is not a chat.
-        if not settings.llm_api_key:
+        if not api_key:
             raise RuntimeError(
                 "No LLM_API_KEY / OPENAI_API_KEY in env — agent chat requires a live model."
             )
 
         from openai import OpenAI
 
-        client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key,
-                        timeout=90.0)
+        client = OpenAI(base_url=base_url, api_key=api_key, timeout=90.0)
         tool_schemas = self._registry.schemas()
 
         kwargs: dict[str, Any] = {

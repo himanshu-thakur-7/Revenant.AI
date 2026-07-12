@@ -17,6 +17,91 @@ from . import avatar, hosting, muxer, recorder, tts
 from .walkthrough import WalkthroughState
 
 
+# ── deterministic action injection ────────────────────────────────
+# Nous Hermes-4 often composes beautiful narration but leaves every
+# `action` as `{"type": "hold"}`. The Engineer's prototype uses a
+# consistent id vocabulary (#inputText, #redactBtn, #outputText, plus
+# a #demo section and — when we can add them — #pain, #code, #cta).
+# We upgrade the beats *without* touching the narration, so the story
+# stays the LLM's but the video actually shows the product in use.
+
+# Ordered target actions the walkthrough must include. If the LLM's
+# beats don't already include these, we swap the corresponding beat's
+# `hold` action for the target action (leaving the narration intact).
+_TARGET_ACTIONS: list[dict[str, Any]] = [
+    {"type": "scroll_to", "selector": "#demo, #pain, h2"},
+    {"type": "type", "selector": "#inputText",
+     "text": ("Patient MRN: 4471029 · Card 4111 1111 1111 1234 · "
+              "Total USD $8,420.00 · john.doe@example.com · SSN 123-45-6789")},
+    {"type": "click", "selector": "#redactBtn, button:has-text('Redact')"},
+    {"type": "scroll_to", "selector": "#outputText, #code, pre code"},
+    {"type": "scroll_to", "selector": "#cta, a[href*='pilot'], footer"},
+]
+
+
+def _first_nonhold_index(beats: list[dict], predicate) -> int:
+    for i, b in enumerate(beats):
+        if predicate(b.get("action") or {}):
+            return i
+    return -1
+
+
+def _ensure_actions(beats: list[dict[str, Any]], *,
+                    prospect_ctx: dict[str, Any] | None = None,
+                    prototype_url: str = "") -> list[dict[str, Any]]:
+    """Return a beats list where at least one type / click / scroll action
+    fires. Beats that already have real actions are preserved; beats that
+    only hold get upgraded to the next unused target action."""
+    beats = [dict(b) for b in beats]
+    # Which target-action types are already satisfied by the LLM's beats?
+    already = {b.get("action", {}).get("type", "hold") for b in beats
+               if (b.get("action") or {}).get("type") != "hold"}
+
+    remaining_targets = [t for t in _TARGET_ACTIONS
+                         if t["type"] not in already
+                         or t["type"] == "scroll_to"]  # need 2 scrolls
+
+    # Fill from beat 2 onward (leave the hook beat #0 alone — it's
+    # narration-only). Only overwrite beats whose action is `hold`.
+    for beat in beats[1:]:
+        if not remaining_targets:
+            break
+        act = beat.get("action") or {}
+        if act.get("type", "hold") == "hold":
+            beat["action"] = remaining_targets.pop(0)
+            beat["hold_ms"] = max(int(beat.get("hold_ms") or 0), 900)
+
+    # If the LLM emitted too few beats to carry the demo actions, top up —
+    # but each new beat gets DISTINCT, action-appropriate narration. NEVER
+    # reuse the same line (that produced a walkthrough that said the same
+    # sentence 3-4 times). One canned line per action type, used at most once.
+    _NARRATION_FOR = {
+        "type":      "Here's a real record — exactly the kind of data you handle every day.",
+        "click":     "One click, and every identifier is masked in place.",
+        "scroll_to": "And here's how it drops into your stack.",
+    }
+    _SCROLL_LINES = [
+        "And here's how it drops into your stack — two lines.",
+        "That's the whole pitch. Your data never leaves clean.",
+    ]
+    scroll_i = 0
+    used_lines = {(b.get("narration") or "").strip() for b in beats}
+    if remaining_targets and len(beats) < 8:
+        for target in remaining_targets:
+            ttype = target["type"]
+            if ttype == "scroll_to":
+                line = _SCROLL_LINES[min(scroll_i, len(_SCROLL_LINES) - 1)]
+                scroll_i += 1
+            else:
+                line = _NARRATION_FOR.get(ttype, "Let me show you the piece that matters.")
+            # Guard against colliding with a line the LLM already used.
+            if line in used_lines:
+                continue
+            used_lines.add(line)
+            beats.append({"narration": line, "action": target, "hold_ms": 900})
+    return beats
+
+
 def read_tools(prototype_url: str, prospect: dict[str, Any]) -> list[Tool]:
 
     @tool("Return the prototype URL Engineer just deployed. Call this before "
@@ -52,6 +137,31 @@ def action_tools(state: WalkthroughState, prototype_url: str) -> list[Tool]:
     ) -> dict[str, Any]:
         if not beats:
             return {"error": "beats list is empty — pass at least one beat"}
+
+        # Guarantee the walkthrough is actionable — the LLM frequently emits
+        # straight `hold` beats even when the prompt insists otherwise.
+        # We keep the LLM's narration and only *upgrade* the actions.
+        beats = _ensure_actions(beats, prototype_url=prototype_url)
+
+        # De-dupe narration: the LLM (and older top-up logic) sometimes repeat
+        # the same sentence across beats, which made the AI voice say the same
+        # line 3-4 times. Drop any beat whose narration exactly repeats an
+        # earlier one (case/space-insensitive); keep its action on the last
+        # kept beat so we don't lose a demo interaction.
+        _seen: set[str] = set()
+        _deduped: list[dict[str, Any]] = []
+        for beat in beats:
+            key = " ".join((beat.get("narration") or "").lower().split())
+            if key and key in _seen:
+                # fold this beat's action onto the previous kept beat if that
+                # one is just a hold, so the click/type still happens
+                if _deduped and (_deduped[-1].get("action") or {}).get("type", "hold") == "hold":
+                    _deduped[-1]["action"] = beat.get("action") or {"type": "hold"}
+                continue
+            if key:
+                _seen.add(key)
+            _deduped.append(beat)
+        beats = _deduped
 
         # 1. Narrate each beat with ElevenLabs (or macOS `say` fallback).
         state.beats = list(beats)
