@@ -505,6 +505,22 @@ def sales_cmd(
     )
 
 
+# ── gmail one-time consent ─────────────────────────────────────
+@app.command("gmail-auth")
+def gmail_auth_cmd() -> None:
+    """One-time Gmail consent — lets Approve save drafts to your Gmail."""
+    from .sales import gmail_draft
+
+    console.print(Text("  opening browser for Google consent…", style=ui.MUTED))
+    try:
+        email = gmail_draft.authorize()
+    except Exception as exc:
+        console.print(Text(f"  ! {exc}", style=ui.BLOOD))
+        raise typer.Exit(1)
+    console.print(Text(f"  ✓ Gmail authorized as {email} — approved drafts "
+                       f"will land in that account's Drafts.", style=ui.SUMMON))
+
+
 # ── telegram gateway ───────────────────────────────────────────
 @app.command("telegram")
 def telegram_cmd(

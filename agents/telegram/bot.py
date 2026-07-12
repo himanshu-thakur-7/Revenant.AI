@@ -10,8 +10,24 @@ from __future__ import annotations
 
 import html
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Any
+
+_URL_RX = re.compile(r"(?:https?://|git@|(?:github\.com/))\S+|"
+                     r"\b[\w.-]+/[\w.-]+(?=\s|$)")
+
+
+def _extract_url(text: str) -> str:
+    """Pull a repo/docs URL (or owner/repo shorthand) out of a message."""
+    for m in _URL_RX.finditer(text.strip()):
+        cand = m.group(0).rstrip(".,)")
+        # owner/repo shorthand must look like a slug pair, not a sentence word
+        if "://" in cand or cand.startswith(("git@", "github.com/")):
+            return cand
+        if re.fullmatch(r"[\w.-]+/[\w.-]+", cand) and "." not in cand.split("/")[0]:
+            return cand
+    return ""
 
 from ghost.config import settings
 
@@ -28,6 +44,10 @@ class Session:
     status_msg_id: int | None = None
     draft_msg_id: int | None = None
     stages: dict[str, str] = field(default_factory=dict)
+    # per-session founder context — /setup swaps the startup this chat
+    # represents; None falls back to the bot's boot-time default
+    ctx: FounderContext | None = None
+    ctx_label: str = ""
 
 
 _STAGE_ROWS = [
@@ -99,15 +119,130 @@ class RevenantBot:
             self._do_amend(chat_id, text)
             return
 
-        # otherwise: a targeting brief → run the fleet
-        self._run_campaign(chat_id, text)
+        self._route_text(chat_id, text)
+
+    # ── intent routing (the bot's brain) ──────────────────────
+    def _route_text(self, chat_id: int, text: str) -> None:
+        """Decide what the founder wants — never launch a 4-minute fleet run
+        on 'hi'. URLs configure; explicit hunt asks run; everything else is
+        answered conversationally from the founder context."""
+        # bare URL (or 'configure <url>') → reconfigure this session
+        url = _extract_url(text)
+        if url and len(text.split()) <= 6:
+            self._do_setup(chat_id, url)
+            return
+
+        intent = self._classify(chat_id, text)
+        if intent == "run_campaign":
+            self._run_campaign(chat_id, text)
+        elif intent == "configure" and url:
+            self._do_setup(chat_id, url)
+        else:
+            self._answer(chat_id, text)
+
+    def _classify(self, chat_id: int, text: str) -> str:
+        from ghost.llm import complete_json
+
+        result = complete_json(
+            "Classify the founder's Telegram message for an outbound-sales "
+            "agent. Categories:\n"
+            "- run_campaign: explicitly asks to find/hunt/target prospects, "
+            "run outbound, build a campaign, or names a vertical to pursue "
+            "(e.g. 'find me a healthtech prospect', 'go after fintech CTOs')\n"
+            "- configure: asks to switch/load a different startup/company "
+            "context, or shares a repo/docs link\n"
+            "- question: asks about their company, the product, a past run, "
+            "or how anything works\n"
+            "- smalltalk: greetings, thanks, everything else\n\n"
+            f"Message: {text!r}\n\n"
+            'Respond: {"intent": "<category>"}',
+            agent="telegram.intent",
+            offline={"intent": "question"},
+        )
+        intent = str(result.get("intent", "question")).strip().lower()
+        return intent if intent in {"run_campaign", "configure", "question",
+                                    "smalltalk"} else "question"
+
+    def _answer(self, chat_id: int, text: str) -> None:
+        """Conversational reply grounded in the session's founder context."""
+        from ghost.llm import complete
+
+        self.api.send_chat_action(chat_id, "typing")
+        sess = self.session(chat_id)
+        ctx = sess.ctx or self.ctx
+        briefing = ctx.summary() if ctx else "(no startup context loaded)"
+        reply = complete(
+            f"The founder asked: {text}\n\nAnswer in 1-4 short sentences, "
+            "plain text (no markdown headers). If they seem ready to hunt "
+            "prospects, remind them they can just say who to go after.",
+            agent="telegram.chat",
+            system=("You are Revenant, an autonomous outbound engineer working "
+                    f"for {settings.founder_name}. You represent this startup:\n"
+                    f"{briefing}\n\nBe warm, terse, and concrete. Never invent "
+                    "product facts not in the briefing."),
+            offline="I'm Revenant. Tell me who to go after — e.g. “find a US "
+                    "healthtech startup” — and I'll build the whole campaign.",
+        )
+        self.api.send_message(chat_id, html.escape(reply.strip()),
+                              disable_preview=True)
+
+    def _do_setup(self, chat_id: int, source: str) -> None:
+        """Ingest a new startup context for this session (github URL or path)."""
+        sess = self.session(chat_id)
+        self.api.send_chat_action(chat_id, "typing")
+        m = self.api.send_message(
+            chat_id, f"🧬 Reading <code>{html.escape(source)}</code> — "
+                     "ingesting docs + code…")
+        mid = m.get("result", {}).get("message_id")
+        try:
+            if source.startswith(("http://", "https://", "git@")) or (
+                    "/" in source and not source.startswith(("~", "/", "."))):
+                ctx = FounderContext.from_github(source)
+            else:
+                ctx = FounderContext.from_folder(source)
+            briefing = ctx.summary()
+        except Exception as exc:
+            if mid:
+                self.api.edit_message(chat_id, mid,
+                                      f"⚠️ Couldn't ingest that: {html.escape(str(exc)[:200])}")
+            return
+        sess.ctx = ctx
+        sess.ctx_label = source
+        one_liner = briefing.strip().splitlines()
+        # pull the first non-header, non-empty line as the human summary
+        gist = next((ln.strip("*- #") for ln in one_liner
+                     if ln.strip() and not ln.strip().startswith("#")), "")
+        if mid:
+            self.api.edit_message(
+                chat_id, mid,
+                f"🧬 <b>Context configured</b> — {len(ctx.files)} files from "
+                f"<code>{html.escape(source)}</code>\n\n"
+                f"<i>{html.escape(gist[:300])}</i>\n\n"
+                "This chat now sells on behalf of that startup. "
+                "Tell me who to go after.")
 
     def _on_command(self, chat_id: int, text: str) -> None:
-        cmd = text.split()[0].lstrip("/").lower()
+        parts = text.split(maxsplit=1)
+        cmd = parts[0].lstrip("/").lower()
+        arg = parts[1].strip() if len(parts) > 1 else ""
         if cmd in ("start", "help"):
             self.api.send_message(chat_id, _WELCOME.format(
                 founder=html.escape(settings.founder_name),
                 company=html.escape(settings.founder_company or "your startup")))
+        elif cmd == "setup":
+            if arg:
+                self._do_setup(chat_id, arg)
+            else:
+                self.api.send_message(
+                    chat_id, "Usage: <code>/setup github.com/you/your-startup</code> "
+                             "— I'll read the repo and sell on its behalf.")
+        elif cmd == "context":
+            sess = self.session(chat_id)
+            label = sess.ctx_label or "(default) " + str(getattr(self.ctx, "source", "~/shroud"))
+            n = len((sess.ctx or self.ctx).files) if (sess.ctx or self.ctx) else 0
+            self.api.send_message(chat_id,
+                                  f"🧬 Current startup: <code>{html.escape(str(label))}</code> "
+                                  f"({n} files)")
         elif cmd == "whoami":
             self.api.send_message(chat_id, f"chat id: <code>{chat_id}</code>")
         else:
@@ -130,7 +265,7 @@ class RevenantBot:
             self._update_board(chat_id, sess)
 
         self.api.send_chat_action(chat_id, "record_video")
-        art = run_campaign(brief, self.ctx, on_stage=on_stage,
+        art = run_campaign(brief, sess.ctx or self.ctx, on_stage=on_stage,
                            skip_lipsync=self.skip_lipsync)
 
         if not art.ok:
@@ -228,31 +363,70 @@ class RevenantBot:
         else:
             self.api.answer_callback(cb_id)
 
-    # ── send / amend ──────────────────────────────────────────
+    # ── approve → Gmail draft ─────────────────────────────────
     def _do_send(self, chat_id: int, to_email: str) -> None:
+        """Approve = save a ready-to-send draft in the founder's Gmail with
+        the deck + walkthrough attached. Never auto-sends."""
         sess = self.session(chat_id)
         art = sess.art
         if not art:
             self.api.send_message(chat_id, "No active draft.")
             sess.mode = "idle"
             return
-        from ..sales import send as send_mod
-        result = send_mod.send(art.campaign_id, to_email.strip())
         sess.mode = "idle"
-        if result.get("sent") and result.get("dry_run"):
+        to_email = to_email.strip()
+
+        from ..sales import gmail_draft
+        if not gmail_draft.configured():
             self.api.send_message(
-                chat_id, f"🧪 <b>DRY_RUN</b> — nothing actually left the machine.\n"
-                         f"It <i>would</i> have gone to <code>{html.escape(to_email)}</code>.\n"
-                         f"Flip <code>DRY_RUN=0</code> in .env to send for real.")
-        elif result.get("sent"):
-            self.api.send_message(
-                chat_id, f"📨 <b>Sent</b> to <code>{html.escape(to_email)}</code>. Now we watch.")
-            if sess.draft_msg_id:
-                self.api.edit_message(chat_id, sess.draft_msg_id,
-                                      f"✅ <i>Sent to {html.escape(to_email)}.</i>",
-                                      reply_markup={})
-        else:
-            self.api.send_message(chat_id, "⚠️ " + html.escape(result.get("error", "send failed")))
+                chat_id, "⚠️ Gmail isn't authorized yet. Run "
+                         "<code>revenant gmail-auth</code> on the laptop once, "
+                         "then tap Approve again.")
+            return
+
+        self.api.send_chat_action(chat_id, "upload_document")
+        body = art.email_body
+        links = [f"Prototype: {art.prototype_url}" if art.prototype_url else "",
+                 f"Walkthrough: {art.walkthrough_url}" if art.walkthrough_url else "",
+                 f"Deck: {art.deck_url}" if art.deck_url else ""]
+        links = [l for l in links if l]
+        if links and not all(l.split(": ", 1)[1] in body for l in links):
+            body += "\n\n" + "\n".join(links)
+
+        result = gmail_draft.create_draft(
+            to_email=to_email,
+            subject=art.email_subject,
+            body=body,
+            attachments=[p for p in (art.deck_pptx, art.walkthrough_mp4) if p],
+        )
+        if not result.get("ok"):
+            self.api.send_message(chat_id, "⚠️ " + html.escape(result.get("error", "draft failed")))
+            return
+
+        attached = ", ".join(result.get("attached") or []) or "links only"
+        note = ""
+        if result.get("skipped"):
+            note = "\n<i>skipped: " + html.escape(", ".join(result["skipped"])) + "</i>"
+        self.api.send_message(
+            chat_id,
+            f"📥 <b>Saved to your Gmail drafts</b> — to "
+            f"<code>{html.escape(to_email or 'no recipient yet')}</code>\n"
+            f"📎 attached: {html.escape(attached)}{note}\n"
+            f"Open Gmail → Drafts, give it one last look, hit send when ready.\n"
+            f"{result.get('gmail_url','')}", disable_preview=True)
+        if sess.draft_msg_id:
+            self.api.edit_message(chat_id, sess.draft_msg_id,
+                                  "✅ <i>Approved — waiting in your Gmail drafts.</i>",
+                                  reply_markup={})
+        # mirror to the live console: campaign leaves the review queue
+        try:
+            from ..bridge import bridge
+            bridge._emit("sales", "mail",
+                         "Approved — draft parked in the founder's Gmail.",
+                         campaign_id=art.campaign_id,
+                         payload={"state": "sent"})
+        except Exception:
+            pass
 
     def _do_amend(self, chat_id: int, amendment: str) -> None:
         sess = self.session(chat_id)
@@ -262,7 +436,7 @@ class RevenantBot:
             return
         self.api.send_chat_action(chat_id, "typing")
         m = self.api.send_message(chat_id, "✏️ Reworking the draft…")
-        redraft_email(art, amendment, self.ctx)
+        redraft_email(art, amendment, sess.ctx or self.ctx)
         sess.mode = "idle"
         mid = m.get("result", {}).get("message_id")
         if mid:
@@ -299,10 +473,16 @@ _WELCOME = """🕯️ <b>Revenant</b> — your autonomous outbound engineer.
 I hunt a fit prospect, build them a working prototype, film an AI walkthrough,
 and draft the outreach — then hand it to you to approve.
 
-Just tell me who to go after, e.g.:
+<b>1. Point me at your startup</b> (or keep the default):
+<code>/setup github.com/you/your-startup</code>
+
+<b>2. Tell me who to go after:</b>
 <i>“Find a US healthtech startup for {company}”</i>
 
-I'll send you the video, the prototype, the deck, and the email — with a
-button to approve or amend. Nothing sends without your tap.
+I'll send back the video, the live prototype, the deck, and the email draft —
+approve, amend, or discard with a tap. Approved mail lands in your Gmail
+drafts with everything attached; nothing sends itself.
+
+You can also just ask me things — I've read the whole codebase.
 
 — on behalf of {founder}"""
