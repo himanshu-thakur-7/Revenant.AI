@@ -49,28 +49,44 @@ def narrate(text: str, out_path: Path, *, voice_id: str | None = None) -> tuple[
     """Render ``text`` to an MP3 at ``out_path``. Returns (path, duration_seconds).
 
     Voice chain, each falling through on failure so a dead key never kills the
-    film: ElevenLabs (if key) → **OpenAI TTS** (natural, uses the LLM key we
-    already have) → macOS ``say`` (robotic last resort)."""
+    film. **Default order: OpenAI TTS → ElevenLabs → macOS ``say``.**
+    OpenAI TTS is fast (~1-2s per beat), quota-reliable, and reuses the LLM
+    key we already have. ElevenLabs is warmer but its trial keys often 401 on
+    quota_exceeded — burning seconds on failed retries. Set
+    REVENANT_PREFER_ELEVENLABS=1 to restore the ElevenLabs-first order.
+    """
     text = _fix_pronunciation(text)
-    # 1. ElevenLabs — only if a key is configured.
-    if settings.elevenlabs_api_key:
+
+    prefer_eleven = os.getenv("REVENANT_PREFER_ELEVENLABS", "0") not in ("", "0", "false", "no")
+    oai_key = settings.llm_api_key or settings.openai_api_key or os.getenv("OPENAI_API_KEY")
+
+    def _try_elevenlabs() -> bool:
+        if not settings.elevenlabs_api_key:
+            return False
         try:
             _elevenlabs_render(text, out_path, voice_id=voice_id or settings.elevenlabs_voice_id
                                 or _DEFAULT_VOICE_ID)
-            return out_path, _measure(out_path)
+            return True
         except Exception as exc:  # quota_exceeded (401), network, etc.
-            print(f"[tts] ElevenLabs failed ({str(exc)[:120]}); trying OpenAI TTS.",
+            print(f"[tts] ElevenLabs failed ({str(exc)[:120]}); trying next.",
                   file=sys.stderr, flush=True)
+            return False
 
-    # 2. OpenAI TTS — natural voice, reuses the OpenAI key already in .env.
-    oai_key = settings.llm_api_key or settings.openai_api_key or os.getenv("OPENAI_API_KEY")
-    if oai_key:
+    def _try_openai() -> bool:
+        if not oai_key:
+            return False
         try:
             _openai_render(text, out_path, api_key=oai_key)
-            return out_path, _measure(out_path)
+            return True
         except Exception as exc:
-            print(f"[tts] OpenAI TTS failed ({str(exc)[:120]}); falling back to "
-                  f"macOS `say`.", file=sys.stderr, flush=True)
+            print(f"[tts] OpenAI TTS failed ({str(exc)[:120]}); trying next.",
+                  file=sys.stderr, flush=True)
+            return False
+
+    order = (_try_elevenlabs, _try_openai) if prefer_eleven else (_try_openai, _try_elevenlabs)
+    for step in order:
+        if step():
+            return out_path, _measure(out_path)
 
     # 3. macOS `say` — last resort.
     if platform.system() == "Darwin":
@@ -118,7 +134,10 @@ def _openai_render(text: str, out_path: Path, *, api_key: str) -> None:
     default 'nova'); model REVENANT_TTS_MODEL (default 'tts-1-hd')."""
     base = (settings.llm_base_url or "https://api.openai.com/v1").rstrip("/")
     voice = os.getenv("REVENANT_TTS_VOICE", "nova")
-    model = os.getenv("REVENANT_TTS_MODEL", "tts-1-hd")
+    # Default 'tts-1' (fast) not 'tts-1-hd' — HD adds ~2-3s per beat with
+    # marginal quality gain at Playwright's 1280x720 audio bit-rate. Set
+    # REVENANT_TTS_MODEL=tts-1-hd for premium demos when time isn't tight.
+    model = os.getenv("REVENANT_TTS_MODEL", "tts-1")
     payload = {"model": model, "voice": voice, "input": text, "response_format": "mp3"}
     with httpx.stream("POST", base + _OPENAI_TTS_URL,
                       headers={"Authorization": f"Bearer {api_key}"},
