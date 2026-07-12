@@ -275,32 +275,90 @@ class RevenantBot:
         self._route_text(chat_id, text)
 
     def _on_review_text(self, chat_id: int, text: str) -> None:
-        """Interpret whatever the founder types while a draft is on the table."""
+        """Interpret whatever the founder types while a draft is on the table.
+        Robust by design: an edit instruction re-drafts, a QUESTION is answered
+        (never mistaken for an amendment), approve sends, and a new-hunt/pick
+        pivots out. Ambiguous → answer (non-destructive), never blind-amend."""
         sess = self.session(chat_id)
         art = sess.art
-        low = text.lower().strip()
+        intent = self._classify_review(text)
 
-        # 1. Approve / send — with or without an explicit recipient.
-        email = _extract_email(text)
-        if email or any(w in low for w in (
-                "approve", "send it", "send that", "ship it", "looks good",
-                "lgtm", "go ahead", "yes send", "send to", "email it")):
+        if intent == "approve":
+            email = _extract_email(text)
             self._do_send(chat_id, email or (art.recipient_email if art else ""))
-            return
-        # 2. Discard.
-        if low in ("discard", "cancel", "scrap it", "delete", "no"):
+        elif intent == "discard":
             sess.mode = "idle"; sess.art = None
             self.api.send_message(chat_id, "❌ Draft discarded. Say the word "
                                   "when you want to hunt again.")
-            return
-        # 3. Pivot — a new hunt, a different pick, or reconfigure. Leave review.
-        if _extract_url(text) or _keyword_intent(text) in ("run_campaign", "configure") \
-                or re.match(r"^\s*(build|pick)\s*[123]\b", low) or "search again" in low:
+        elif intent == "pivot":
             sess.mode = "idle"
             self._route_text(chat_id, text)
-            return
-        # 4. Anything else → treat as an amendment to the email.
-        self._do_amend(chat_id, text)
+        elif intent == "amend":
+            self._do_amend(chat_id, text)
+        else:  # question / smalltalk — answer, KEEP the draft in review
+            self._answer(chat_id, text)
+            self.api.send_message(
+                chat_id, "<i>(Your draft's still here — tell me a change to "
+                "make, or tap ✅ Approve when you're happy.)</i>")
+
+    _AMEND_SIGNALS = (
+        "make it", "change", "rewrite", "reword", "shorten", "shorter",
+        "lengthen", "longer", "add ", "remove", "mention", "include", "drop ",
+        "replace", "tweak", "edit", "rework", "adjust", "more ", "less ",
+        "formal", "casual", "friendlier", "punchier", "reference", "instead of",
+        "don't say", "dont say", "take out", "swap", "cut the", "fix the",
+    )
+    _QUESTION_STARTS = (
+        "what", "who", "why", "how", "when", "where", "which", "whose",
+        "is ", "are ", "do ", "does ", "did ", "can ", "could ", "should ",
+        "will ", "would ", "tell me", "explain", "describe", "know about",
+    )
+
+    def _classify_review(self, text: str) -> str:
+        """→ approve | discard | pivot | amend | question. Deterministic first;
+        bias ambiguous toward 'question' (answering is safe, blind-amend isn't)."""
+        low = text.lower().strip()
+        # approve / send
+        if _extract_email(text) or any(w in low for w in (
+                "approve", "send it", "send that", "ship it", "looks good",
+                "lgtm", "go ahead", "yes send", "send to", "email it",
+                "send the email", "send this")):
+            return "approve"
+        # discard
+        if low in ("discard", "cancel", "scrap it", "delete", "no", "nvm",
+                   "never mind", "nevermind", "forget it", "stop"):
+            return "discard"
+        # explicit pivot — a URL, a "build N"/"pick N", or "search again"
+        if _extract_url(text) or re.match(r"^\s*(build|pick)\s*[123]\b", low) \
+                or "search again" in low:
+            return "pivot"
+        is_question = low.endswith("?") or low.startswith(self._QUESTION_STARTS)
+        has_amend = any(w in low for w in self._AMEND_SIGNALS)
+        # An imperative edit phrase ("make it", "shorten", "mention", "drop") is
+        # an amend even when politely phrased as "can you …?".
+        if has_amend:
+            return "amend"
+        # A question (about the prospect, the draft, anything) → answer, NEVER
+        # amend. Checked before hunt-intent so "tell me about this prospect"
+        # isn't misread as a new hunt because it contains the word "prospect".
+        if is_question:
+            return "question"
+        # A non-question hunt/config intent → start a new flow.
+        if _keyword_intent(text) in ("run_campaign", "configure"):
+            return "pivot"
+        # Truly ambiguous: ask the model, but default to 'question' on doubt.
+        from ghost.llm import complete_json
+        res = complete_json(
+            "A founder is reviewing a drafted sales email. Classify their reply:\n"
+            "- amend: they want the EMAIL changed (an edit instruction)\n"
+            "- question: they're asking something (about their company, the "
+            "prospect, the draft, or anything) — NOT requesting an edit\n"
+            "- smalltalk: a greeting, thanks, or aside\n\n"
+            f"Reply: {text!r}\n\n"
+            'Respond: {"intent":"amend|question|smalltalk"}',
+            agent="telegram.review", offline={"intent": "question"})
+        got = str(res.get("intent", "question")).strip().lower()
+        return "amend" if got == "amend" else "question"
 
     # ── intent routing (the bot's brain) ──────────────────────
     def _route_text(self, chat_id: int, text: str) -> None:

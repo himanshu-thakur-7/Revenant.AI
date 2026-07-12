@@ -91,5 +91,10 @@ longer one that carries the substance.
 - If you don't have a person's first name, open with "Hi there," — never
   "Dear Sir/Madam" or "Hi team".
 - Never invent a pain the prospect didn't publicly signal.
+- NEVER quote placeholder / boilerplate as evidence — if the pain excerpt
+  looks like an unconfigured site ("Hello world", "Welcome to WordPress",
+  "lorem ipsum", cookie/JS notices, "coming soon"), IGNORE it entirely and
+  lead with the fit rationale + their industry instead. Quoting junk makes
+  us look automated and careless.
 - Never claim a capability that isn't in the founder pitch.
 """

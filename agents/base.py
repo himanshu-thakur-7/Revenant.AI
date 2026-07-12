@@ -363,14 +363,22 @@ class Agent:
 
         from openai import OpenAI
 
-        client = OpenAI(base_url=base_url, api_key=api_key, timeout=90.0)
+        client = OpenAI(base_url=base_url, api_key=api_key, timeout=180.0)
         tool_schemas = self._registry.schemas()
 
+        # gpt-5 / o-series are reasoning models: they reject a custom
+        # `temperature` (default only) and reason internally before emitting
+        # output, so they need a much larger completion budget. Detect and
+        # adapt so an agent can be pointed at gpt-5-mini without 400s.
+        _reasoning = model.startswith(("gpt-5", "o1", "o3", "o4"))
         kwargs: dict[str, Any] = {
             "model": model,
             "messages": self._memory.messages(),
-            "temperature": self.temperature,
         }
+        if _reasoning:
+            kwargs["max_completion_tokens"] = 16000  # room for reasoning + long HTML
+        else:
+            kwargs["temperature"] = self.temperature
         if tool_schemas:
             kwargs["tools"] = tool_schemas
             kwargs["tool_choice"] = "auto"

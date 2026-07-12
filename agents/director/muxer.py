@@ -66,36 +66,41 @@ def mux_to_mp4(webm: Path, audio: Path, out_path: Path) -> Path:
 
 
 def composite_and_mux(webm: Path, talking_head: Path, audio: Path,
-                      out_path: Path, *, size: int = 132, pad: int = 34) -> Path:
-    """Overlay the D-ID talking-head as a circular corner bubble onto the
+                      out_path: Path, *, size: int = 176, pad: int = 34) -> Path:
+    """Overlay the talking-head as a clean circular corner bubble onto the
     screen recording AND mux the clean narration — in a single ffmpeg pass.
 
-    This decouples the D-ID lip-sync from the Playwright capture: the head is
-    composited AFTER both finish (in parallel), instead of being DOM-injected
-    before recording. The circular crop + bottom-right placement match the
-    static bubble the recorder draws, so the head sits exactly where the
-    placeholder was. We use the clean ``audio`` track (what D-ID lip-synced
-    to) — never the head's own audio — to avoid a doubled voice.
+    Design choices that matter for a crisp presenter:
+    * The head is CENTRE-CROPPED to a square BEFORE scaling, so a 16:9 face
+      isn't squished into an oval (this was the "oddly shaped" bug).
+    * A feathered (anti-aliased) circular alpha mask → smooth edge, not jagged.
+    * The head input is LOOPED (``-stream_loop -1``) so it always covers the
+      full walkthrough — a short presenter clip (e.g. the 41s fallback) can no
+      longer truncate a longer walkthrough. Length is driven by the screen
+      recording + narration (``-shortest`` over [v]+audio), NOT the head clip.
+    * We map the clean ``audio`` track, never the head's own audio.
     """
     if not _ffmpeg():
         raise MuxError("ffmpeg not on PATH")
     r = size // 2
     filt = (
-        # scale the head to the bubble size, mask to a circle (alpha 0 outside)
-        f"[1:v]scale={size}:{size},format=yuva420p,"
+        # centre-crop to square (undistort), scale to the bubble, then a
+        # 1px-feathered circular alpha mask for a clean, clear edge.
+        f"[1:v]crop='min(iw,ih)':'min(iw,ih)',scale={size}:{size},"
+        f"format=yuva420p,"
         f"geq=lum='p(X,Y)':cb='p(X,Y)':cr='p(X,Y)':"
-        f"a='if(gt(hypot(X-{r},Y-{r}),{r}),0,255)'[head];"
-        # place it bottom-right with the same padding as the recorder bubble
+        f"a='255*clip({r}-hypot(X-{r}\\,Y-{r})+0.75\\,0\\,1)'[head];"
+        # bottom-right; overlay ends with the screen recording (head is looped)
         f"[0:v][head]overlay=W-w-{pad}:H-h-{pad}:shortest=1[v]"
     )
     cmd = [
         "ffmpeg", "-y",
-        "-i", str(webm),            # 0: screen recording
-        "-i", str(talking_head),    # 1: D-ID talking head (video only used)
-        "-i", str(audio),           # 2: clean narration
+        "-i", str(webm),                        # 0: screen recording
+        "-stream_loop", "-1", "-i", str(talking_head),  # 1: head (looped)
+        "-i", str(audio),                       # 2: clean narration
         "-filter_complex", filt,
         "-map", "[v]", "-map", "2:a",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "128k",
         "-movflags", "+faststart",
         "-shortest",

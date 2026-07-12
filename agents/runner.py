@@ -171,16 +171,31 @@ def _verify_and_enrich(cand: dict, vertical: str) -> dict[str, Any] | None:
         return None
 
     # Homepage excerpt (pain-adjacent paragraph) — a nicer evidence
-    # source than the Apollo short description alone.
+    # source than the Apollo short description alone. Skip boilerplate: an
+    # unconfigured site (WordPress default, "lorem ipsum", cookie/JS notices)
+    # would otherwise get quoted verbatim into the outreach email.
+    _BOILERPLATE = (
+        "hello world", "welcome to wordpress", "your first post",
+        "just another wordpress", "edit or delete", "sample page",
+        "lorem ipsum", "uncategorized", "enable javascript", "cookie",
+        "404", "page not found", "under construction", "coming soon",
+    )
     excerpt = ""
     try:
         page = _web.fetch(f"https://{best['domain']}")
         if page.get("text"):
             for para in page["text"].split("\n"):
-                if 40 < len(para) < 300 and any(w in para.lower() for w in
+                p = para.strip()
+                pl = p.lower()
+                if not (40 < len(p) < 300):
+                    continue
+                if any(b in pl for b in _BOILERPLATE):
+                    continue
+                if any(w in pl for w in
                         ("we ", "our ", "platform", "healthcare", "patients",
-                         "data", "compliance", "software")):
-                    excerpt = para.strip()
+                         "data", "compliance", "software", "customers",
+                         "financial", "security", "privacy", "payments")):
+                    excerpt = p
                     break
     except Exception:
         pass
