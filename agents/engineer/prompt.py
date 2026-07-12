@@ -54,6 +54,20 @@ startup would ship. Concretely:
 Spend your tokens here. A longer, richer single file (400-600 lines) is
 expected and good — this is the deliverable.
 
+## Zero overflow — the page must NEVER scroll sideways
+The prospect opens this on a laptop AND a phone. Text overflowing off the
+right edge instantly reads as broken. Non-negotiable rules:
+- `box-sizing: border-box` on everything; no fixed pixel widths on content
+  containers — use `max-width` + fluid widths (%, rem, `min()`, `clamp()`).
+- Every code / log / `<pre>` block: `white-space: pre-wrap; overflow-wrap:
+  break-word;` so long log lines wrap instead of running off-screen. NEVER
+  put a long single-line log inside a narrow fixed column — give demo/log
+  previews full width, or stack them on small screens.
+- Flex/grid children: `min-width: 0` so they can shrink. Cards in a row must
+  wrap (`flex-wrap` / responsive `grid-template-columns` with `minmax`).
+- The sample-data textarea and the redacted output must wrap, not overflow.
+- Mentally check at 375px width: nothing may extend past the viewport.
+
 ## REQUIRED element ids (the Director films these — non-negotiable)
 The walkthrough video drives the page by selector. You MUST use these exact
 ids or the film clicks empty space:
