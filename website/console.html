@@ -71,6 +71,7 @@
   .stat-row{display:flex;gap:20px;padding:0 clamp(14px,3vw,26px) 10px;flex:none;flex-wrap:wrap}
   .stat b{display:block;font-family:var(--serif);font-size:22px;color:var(--bone)}
   .stat span{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+  .stat.cost b{color:var(--teal)}
   .trace{font-size:12.5px}
   .ev{display:flex;align-items:flex-start;gap:10px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.03);animation:slidein .25s}
   @keyframes slidein{from{opacity:0;transform:translateY(4px)}}
@@ -80,6 +81,7 @@
   .ev .sub{color:var(--mist);font-size:11px;word-break:break-word}
   .ev .rt{flex:none;color:var(--faint);font-size:11px;margin-left:6px}
   .ev.run .ic{color:var(--gold)} .ev.done .ic{color:var(--ok)}
+  .ev.err .ic,.ev.err .lbl{color:var(--coal)}
   .ev.spawn{background:rgba(79,224,196,.05);border-left:2px solid var(--teal);padding-left:8px;margin:4px 0}
   .ev.spawn .lbl{color:var(--teal)}
   .ev.sys .ic{color:var(--ember-hot)}
@@ -151,6 +153,7 @@
         <div class="stat"><b id="stTools">0</b><span>tool calls</span></div>
         <div class="stat"><b id="stAgents">1</b><span>agents</span></div>
         <div class="stat"><b id="stElapsed">0s</b><span>elapsed</span></div>
+        <div class="stat cost"><b id="stCost">$0.000</b><span>est. spend</span></div>
         <div class="stat"><b id="stState">idle</b><span>status</span></div>
       </div>
       <div class="scrollzone trace" id="trace">
@@ -238,12 +241,40 @@ STYLE: narrate crisply what the crew is doing. Present results richly and specif
 /* ---------------- element refs ---------------- */
 const $=s=>document.querySelector(s);
 const chat=$('#chat'), trace=$('#trace'), input=$('#input'), form=$('#form'), sendBtn=$('#send');
-let busy=false, runStart=0, elapsedTimer=null, toolCount=0, agentCount=1;
+let busy=false, runStart=0, elapsedTimer=null, toolCount=0, agentCount=1, turnCost=0, totalCost=Number(CFG.totalCost||0)||0;
 const transcript=[];
 CFG.startup = CFG.startup || 'Razorpay';
 let lastBuild=CFG.lastBuild||null;
 let lastFilm=CFG.lastFilm||null;
 let lastDraft=CFG.lastDraft||null;
+let lastTurnText='';
+const MAX_AUTO_RETRIES=2;
+const RETRYABLE_RX=/temporarily down|requested reconnection|reconnect|connection (?:is )?(?:down|lost|closed)|gateway unreachable|networkerror|failed to fetch|load failed|service unavailable|timeout|502|503|504|run failed:\s*5/i;
+const COST_BY_TOOL={
+  'delegate_task':0.002,
+  'mcp__revenant__build_full_outreach':0.36,
+  'mcp__revenant__build_prototype':0.12,
+  'mcp__revenant__film_walkthrough':0.18,
+  'mcp__revenant__draft_outreach':0.05,
+  'mcp__revenant__build_campaign':0.28,
+  'mcp__revenant__setup_startup':0.02,
+  'mcp__revenant__find_prospects':0.04,
+};
+function fmtCost(v){ return '$'+(Number(v)||0).toFixed(3); }
+function setCost(v){ turnCost=Math.max(0, Number(v)||0); $('#stCost').textContent=fmtCost(turnCost); }
+function addCost(v){ setCost(turnCost+(Number(v)||0)); }
+function persistTotalCost(){ totalCost=Number((totalCost+turnCost).toFixed(4)); CFG.totalCost=totalCost; setCfg(CFG); }
+function hasRetryableFailure(s){ return RETRYABLE_RX.test(String(s||'')); }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function candidateBases(){
+  const out=[], seen=new Set();
+  [CFG.lastGoodBase, CFG.base, DEFAULT_BASE, 'http://127.0.0.1:8642', 'http://localhost:8642']
+    .filter(Boolean).forEach(b=>{
+      b=String(b).replace(/\/$/,'');
+      if(!seen.has(b)){ seen.add(b); out.push(b); }
+    });
+  return out;
+}
 function recentHistory(){
   // Hermes /v1/runs accepts explicit history in the body. Keep this bounded:
   // enough for the shortlist/prototype URL, small enough to stay snappy.
@@ -334,11 +365,28 @@ function forgetBuild(){
 async function checkConn(){
   const d=$('#connDot'), t=$('#connTxt');
   if(!CFG.key){ d.className='dot'; t.textContent='no key — click ⚙'; return false; }
-  try{
-    const r=await fetch(CFG.base.replace(/\/$/,'')+'/health',{headers:{}});
-    if(r.ok){ d.className='dot on'; t.textContent='hermes connected'; return true; }
-    throw 0;
-  }catch{ d.className='dot'; t.textContent='gateway unreachable'; return false; }
+  for(const base of candidateBases()){
+    try{
+      const ctrl=new AbortController();
+      const to=setTimeout(()=>ctrl.abort(),3500);
+      const r=await fetch(base+'/health',{headers:{},signal:ctrl.signal});
+      clearTimeout(to);
+      if(r.ok){
+        CFG.base=base; CFG.lastGoodBase=base; setCfg(CFG);
+        d.className='dot on'; t.textContent='hermes connected'; return true;
+      }
+    }catch{}
+  }
+  d.className='dot'; t.textContent='gateway unreachable';
+  return false;
+}
+async function waitForConn(attempt){
+  const ok=await checkConn();
+  if(ok) return true;
+  const wait=Math.min(6000, 900*Math.pow(1.8, attempt||0));
+  sysEv('gateway unreachable · reconnecting in '+Math.round(wait/1000)+'s');
+  await sleep(wait);
+  return checkConn();
 }
 
 /* ---------------- settings modal ---------------- */
@@ -458,6 +506,14 @@ function startPhaseTicker(tool, subEl, t0){
     subEl.textContent = phase + ' · ' + Math.round(dt) + 's';
   }, 500);
 }
+function eventCost(ev, tool){
+  const vals=[ev.cost_usd, ev.cost, ev.estimated_cost_usd, ev.total_cost_usd,
+    ev?.usage?.cost_usd, ev?.usage?.cost, ev?.payload?.cost_usd, ev?.payload?.cost];
+  for(const v of vals){ const n=Number(v); if(Number.isFinite(n)&&n>0) return n; }
+  const cents=Number(ev.cost_cents||ev?.usage?.cost_cents||ev?.payload?.cost_cents);
+  if(Number.isFinite(cents)&&cents>0) return cents/100;
+  return COST_BY_TOOL[tool]||0;
+}
 function evStart(ev){
   traceEmpty();
   const tool=ev.tool||ev.name; const t0=performance.now();
@@ -490,12 +546,16 @@ function evDone(ev){
   const {el,t0,ticker}=stack.pop();
   if(ticker) clearInterval(ticker);
   const dt=(ev.duration!=null?ev.duration:(performance.now()-t0)/1000).toFixed(1);
-  el.classList.remove('run'); el.classList.add('done');
+  el.classList.remove('run'); el.classList.add(ev.error?'err':'done');
   const ic=el.querySelector('.ic'); if(ic) ic.innerHTML=ev.error?'⚠':'✓';
   const rt=el.querySelector('.rt'); if(rt) rt.textContent=dt+'s';
   // On success, replace the phase indicator with the final result summary.
   const subEl = el.querySelector('[data-phase]');
-  if(subEl && !ev.error){ subEl.textContent = 'done in ' + dt + 's'; }
+  if(subEl){
+    if(ev.error) subEl.textContent=(ev.error_message||ev.error||'tool failed').toString().slice(0,220);
+    else subEl.textContent = 'done in ' + dt + 's';
+  }
+  if(!ev.error) addCost(eventCost(ev, tool));
 }
 function finishRunningEvents(failed=false){
   Object.keys(runningEv).forEach(tool=>{
@@ -520,16 +580,21 @@ function sysEv(text){
 }
 
 /* ---------------- run a turn ---------------- */
-async function runTurn(text){
+async function runTurn(text, opts={}){
   busy=true; sendBtn.disabled=true; input.value=''; autosize();
+  lastTurnText=text;
   rememberStartup(text);
   const history=recentHistory();
-  addMsg('you', text);
+  if(!opts.silent) addMsg('you', text);
+  else sysEv('retrying previous turn · attempt '+((opts.attempt||0)+1));
   const bodyEl=addMsg('rev',''); const cur=document.createElement('span'); cur.className='cursor'; bodyEl.appendChild(cur);
   $('#connDot').className='dot busy'; $('#connTxt').textContent='working…'; $('#stState').textContent='running';
+  toolCount=0; agentCount=1; $('#stTools').textContent='0'; $('#stAgents').textContent='1';
+  setCost(0);
   runStart=performance.now(); clearInterval(elapsedTimer);
   elapsedTimer=setInterval(()=>{$('#stElapsed').textContent=Math.round((performance.now()-runStart)/1000)+'s'},500);
-  const base=CFG.base.replace(/\/$/,'');
+  const attempt=opts.attempt||0;
+  let retryReason='';
   // NOTE: only Authorization + Content-Type are in the server's CORS
   // Access-Control-Allow-Headers, so session continuity/memory scope must go
   // through the request BODY (session_id), not X-Hermes-* headers, or the
@@ -538,13 +603,18 @@ async function runTurn(text){
   const H={'Authorization':'Bearer '+CFG.key,'Content-Type':'application/json'};
   let acc='';
   try{
+    const ready=await waitForConn(attempt);
+    if(!ready) throw new Error('gateway unreachable after reconnect attempts');
+    const base=CFG.base.replace(/\/$/,'');
     const r=await fetch(base+'/v1/runs',{method:'POST',headers:H,
       body:JSON.stringify({input:text, instructions:SYSTEM, session_id:CFG.sid, conversation_history:history})});
     if(!r.ok){ throw new Error('run failed: '+r.status+' '+(await r.text()).slice(0,120)); }
     const run_id=(await r.json()).run_id;
-    sysEv('run '+run_id.slice(0,12)+' started');
+    sysEv('run '+run_id.slice(0,12)+' started · attempt '+(attempt+1));
     // stream events
     const es=await fetch(base+'/v1/runs/'+run_id+'/events',{headers:H});
+    if(!es.ok){ throw new Error('event stream failed: '+es.status+' '+(await es.text()).slice(0,120)); }
+    if(!es.body){ throw new Error('event stream unavailable'); }
     const reader=es.body.getReader(); const dec=new TextDecoder(); let buf='';
     while(true){
       const {value,done}=await reader.read(); if(done) break;
@@ -561,28 +631,53 @@ async function runTurn(text){
         else if(et==='run.completed'||et==='response.completed'){
           finishRunningEvents(false);
           if(!acc.trim() && ev.output){ acc=ev.output; cur.remove(); }
+          if(hasRetryableFailure(acc) && attempt<MAX_AUTO_RETRIES){
+            retryReason='crew requested reconnection';
+            cur.remove();
+            bodyEl.textContent='Connection hiccup while starting the crew. I’m reconnecting and retrying this build automatically…';
+            sysEv('recoverable service failure · automatic retry queued');
+            break;
+          }
           renderRichMessage(bodyEl, acc);
           rememberBuild(acc); rememberFilm(acc); rememberDraft(acc);
-          sysEv('run complete · '+toolCount+' tool calls · '+agentCount+' agents this turn');
+          persistTotalCost();
+          sysEv('run complete · '+toolCount+' tool calls · '+agentCount+' agents this turn · '+fmtCost(turnCost)+' est. spend');
           updateChips();
         }
-        else if(et==='run.failed'){ finishRunningEvents(true); sysEv('run failed'); }
+        else if(et==='run.failed'){
+          retryReason=(ev.error||ev.message||'run failed').toString();
+          finishRunningEvents(true); sysEv('run failed · '+esc(retryReason).slice(0,180));
+        }
       }
+      if(retryReason) break;
     }
-    transcript.push({role:'user',content:text});
-    if(acc.trim()){
+    if(retryReason) throw new Error(retryReason);
+    if(!opts.silent) transcript.push({role:'user',content:text});
+    if(acc.trim() && !hasRetryableFailure(acc)){
       transcript.push({role:'assistant',content:acc.trim()});
       rememberBuild(acc); rememberFilm(acc); rememberDraft(acc);
       renderRichMessage(bodyEl, acc);
     }
     if(transcript.length>12) transcript.splice(0, transcript.length-12);
   }catch(err){
-    cur.remove(); if(!acc) bodyEl.textContent='⚠ '+err.message;
-    finishRunningEvents(true); sysEv('error: '+err.message);
+    cur.remove();
+    const msg=(err&&err.message)||String(err);
+    const canRetry=attempt<MAX_AUTO_RETRIES && hasRetryableFailure(msg);
+    bodyEl.textContent=canRetry
+      ? 'Connection hiccup while starting the crew. I’m reconnecting and retrying automatically…'
+      : '⚠ '+msg+'\n\nI kept your request intact. Use the “Retry last turn” chip or press Enter to try again.';
+    finishRunningEvents(true); sysEv('error: '+msg);
+    if(canRetry){
+      await sleep(Math.min(7000, 1200*Math.pow(2, attempt)));
+      return runTurn(text,{silent:true,attempt:attempt+1});
+    }
+    input.value=text; autosize();
+    setChips(['Retry last turn','Reconnect endpoint','Build for #1','Build for #2','Build for #3']);
   }finally{
     cur.remove(); clearInterval(elapsedTimer);
     busy=false; sendBtn.disabled=false; input.focus();
-    $('#connDot').className='dot on'; $('#connTxt').textContent='hermes connected'; $('#stState').textContent='idle';
+    checkConn();
+    $('#stState').textContent='idle';
   }
 }
 
@@ -591,12 +686,22 @@ function autosize(){ input.style.height='auto'; input.style.height=Math.min(120,
 input.addEventListener('input', autosize);
 input.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); form.requestSubmit(); }});
 form.addEventListener('submit', e=>{ e.preventDefault(); const t=input.value.trim(); if(!t||busy) return;
-  if(!CFG.key){ openSettings(); return; } runTurn(t); });
+  if(!CFG.key){ openSettings(); return; }
+  if(/^retry\b/i.test(t) && lastTurnText){ runTurn(lastTurnText); return; }
+  runTurn(t);
+});
 
 function setChips(list){
   const wrap=$('#chips'); wrap.innerHTML='';
   list.forEach(c=>{ const b=document.createElement('div'); b.className='chip'; b.textContent=c;
-    b.onclick=()=>{ input.value=c; autosize(); input.focus(); }; wrap.appendChild(b); });
+    b.onclick=()=>{
+      if(busy) return;
+      if(c==='Retry last turn' && lastTurnText){ runTurn(lastTurnText); return; }
+      if(c==='Reconnect endpoint'){ checkConn(); input.focus(); return; }
+      input.value=c; autosize(); input.focus();
+    };
+    wrap.appendChild(b);
+  });
 }
 // after the crew reports a shortlist, the breadcrumbs become the next moves
 function updateChips(){
