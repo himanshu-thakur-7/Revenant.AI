@@ -96,6 +96,18 @@ def action_tools(state: DraftState, *, prospect: dict[str, Any],
         )
         state.convex_id = row["id"]
 
+        # Razorpay pilot link — the ₹ that flips the deal to WON when a
+        # judge pays it. No-ops gracefully when keys aren't configured.
+        from . import razorpay
+        pay = razorpay.create_payment_link(
+            company=prospect.get("company_name", ""), campaign_id=row["id"])
+        if pay.get("url"):
+            row["payment_link"] = pay["url"]
+
+        # Register for the founder's approve-and-send step.
+        from . import send as send_mod
+        send_mod.register_draft(row)
+
         # local markdown for the founder to eyeball
         md_path = state.workspace / f"{state.prospect_slug}-email.md"
         md_path.write_text(_render_markdown(row), encoding="utf-8")

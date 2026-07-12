@@ -26,6 +26,7 @@ from ghost.config import settings
 from ghost.llm import COST
 
 from .base import AgentEvent
+from .bridge import bridge  # noqa: F401  (self-registers the Convex live mirror)
 from .context import FounderContext
 from .director import Director
 from .engineer import Engineer

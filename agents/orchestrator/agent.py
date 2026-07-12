@@ -8,6 +8,7 @@ specialist sub-agents. Delegation tools are stubs until each sub-agent lands.
 from __future__ import annotations
 
 from ..base import Agent, set_founder_ctx
+from ..bridge import bridge  # noqa: F401  (self-registers the Convex live mirror)
 from ..context import FounderContext
 from .prompt import BASE_SYSTEM, build_system_prompt
 from .tools import context_tools, delegation_stubs

@@ -331,8 +331,13 @@ class Agent:
         return fallback
 
     # ── LLM call ──────────────────────────────────────────────
+    _LLM_RETRIES = 2          # extra attempts after the first
+    _RETRY_BACKOFF_S = (1.5, 4.0)
+
     def _llm_step(self) -> Any:
-        """One raw call to the LLM. Returns the assistant message object."""
+        """One raw call to the LLM with retry — a venue-wifi blip or a 429
+        must not kill a 4-minute autopilot chain. Returns the assistant
+        message object."""
         model = self.model or settings.llm_model
 
         # Chat agents always run live. Offline mode is a pipeline-testing
@@ -344,7 +349,8 @@ class Agent:
 
         from openai import OpenAI
 
-        client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+        client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key,
+                        timeout=90.0)
         tool_schemas = self._registry.schemas()
 
         kwargs: dict[str, Any] = {
@@ -356,7 +362,20 @@ class Agent:
             kwargs["tools"] = tool_schemas
             kwargs["tool_choice"] = "auto"
 
-        resp = client.chat.completions.create(**kwargs)
+        import time as _time
+        last_exc: Exception | None = None
+        for attempt in range(1 + self._LLM_RETRIES):
+            try:
+                resp = client.chat.completions.create(**kwargs)
+                break
+            except Exception as exc:  # httpx timeouts, 429s, 5xx — all retryable
+                last_exc = exc
+                if attempt >= self._LLM_RETRIES:
+                    raise
+                _time.sleep(self._RETRY_BACKOFF_S[min(attempt, len(self._RETRY_BACKOFF_S) - 1)])
+        else:  # pragma: no cover
+            raise last_exc or RuntimeError("llm call failed")
+
         msg = resp.choices[0].message
 
         # crude cost telemetry
@@ -367,7 +386,23 @@ class Agent:
         return msg
 
 
+# Global sinks — receive EVERY agent event regardless of which sink the
+# caller passed. Used by the Convex live bridge to mirror runs into the
+# deployed console. Register with register_global_sink().
+_GLOBAL_SINKS: list[Callable[[AgentEvent], None]] = []
+
+
+def register_global_sink(fn: Callable[[AgentEvent], None]) -> None:
+    if fn not in _GLOBAL_SINKS:
+        _GLOBAL_SINKS.append(fn)
+
+
 def _emit(sink: EventSink, ev: AgentEvent) -> None:
+    for gs in _GLOBAL_SINKS:
+        try:
+            gs(ev)
+        except Exception:  # pragma: no cover
+            pass
     if sink is not None:
         try:
             sink(ev)

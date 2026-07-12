@@ -25,7 +25,18 @@ class Sales(Agent):
         prototype_url: str,
         walkthrough_url: str,
     ) -> None:
-        super().__init__()
+        from ghost.config import settings
+
+        identity = (
+            "## Founder identity (NON-NEGOTIABLE)\n"
+            f"You write on behalf of **{settings.founder_name}**"
+            + (f" of **{settings.founder_company}**" if settings.founder_company else "")
+            + ".\n"
+            f"- Sign the email exactly: `{settings.founder_name.split()[0]}`\n"
+            + (f"- Reply-to address: {settings.founder_email}\n" if settings.founder_email else "")
+            + "- NEVER invent a different sender name. No 'Alex', no aliases."
+        )
+        super().__init__(system_extra=identity)
         self._prospect = prospect
         self._prototype_url = prototype_url
         self._walkthrough_url = walkthrough_url

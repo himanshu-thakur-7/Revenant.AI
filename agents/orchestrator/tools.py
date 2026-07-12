@@ -80,6 +80,16 @@ def _parse_prospect(prospect_json: Any) -> dict | str:
     return f"prospect_json parsed to {type(data).__name__}, expected an object"
 
 
+# Run-scoped delegation memo: (tool, company) → result JSON. Guards against
+# the LLM re-firing an expensive stage (Engineer once double-built a
+# prototype in a single chain). Cleared when a new Research chain starts.
+_RUN_MEMO: dict[tuple[str, str], str] = {}
+
+
+def _memo_key(tool_name: str, prospect: dict) -> tuple[str, str]:
+    return (tool_name, (prospect.get("company_name") or "").lower().strip())
+
+
 def delegation_stubs() -> list[Tool]:
     """The four sub-agent delegation tools — all live, not stubs."""
 
@@ -90,7 +100,13 @@ def delegation_stubs() -> list[Tool]:
           "product framing — do NOT re-describe the product in the brief.")
     def spawn_research_agent(brief: str, max_prospects: int = 3) -> str:
         from ..base import current_sink
+        from ..bridge import bridge
         from ..research import Research
+
+        # A fresh Research chain = a fresh story on the live console,
+        # and a fresh delegation memo.
+        bridge.new_run()
+        _RUN_MEMO.clear()
 
         briefing = f"{brief.strip()}\n\nTarget shortlist size: {max_prospects}."
         r = Research()
@@ -118,9 +134,14 @@ def delegation_stubs() -> list[Tool]:
                           "/context before delegating to Engineer.")
             })
 
+        key = _memo_key("engineer", prospect)
+        if key in _RUN_MEMO:
+            return _RUN_MEMO[key]  # already built this run — don't rebuild
+
         eng = Engineer(founder_context=ctx, prospect=prospect)
-        result = eng.build(on_event=current_sink())
-        return json.dumps(result, default=str)
+        result = json.dumps(eng.build(on_event=current_sink()), default=str)
+        _RUN_MEMO[key] = result
+        return result
 
     @tool("Delegate to the Director agent — films a Loom-style walkthrough of the "
           "already-deployed prototype with an AI voiceover, uploads to Cloudflare "
@@ -135,9 +156,14 @@ def delegation_stubs() -> list[Tool]:
         if isinstance(prospect, str):
             return json.dumps({"error": prospect})
 
+        key = _memo_key("director", prospect)
+        if key in _RUN_MEMO:
+            return _RUN_MEMO[key]
+
         d = Director(prototype_url=prototype_url, prospect=prospect)
-        result = d.film(on_event=current_sink())
-        return json.dumps(result, default=str)
+        result = json.dumps(d.film(on_event=current_sink()), default=str)
+        _RUN_MEMO[key] = result
+        return result
 
     @tool("Delegate to the Sales agent — drafts a personalised outbound email + "
           "renders a 5-6 slide pitch deck (.pptx) tailored to this prospect, "
@@ -163,9 +189,21 @@ def delegation_stubs() -> list[Tool]:
         result = s.draft(on_event=current_sink())
         return json.dumps(result, default=str)
 
+    @tool("Send an APPROVED email draft. Only call this when the founder has "
+          "explicitly approved sending in this conversation. Pass the "
+          "`campaign_id` from Sales's result and the `to_email` the founder "
+          "named. Honors DRY_RUN (default on: logs instead of sending). "
+          "Returns a status dict — relay it honestly, including dry-run notes.")
+    def send_approved_email(campaign_id: str, to_email: str) -> str:
+        from ..sales import send as send_mod
+
+        result = send_mod.send(campaign_id, to_email)
+        return json.dumps(result, default=str)
+
     return [
         spawn_research_agent,
         spawn_engineer_agent,
         spawn_director_agent,
         spawn_sales_agent,
+        send_approved_email,
     ]

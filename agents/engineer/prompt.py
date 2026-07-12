@@ -33,7 +33,27 @@ specific data.
    Shroud's MRN + AMOUNT + NAME redaction; for a fintech, CARD + IBAN + SSN).
    State the angle in one sentence in your working memory.
 4. **Draft the prototype.** `write_prototype_file("index.html", "<html>…")`
-   — one big call. The file MUST include:
+   — one big call. When the founder's product is a detection/redaction
+   engine, base the demo's inline JS on this VERIFIED pattern table
+   (ordering matters — specific before fuzzy; do not "improve" the regexes,
+   they're tested):
+
+   ```js
+   const PATTERNS = [
+     { name: 'EMAIL',  regex: /\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b/g, ph: '[EMAIL]' },
+     { name: 'SSN',    regex: /\\b\\d{3}-\\d{2}-\\d{4}\\b/g, ph: '[SSN]' },
+     { name: 'CARD',   regex: /\\b(?:\\d[ -]?){13,16}\\b/g, ph: '[CARD]' },
+     { name: 'MRN',    regex: /\\bMRN[:\\s#-]*\\d{6,10}\\b/gi, ph: '[MRN]' },
+     { name: 'PHONE',  regex: /(?:\\+?\\d{1,3}[\\s.-]?)?(?:\\(\\d{2,4}\\)|\\d{2,4})[\\s.-]?\\d{3,4}[\\s.-]?\\d{3,4}/g, ph: '[PHONE]' },
+     // NOTE: no leading \\b before $ — dollar sign is a non-word char, \\b never matches there
+     { name: 'AMOUNT', regex: /(?:USD|EUR|INR|\\$|₹)\\s?\\d{1,3}(?:[,\\s]?\\d{3})*(?:\\.\\d+)?/g, ph: '[AMOUNT]' },
+     { name: 'DATE',   regex: /\\b\\d{4}-\\d{2}-\\d{2}\\b/g, ph: '[DATE]' },
+     // NAME runs LAST + skips common capitalized non-name words
+     { name: 'NAME',   regex: /\\b(?!(?:Patient|Doctor|The|Her|His|Their|From|Dear)\\b)[A-Z][a-z]+ (?!(?:Street|Ave|Road)\\b)[A-Z][a-z]+\\b/g, ph: '[NAME]' },
+   ];
+   ```
+
+   The file MUST include:
    - `<html>`, `<head>` with a `<title>` mentioning the prospect
    - Tailwind via `<script src="https://cdn.tailwindcss.com"></script>`
    - A hero: `Shroud × <Company>` (or the founder's product × company)

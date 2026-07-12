@@ -67,6 +67,14 @@ class Settings(BaseModel):
 
     stage1b_provider: str = "openai"
 
+    # Founder identity — signs the outbound emails, never invented by the LLM
+    founder_name: str = "the founder"
+    founder_email: str | None = None
+    founder_company: str | None = None
+
+    # Apollo.io — contact discovery (people search + email reveal)
+    apollo_api_key: str | None = None
+
     # D-ID (avatar lip-sync)
     did_api_key: str | None = None
     did_presenter_id: str = "amy-Aq6OmGZnMt"  # stock: warm business tone
@@ -113,6 +121,10 @@ def get_settings() -> Settings:
         telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN"),
         telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID"),
         stage1b_provider=os.getenv("STAGE1B_PROVIDER", "openai"),
+        founder_name=os.getenv("FOUNDER_NAME", "the founder"),
+        founder_email=os.getenv("FOUNDER_EMAIL"),
+        founder_company=os.getenv("FOUNDER_COMPANY"),
+        apollo_api_key=os.getenv("APOLLO_API_KEY"),
         did_api_key=os.getenv("DID_API_KEY"),
         did_presenter_id=os.getenv("DID_PRESENTER_ID", "amy-Aq6OmGZnMt"),
         skip_lipsync=_flag("DIRECTOR_SKIP_LIPSYNC", False),

@@ -11,10 +11,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from ghost.config import settings
 from ghost.llm import complete_json
 
 from ..tools import Tool, tool
-from . import linkup, web
+from . import apollo, linkup, web
 from .email_guess import guess as guess_emails_impl
 
 
@@ -125,11 +126,26 @@ def world_tools() -> list[Tool]:
 
     @tool("Generate candidate email addresses for (first_name, last_name, "
           "company_domain). Returns ranked patterns — not verified sends. "
-          "Include only when a real name + domain are known.")
+          "FALLBACK ONLY: prefer find_contact (Apollo, verified emails) "
+          "when it's configured.")
     def guess_emails(first_name: str, last_name: str, company_domain: str) -> list[dict[str, str]]:
         return guess_emails_impl(first_name, last_name, company_domain)
 
-    return [web_search, fetch_page, extract_pain_signals, guess_emails]
+    @tool("Find the best decision-maker at a company via Apollo.io — returns "
+          "{name, title, linkedin_url, email, email_verified, alternates}. "
+          "Spends at most ONE email-reveal credit per call, so call it once "
+          "per company, only for prospects you intend to add. THE preferred "
+          "way to get a real contact — use before guess_emails.")
+    def find_contact(company_domain: str) -> dict:
+        if not settings.apollo_api_key:
+            return {"error": "Apollo not configured (APOLLO_API_KEY missing) — "
+                             "fall back to guess_emails."}
+        try:
+            return apollo.find_best_contact(company_domain)
+        except apollo.ApolloError as exc:
+            return {"error": str(exc)}
+
+    return [web_search, fetch_page, extract_pain_signals, guess_emails, find_contact]
 
 
 def shortlist_tools(state: ShortlistState) -> list[Tool]:

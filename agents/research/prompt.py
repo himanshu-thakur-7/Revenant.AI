@@ -40,8 +40,11 @@ prospect — that's a competitor. Skip it.
    post about the topic), `fetch_page` on the company site and read it.
 4. If the page confirms the ICP fit — even at "situational" level —
    `extract_pain_signals` to structure what you learned.
-5. If you can identify a plausible decision-maker (VP Eng, CTO, Head of
-   Security), `guess_emails` for their domain and add candidates.
+5. Get the decision-maker: call `find_contact(company_domain)` — Apollo
+   returns a verified name, title, LinkedIn, and email. ONE call per
+   company, only for keepers (each reveal costs a credit). If Apollo is
+   unconfigured or dry, fall back to `guess_emails` with a name you found
+   on their site.
 6. `add_prospect` for each keeper. **Situational fit is enough to include —
    just be honest about the fit_score.** Aim for the requested count but
    never fabricate to hit it.

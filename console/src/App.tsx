@@ -16,6 +16,7 @@ const ACTS = [
 ];
 
 const AGENT_META: Record<string, { icon: string; cls: string }> = {
+  "The Brain": { icon: "🧠", cls: "ag-brain" },
   "Human SDR": { icon: "SDR", cls: "ag-human" },
   Detective: { icon: "🔍", cls: "ag-detective" },
   "Truth Ledger": { icon: "📜", cls: "ag-ledger" },
@@ -56,6 +57,31 @@ export function App() {
       setPlaying(true); // replay starts on arrival
     });
   }, []);
+
+  // LIVE mode: while backed by Convex, poll for new events so a terminal
+  // autopilot run fills this console in real time for the audience.
+  useEffect(() => {
+    if (source !== "convex") return;
+    const iv = setInterval(async () => {
+      const { campaigns: c, events: e } = await loadAll();
+      setEvents((prev) => {
+        const prevMax = prev.length ? Math.max(...prev.map((x) => x.at)) : -1;
+        const nextMax = e.length ? Math.max(...e.map((x) => x.at)) : -1;
+        if (e.length !== prev.length || nextMax !== prevMax) {
+          setCampaigns(c);
+          // viewer opened late or run restarted → jump near the live edge
+          setElapsed((t) => {
+            if (nextMax < prevMax) return 0; // fresh run reset
+            return nextMax - t > 30 ? Math.max(0, nextMax - 5) : t;
+          });
+          setPlaying(true);
+          return e;
+        }
+        return prev;
+      });
+    }, 3000);
+    return () => clearInterval(iv);
+  }, [source]);
 
   const totalTime = useMemo(
     () => (events.length ? Math.max(...events.map((e) => e.at)) + 2 : 0),

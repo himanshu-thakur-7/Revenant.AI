@@ -370,6 +370,7 @@ body {
 @keyframes blink { 50% { opacity: 0; } }
 
 /* agent colors */
+.ag-brain { --ag: #7defd6; }
 .ag-detective { --ag: #52e0c4; }
 .ag-ledger { --ag: #b9c6dd; }
 .ag-gate { --ag: #f5a623; }

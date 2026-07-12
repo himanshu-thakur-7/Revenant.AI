@@ -65,8 +65,13 @@ def draft_row(*, prospect: dict[str, Any],
             "evidence": prospect.get("pain_evidence", []),
         },
     }
+    # Reuse the live-bridge campaign id when this run already surfaced the
+    # company on the console — keeps the Board showing ONE card per prospect.
+    from ..bridge import bridge
+    cid = (bridge.campaign_id_for(prospect.get("company_name", ""))
+           or f"camp_sales_{int(time.time())}_{prospect.get('company_domain','x').replace('.','-')}")
     return {
-        "id": f"camp_sales_{int(time.time())}_{prospect.get('company_domain','x').replace('.','-')}",
+        "id": cid,
         "seller_id": "shroud",
         "state": "awaiting_review",
         "tier": "promote",
