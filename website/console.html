@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Revenant · Live — the agency floor</title>
+<style>
+  :root{
+    --void:#0a0605; --ash:#160f0c; --fog:#221512; --edge:rgba(255,138,61,.14);
+    --ember:#ff5a1f; --ember-hot:#ff8a3d; --coal:#ff3410; --gold:#ffb347;
+    --bone:#f4ece6; --mist:#a5928a; --faint:#5c463d; --teal:#4fe0c4; --ok:#5fd08a;
+    --serif:'Iowan Old Style','Palatino Linotype',Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  body{margin:0;background:var(--void);color:var(--bone);font-family:var(--mono);
+    line-height:1.5;-webkit-font-smoothing:antialiased;height:100vh;overflow:hidden}
+  .scan{position:fixed;inset:0;pointer-events:none;z-index:60;opacity:.22;
+    background:repeating-linear-gradient(to bottom,transparent 0 3px,rgba(0,0,0,.18) 3px 4px)}
+  .vignette{position:fixed;inset:0;pointer-events:none;z-index:59;
+    background:radial-gradient(120% 80% at 50% 30%,transparent 55%,rgba(6,3,2,.8) 100%)}
+  a{color:var(--ember-hot);text-decoration:none}
+  /* shell */
+  .wrap{display:flex;flex-direction:column;height:100vh}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:12px clamp(14px,3vw,28px);border-bottom:1px solid var(--edge);
+    background:linear-gradient(to bottom,rgba(22,15,12,.9),rgba(10,6,5,.6));flex:none}
+  .brand{font-family:var(--serif);font-size:19px;letter-spacing:.34em;text-indent:.34em;font-weight:600}
+  .brand b{color:var(--ember)}
+  .brand .live{font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--ember-hot);
+    border:1px solid rgba(255,90,31,.5);border-radius:3px;padding:2px 7px;margin-left:12px;vertical-align:middle}
+  .hstat{display:flex;align-items:center;gap:18px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mist)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);display:inline-block;margin-right:7px;vertical-align:middle}
+  .dot.on{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+  .dot.busy{background:var(--gold);box-shadow:0 0 10px var(--gold);animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.3}}
+  .gear{cursor:pointer;color:var(--mist);border:1px solid var(--edge);border-radius:3px;padding:5px 9px;font-size:11px}
+  .gear:hover{color:var(--bone);border-color:var(--faint)}
+  /* body split */
+  main{flex:1;display:grid;grid-template-columns:1.15fr .85fr;min-height:0}
+  @media(max-width:820px){main{grid-template-columns:1fr;grid-template-rows:1fr 1fr}}
+  .pane{display:flex;flex-direction:column;min-height:0;min-width:0}
+  .pane.chat{border-right:1px solid var(--edge)}
+  .ptitle{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--faint);
+    padding:11px clamp(14px,3vw,26px) 8px;flex:none}
+  .ptitle b{color:var(--ember-hot)}
+  .scrollzone{flex:1;overflow-y:auto;padding:4px clamp(14px,3vw,26px) 20px;scroll-behavior:smooth}
+  .scrollzone::-webkit-scrollbar{width:8px}.scrollzone::-webkit-scrollbar-thumb{background:var(--fog);border-radius:4px}
+  /* chat */
+  .msg{margin:14px 0;max-width:92%;font-family:var(--sans);font-size:14.5px;line-height:1.62}
+  .msg.you{margin-left:auto;text-align:right}
+  .msg .who{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+  .msg.you .who{color:var(--ember-hot)}
+  .msg.rev .who{color:var(--teal)}
+  .msg .body{white-space:pre-wrap;background:rgba(255,255,255,.02);border:1px solid var(--edge);
+    border-radius:10px;padding:11px 14px;display:inline-block;text-align:left}
+  .msg.you .body{background:rgba(255,90,31,.09);border-color:rgba(255,90,31,.3)}
+  .msg.rev .body{background:rgba(79,224,196,.05);border-color:rgba(79,224,196,.16)}
+  .cursor{display:inline-block;width:7px;height:15px;background:var(--teal);vertical-align:text-bottom;animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  /* agency floor trace */
+  .floor{background:linear-gradient(to bottom,rgba(6,3,2,.4),transparent)}
+  .stat-row{display:flex;gap:20px;padding:0 clamp(14px,3vw,26px) 10px;flex:none;flex-wrap:wrap}
+  .stat b{display:block;font-family:var(--serif);font-size:22px;color:var(--bone)}
+  .stat span{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+  .trace{font-size:12.5px}
+  .ev{display:flex;align-items:flex-start;gap:10px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.03);animation:slidein .25s}
+  @keyframes slidein{from{opacity:0;transform:translateY(4px)}}
+  .ev .ic{width:26px;text-align:center;flex:none;font-size:14px}
+  .ev .txt{flex:1;min-width:0}
+  .ev .lbl{color:var(--bone)}
+  .ev .sub{color:var(--mist);font-size:11px;word-break:break-word}
+  .ev .rt{flex:none;color:var(--faint);font-size:11px;margin-left:6px}
+  .ev.run .ic{color:var(--gold)} .ev.done .ic{color:var(--ok)}
+  .ev.spawn{background:rgba(79,224,196,.05);border-left:2px solid var(--teal);padding-left:8px;margin:4px 0}
+  .ev.spawn .lbl{color:var(--teal)}
+  .ev.sys .ic{color:var(--ember-hot)}
+  .spin{display:inline-block;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+  /* input */
+  .composer{flex:none;padding:12px clamp(14px,3vw,26px);border-top:1px solid var(--edge);
+    background:linear-gradient(to top,rgba(22,15,12,.9),transparent)}
+  .composer form{display:flex;gap:10px;align-items:flex-end}
+  .composer textarea{flex:1;resize:none;background:rgba(0,0,0,.35);border:1px solid var(--edge);border-radius:8px;
+    color:var(--bone);font-family:var(--mono);font-size:13.5px;padding:11px 13px;line-height:1.5;max-height:120px;outline:none}
+  .composer textarea:focus{border-color:rgba(255,90,31,.4)}
+  .send{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;padding:12px 20px;border-radius:6px;
+    cursor:pointer;border:1px solid rgba(255,90,31,.5);color:var(--ember-hot);background:rgba(255,90,31,.09);transition:.2s}
+  .send:hover{background:rgba(255,90,31,.2);box-shadow:0 0 22px rgba(255,90,31,.4)}
+  .send:disabled{opacity:.4;cursor:default;box-shadow:none}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .chip{font-size:11px;color:var(--mist);border:1px solid var(--edge);border-radius:99px;padding:5px 11px;cursor:pointer}
+  .chip:hover{color:var(--ember-hot);border-color:rgba(255,90,31,.4)}
+  .empty{color:var(--faint);font-size:12.5px;padding:24px 0;text-align:center;line-height:1.8}
+  /* settings modal */
+  .modal{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;background:rgba(6,3,2,.75)}
+  .modal.open{display:flex}
+  .card{background:var(--ash);border:1px solid var(--edge);border-radius:12px;padding:24px;width:min(440px,92vw)}
+  .card h3{margin:0 0 4px;font-family:var(--serif);font-size:20px}
+  .card p{color:var(--mist);font-size:12.5px;margin:0 0 16px}
+  .card label{display:block;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:12px 0 5px}
+  .card input{width:100%;background:rgba(0,0,0,.4);border:1px solid var(--edge);border-radius:6px;color:var(--bone);
+    font-family:var(--mono);font-size:13px;padding:10px 12px;outline:none}
+  .card input:focus{border-color:rgba(255,90,31,.4)}
+  .card .row{display:flex;gap:10px;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="scan"></div><div class="vignette"></div>
+
+<div class="wrap">
+  <header>
+    <div class="brand">REVENANT<b>·</b>AI <span class="live">LIVE FLOOR</span></div>
+    <div class="hstat">
+      <span id="conn"><span class="dot" id="connDot"></span><span id="connTxt">connecting…</span></span>
+      <span class="gear" onclick="openSettings()">⚙ endpoint</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- CHAT -->
+    <section class="pane chat">
+      <div class="ptitle">CONVERSATION <b>· brief the agency</b></div>
+      <div class="scrollzone" id="chat">
+        <div class="empty" id="chatEmpty">
+          Brief the agency in plain English.<br>
+          e.g. <i>“Find a strong customer for Razorpay and build them a working prototype.”</i><br>
+          The manager agent will research, build, and draft — live, on the right. →
+        </div>
+      </div>
+      <div class="composer">
+        <div class="chips" id="chips"></div>
+        <form id="form">
+          <textarea id="input" rows="1" placeholder="Brief the agency…  (Enter to send, Shift+Enter for newline)"></textarea>
+          <button class="send" id="send" type="submit">Summon ▸</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- AGENCY FLOOR -->
+    <section class="pane floor">
+      <div class="ptitle">AGENCY FLOOR <b>· live trace</b></div>
+      <div class="stat-row">
+        <div class="stat"><b id="stTools">0</b><span>tool calls</span></div>
+        <div class="stat"><b id="stAgents">1</b><span>agents</span></div>
+        <div class="stat"><b id="stElapsed">0s</b><span>elapsed</span></div>
+        <div class="stat"><b id="stState">idle</b><span>status</span></div>
+      </div>
+      <div class="scrollzone trace" id="trace">
+        <div class="empty">The manager and its specialists show every move here —<br>research, builds, deploys, hand-offs — as it happens.</div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- SETTINGS -->
+<div class="modal" id="modal">
+  <div class="card">
+    <h3>Connect to Hermes</h3>
+    <p>The console drives a live Hermes agent (the harness). Point it at the gateway's API server and paste the API key. Stored locally in your browser only.</p>
+    <label>API base URL</label>
+    <input id="cfgBase" placeholder="http://127.0.0.1:8642">
+    <label>API key (Bearer)</label>
+    <input id="cfgKey" type="password" placeholder="hermes_…">
+    <div class="row">
+      <button class="send" onclick="saveSettings()">Save & connect</button>
+      <button class="chip" style="padding:12px 18px" onclick="closeSettings()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------- config (localStorage, never committed) ---------------- */
+const LS='revenant_console_cfg';
+function cfg(){ try{return JSON.parse(localStorage.getItem(LS))||{}}catch{ return {} } }
+function setCfg(c){ localStorage.setItem(LS, JSON.stringify(c)) }
+let CFG = Object.assign({base:'http://127.0.0.1:8642', key:''}, cfg());
+// stable session for memory + continuity across turns in this browser
+if(!CFG.sid){ CFG.sid = 'web-'+Math.random().toString(36).slice(2,12); setCfg(CFG); }
+
+const SYSTEM = `You are Revenant, an autonomous outbound-growth AGENCY run entirely by AI agents, acting as the manager.
+You represent the founder's startup and win them new customers end to end.
+You have specialist tools from the 'revenant' server: setup_startup, find_prospects, build_campaign (researches, builds and DEPLOYS a real working prototype to Cloudflare Pages), draft_email, status — plus web_search (Linkup), files, terminal, code, and delegation for spawning sub-agents.
+Work the real job live: understand the startup, hunt a fit prospect, build & deploy a real prototype, draft outreach. Narrate briefly what you're doing and why as you go. Prefer real tools over talk. When a task is big, delegate to a sub-agent. Keep the founder's trust: never fabricate a result you didn't produce.`;
+
+/* ---------------- element refs ---------------- */
+const $=s=>document.querySelector(s);
+const chat=$('#chat'), trace=$('#trace'), input=$('#input'), form=$('#form'), sendBtn=$('#send');
+let busy=false, runStart=0, elapsedTimer=null, toolCount=0, agentCount=1;
+
+/* ---------------- connection check ---------------- */
+async function checkConn(){
+  const d=$('#connDot'), t=$('#connTxt');
+  if(!CFG.key){ d.className='dot'; t.textContent='no key — click ⚙'; return false; }
+  try{
+    const r=await fetch(CFG.base.replace(/\/$/,'')+'/health',{headers:{}});
+    if(r.ok){ d.className='dot on'; t.textContent='hermes connected'; return true; }
+    throw 0;
+  }catch{ d.className='dot'; t.textContent='gateway unreachable'; return false; }
+}
+
+/* ---------------- settings modal ---------------- */
+function openSettings(){ $('#cfgBase').value=CFG.base; $('#cfgKey').value=CFG.key; $('#modal').classList.add('open'); }
+function closeSettings(){ $('#modal').classList.remove('open'); }
+function saveSettings(){
+  CFG.base=$('#cfgBase').value.trim()||'http://127.0.0.1:8642';
+  CFG.key=$('#cfgKey').value.trim();
+  setCfg(CFG); closeSettings(); checkConn();
+}
+
+/* ---------------- chat + trace rendering ---------------- */
+function addMsg(who, text){
+  $('#chatEmpty')?.remove();
+  const el=document.createElement('div'); el.className='msg '+who;
+  el.innerHTML='<div class="who">'+(who==='you'?'Founder':'Revenant')+'</div><div class="body"></div>';
+  el.querySelector('.body').textContent=text;
+  chat.appendChild(el); chat.scrollTop=chat.scrollHeight; return el.querySelector('.body');
+}
+// pretty-print tool names → agency roles
+function pretty(tool){
+  const map={
+    'mcp__revenant__setup_startup':['📋','Onboard · read the startup'],
+    'mcp__revenant__find_prospects':['🔭','Research · hunt prospects'],
+    'mcp__revenant__build_campaign':['🛠️','Engineer · build & deploy prototype'],
+    'mcp__revenant__draft_email':['✉️','Sales · draft outreach'],
+    'mcp__revenant__status':['📊','Status'],
+    'web_search':['🔎','Linkup · web search'],'web_extract':['🔎','Linkup · extract'],
+    'terminal':['⌘','Shell'],'process':['⌘','Process'],'read_terminal':['⌘','Shell'],
+    'write_file':['📁','Write file'],'read_file':['📁','Read file'],'patch':['📁','Patch'],'search_files':['📁','Search files'],
+    'execute_code':['⚡','Run code'],'browser_navigate':['🌐','Browser'],'vision_analyze':['👁️','Vision'],
+    'delegate':['👥','Delegate → sub-agent'],'delegation':['👥','Delegate → sub-agent'],
+  };
+  if(map[tool]) return map[tool];
+  if(/deleg/i.test(tool)) return ['👥','Delegate → sub-agent'];
+  if(tool&&tool.startsWith('mcp__revenant__')) return ['◆','Revenant · '+tool.replace('mcp__revenant__','')];
+  return ['▸', tool||'tool'];
+}
+const runningEv={}; // tool -> {el, t0}
+function traceEmpty(){ trace.querySelector('.empty')?.remove(); }
+function evStart(tool){
+  traceEmpty();
+  const [ic,lbl]=pretty(tool);
+  const isSpawn=/deleg/i.test(tool);
+  if(isSpawn){ agentCount++; $('#stAgents').textContent=agentCount; }
+  const el=document.createElement('div'); el.className='ev run'+(isSpawn?' spawn':'');
+  el.innerHTML='<div class="ic"><span class="spin">◠</span></div><div class="txt"><span class="lbl">'+lbl+'</span></div><div class="rt">running</div>';
+  trace.appendChild(el); trace.scrollTop=trace.scrollHeight;
+  runningEv[tool]=runningEv[tool]||[]; runningEv[tool].push({el,t0:performance.now()});
+  toolCount++; $('#stTools').textContent=toolCount;
+}
+function evDone(tool){
+  const stack=runningEv[tool]; if(!stack||!stack.length) return;
+  const {el,t0}=stack.pop();
+  const dt=((performance.now()-t0)/1000).toFixed(1);
+  el.className=el.className.replace('run','done');
+  el.querySelector('.ic').innerHTML='✓';
+  el.querySelector('.rt').textContent=dt+'s';
+}
+function sysEv(text){
+  traceEmpty();
+  const el=document.createElement('div'); el.className='ev sys';
+  el.innerHTML='<div class="ic">✦</div><div class="txt"><span class="sub">'+text+'</span></div>';
+  trace.appendChild(el); trace.scrollTop=trace.scrollHeight;
+}
+
+/* ---------------- run a turn ---------------- */
+async function runTurn(text){
+  busy=true; sendBtn.disabled=true; input.value=''; autosize();
+  addMsg('you', text);
+  const bodyEl=addMsg('rev',''); const cur=document.createElement('span'); cur.className='cursor'; bodyEl.appendChild(cur);
+  $('#connDot').className='dot busy'; $('#connTxt').textContent='working…'; $('#stState').textContent='running';
+  runStart=performance.now(); clearInterval(elapsedTimer);
+  elapsedTimer=setInterval(()=>{$('#stElapsed').textContent=Math.round((performance.now()-runStart)/1000)+'s'},500);
+  const base=CFG.base.replace(/\/$/,'');
+  // NOTE: only Authorization + Content-Type are in the server's CORS
+  // Access-Control-Allow-Headers, so session continuity/memory scope must go
+  // through the request BODY (session_id), not X-Hermes-* headers, or the
+  // browser preflight blocks the POST. (To restore header-based long-term
+  // memory scoping, add X-Hermes-Session-Key/Id to _CORS_HEADERS server-side.)
+  const H={'Authorization':'Bearer '+CFG.key,'Content-Type':'application/json'};
+  let acc='';
+  try{
+    const r=await fetch(base+'/v1/runs',{method:'POST',headers:H,
+      body:JSON.stringify({input:text, instructions:SYSTEM, session_id:CFG.sid})});
+    if(!r.ok){ throw new Error('run failed: '+r.status+' '+(await r.text()).slice(0,120)); }
+    const run_id=(await r.json()).run_id;
+    sysEv('run '+run_id.slice(0,12)+' started');
+    // stream events
+    const es=await fetch(base+'/v1/runs/'+run_id+'/events',{headers:H});
+    const reader=es.body.getReader(); const dec=new TextDecoder(); let buf='';
+    while(true){
+      const {value,done}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      let idx;
+      while((idx=buf.indexOf('\n'))>=0){
+        const line=buf.slice(0,idx); buf=buf.slice(idx+1);
+        if(!line.startsWith('data:')) continue;
+        let ev; try{ ev=JSON.parse(line.slice(5).trim()) }catch{ continue }
+        const et=ev.event||ev.type;
+        if(et==='message.delta'){ acc+=(ev.delta||''); cur.remove(); bodyEl.textContent=acc; bodyEl.appendChild(cur); chat.scrollTop=chat.scrollHeight; }
+        else if(et==='tool.started'){ evStart(ev.tool||ev.name); }
+        else if(et==='tool.completed'){ evDone(ev.tool||ev.name); }
+        else if(et==='run.completed'||et==='response.completed'){ sysEv('run complete'); }
+        else if(et==='run.failed'){ sysEv('run failed'); }
+      }
+    }
+  }catch(err){
+    cur.remove(); if(!acc) bodyEl.textContent='⚠ '+err.message;
+    sysEv('error: '+err.message);
+  }finally{
+    cur.remove(); clearInterval(elapsedTimer);
+    busy=false; sendBtn.disabled=false; input.focus();
+    $('#connDot').className='dot on'; $('#connTxt').textContent='hermes connected'; $('#stState').textContent='idle';
+  }
+}
+
+/* ---------------- input wiring ---------------- */
+function autosize(){ input.style.height='auto'; input.style.height=Math.min(120,input.scrollHeight)+'px'; }
+input.addEventListener('input', autosize);
+input.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); form.requestSubmit(); }});
+form.addEventListener('submit', e=>{ e.preventDefault(); const t=input.value.trim(); if(!t||busy) return;
+  if(!CFG.key){ openSettings(); return; } runTurn(t); });
+
+const CHIPS=[
+  'Set up Razorpay as my startup, then find a strong merchant to win.',
+  'Find a fit customer for Razorpay and build them a working prototype.',
+  "What's the status of my current campaign?",
+];
+$('#chips').innerHTML=''; CHIPS.forEach(c=>{ const b=document.createElement('div'); b.className='chip'; b.textContent=c;
+  b.onclick=()=>{ input.value=c; autosize(); input.focus(); }; $('#chips').appendChild(b); });
+
+/* ---------------- boot ---------------- */
+(async function(){
+  if(!CFG.key){ openSettings(); }
+  await checkConn();
+  setInterval(checkConn, 15000);
+})();
+</script>
+</body>
+</html>
