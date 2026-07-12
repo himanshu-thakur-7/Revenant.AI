@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Bake a self-contained demo dataset into the console for static deploy.
 
-Runs the pipeline offline, then emits ``console/src/demoData.ts`` with the
-campaigns AND the rendered microsite HTML inlined (so the console's iframe can
-use ``srcdoc`` — no separate hosting needed). This is what makes the Vercel
-deploy work as a pure static site with zero backend.
+Runs the pipeline, then emits ``console/src/demoData.ts`` with the campaigns,
+the rendered microsite HTML inlined (iframe ``srcdoc``), and the full mission
+log — including a synthesized Act V arc (persistence engine → conversational
+closer → human handoff → Razorpay WON) for one campaign, so the deployed demo
+plays the entire storyline end to end with zero backend.
 
     python scripts/gen_demo_data.py
 """
@@ -17,16 +18,76 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def act5_arc(camp: dict, base_at: float) -> list[dict]:
+    """The conversion loop, made visible: outreach sent → silence → follow-up →
+    reply → the closer takes the call → human steps in → payment → WON."""
+    company = camp["lead"]["company_name"]
+    person = camp["lead"]["person_name"]
+    cid = camp["id"]
+    t = base_at
+
+    def ev(agent: str, message: str, kind: str, dwell: float, payload: dict | None = None):
+        nonlocal t
+        t += dwell
+        return {
+            "id": f"ev_demo_{len(out)}",
+            "at": round(t, 1),
+            "act": 5,
+            "agent": agent,
+            "kind": kind,
+            "message": message,
+            "campaign_id": cid,
+            "company": company,
+            "payload": payload or {},
+        }
+
+    out: list[dict] = []
+    out.append(ev("Human Closer",
+                  f"Operator approved the {company} package. Sending.",
+                  "info", 2.5, {"state": "sent"}))
+    out.append(ev("Outreach",
+                  f"Delivered to {person}'s inbox — live prototype + AI walkthrough attached. "
+                  f"Now we watch.", "mail", 2.2))
+    out.append(ev("Persistence",
+                  "48h, no reply. Consulting the memory ledger — drafting a follow-up that "
+                  "references the walkthrough, not a generic 'just circling back'.",
+                  "info", 3.0))
+    out.append(ev("Persistence",
+                  f"Reply detected from {person}: “Who built this?? Can we talk this week?” "
+                  f"Classified: MEETING REQUEST. Scheduling link sent.",
+                  "alert", 3.0, {"state": "replied"}))
+    out.append(ev("Closer",
+                  f"Calendar invite hit. The voice agent takes the call: introduces the "
+                  f"prototype it built, references their 8-minute hold times, qualifies scope.",
+                  "voice", 3.2))
+    out.append(ev("Closer",
+                  "Negotiation shifting to enterprise pricing and integration depth — "
+                  "beyond my mandate. Escalating.",
+                  "info", 2.6))
+    out.append(ev("Human Closer",
+                  f"⚡ HANDOFF — human closer joins the live call with full context: "
+                  f"the code built, the walkthrough, every touch. Seals the pilot.",
+                  "alert", 2.8))
+    out.append(ev("Razorpay",
+                  f"₹4,999 pilot payment received from {company}. Webhook → truth ledger.",
+                  "payment", 2.6))
+    out.append(ev("Truth Ledger",
+                  f"{company} → WON. The circle closes: found at 3 AM, engineered by "
+                  f"breakfast, closed by a human + agent team.",
+                  "state", 2.0, {"state": "won"}))
+    return out
+
+
 def main() -> None:
-    # run the pipeline fresh (offline)
+    # run the pipeline fresh
     from ghost.pipeline import run_seller
     from ghost.sellers import get_seller
-    from ghost.ledger import ledger
 
-    run_seller(get_seller("ring-ai"), limit=3)
+    run_seller(get_seller("echodesk"), limit=3)
 
     snap = json.loads((ROOT / "out" / "ledger.json").read_text())
     campaigns = snap.get("campaigns", [])
+    events = snap.get("events", [])
 
     # inline each microsite's HTML for iframe srcdoc
     for c in campaigns:
@@ -39,29 +100,32 @@ def main() -> None:
                 html = f.read_text()
         c["microsite_html"] = html
 
-    # synthesize a WON deal from the promoted one so the demo shows the payoff
+    # the promoted campaign gets the full Act V arc and ends WON
     promoted = next((c for c in campaigns if c.get("state") == "awaiting_review"), None)
     if promoted:
-        won = json.loads(json.dumps(promoted))
-        won["id"] = won["id"] + "_won"
-        won["state"] = "won"
-        won["lead"]["company_name"] = "Northgate Family Care"
-        won["lead"]["person_name"] = "Dr. Alan Osei"
-        won["email_subject"] = won["email_subject"].replace(
-            promoted["lead"]["company_name"], "Northgate Family Care"
-        )
-        campaigns.insert(0, won)
+        last_at = max((e["at"] for e in events), default=0.0)
+        arc = act5_arc(promoted, last_at)
+        events.extend(arc)
+        promoted["state"] = "won"
+        # mirror the arc into Convex so the live console plays the full circle
+        from ghost.ledger import ledger
+
+        ledger._convex("ledger:addEvents", {"runId": "act5-demo", "docs": arc})
 
     ts = (
         "// AUTO-GENERATED by scripts/gen_demo_data.py — do not edit by hand.\n"
-        "// A self-contained demo dataset so the deployed console needs no backend.\n"
-        "import type { Campaign } from './data';\n\n"
-        f"export const DEMO_CAMPAIGNS: Campaign[] = {json.dumps(campaigns, indent=2)};\n"
+        "// Self-contained demo dataset: campaigns + inlined microsites + the full\n"
+        "// mission log (Acts II–V) so the deployed console replays the storyline.\n"
+        "import type { Campaign, MissionEvent } from './data';\n\n"
+        f"export const DEMO_CAMPAIGNS: Campaign[] = {json.dumps(campaigns, indent=2)};\n\n"
+        f"export const DEMO_EVENTS: MissionEvent[] = {json.dumps(events, indent=2)};\n"
     )
     out = ROOT / "console" / "src" / "demoData.ts"
     out.write_text(ts)
-    print(f"wrote {out} ({len(campaigns)} campaigns, "
-          f"{sum(1 for c in campaigns if c.get('microsite_html'))} with inlined sites)")
+    print(
+        f"wrote {out} — {len(campaigns)} campaigns, {len(events)} events, "
+        f"{sum(1 for c in campaigns if c.get('microsite_html'))} inlined sites"
+    )
 
 
 if __name__ == "__main__":

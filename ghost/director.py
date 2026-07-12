@@ -29,6 +29,7 @@ import subprocess
 from pathlib import Path
 
 from .config import settings
+from .events import DIRECTOR, mission
 from .llm import complete_json
 from .log import log
 from .models import Artifact, Campaign, SellerProfile
@@ -100,8 +101,21 @@ def storyboard(campaign: Campaign, seller: SellerProfile) -> list[dict]:
 def direct(campaign: Campaign, seller: SellerProfile) -> Campaign:
     """Produce the walkthrough. Sets campaign.walkthrough_url."""
     log.stage(f"Director: filming an AI walkthrough of {campaign.lead.company_name}'s prototype…")
+    mission.emit(
+        4, DIRECTOR,
+        f"Rolling. Headless browser on {campaign.lead.company_name}'s live prototype — "
+        f"presenter bubble on, narration timed to the audio track. No human in the room.",
+        campaign_id=campaign.id, company=campaign.lead.company_name, kind="film", dwell=2.2,
+    )
     beats = storyboard(campaign, seller)
     total = round(sum(b["est_seconds"] for b in beats), 1)
+    for i, b in enumerate(beats, 1):
+        mission.emit(
+            4, DIRECTOR,
+            f"Beat {i}/{len(beats)} · {b['ui_action']}({b['target']}) — “{b['narration'][:90]}”",
+            campaign_id=campaign.id, company=campaign.lead.company_name,
+            kind="film", dwell=1.5,
+        )
 
     board_path = OUT / f"{campaign.id}.storyboard.json"
     board_path.write_text(json.dumps({"campaign": campaign.id, "beats": beats}, indent=2))
@@ -126,6 +140,13 @@ def direct(campaign: Campaign, seller: SellerProfile) -> Campaign:
                  meta={"beats": len(beats), "seconds": total})
     )
     campaign.add_cost(8)
+    mission.emit(
+        4, DIRECTOR,
+        f"Cut. {len(beats)} beats, ~{total}s — a Loom-style walkthrough of the prototype, "
+        f"recorded and edited by an agent, embedded on the microsite.",
+        campaign_id=campaign.id, company=campaign.lead.company_name,
+        kind="artifact", dwell=2.2, payload={"beats": len(beats), "seconds": total},
+    )
     log.ok(f"Walkthrough ready (~{total}s, {len(beats)} beats)")
     return campaign
 

@@ -12,7 +12,7 @@ from typing import Any
 
 # Keyed by seller slug. Each raw lead carries the fields recon would surface.
 CANNED_LEADS: dict[str, list[dict[str, Any]]] = {
-    "ring-ai": [
+    "echodesk": [
         {
             "company_name": "Meridian Health Group",
             "company_domain": "meridianhealth.example",

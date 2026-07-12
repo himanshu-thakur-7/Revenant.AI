@@ -5,7 +5,7 @@ description: >
   through the signal gate, engineer a personalized prototype + microsite, film an
   AI walkthrough, synthesize a voice memo, and park the result for human review.
   Use when the founder says "go find customers", "hunt for <seller>", or "run the
-  loop". Takes an optional seller slug (default ring-ai) and a lead limit.
+  loop". Takes an optional seller slug (default echodesk) and a lead limit.
 metadata:
   type: agent-skill
   runtime: python
@@ -27,7 +27,7 @@ agent-independent `ghost/` package, which Hermes invokes as a script.
 From the repo root:
 
 ```bash
-ghost run --seller {{seller_slug|default:ring-ai}} --limit {{limit|default:3}}
+ghost run --seller {{seller_slug|default:echodesk}} --limit {{limit|default:3}}
 ```
 
 Then publish results for the review console:

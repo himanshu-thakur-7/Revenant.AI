@@ -11,6 +11,7 @@ from __future__ import annotations
 import httpx
 
 from .config import settings
+from .events import PAYMENT, mission
 from .log import log
 from .models import Campaign, SellerProfile
 
@@ -27,6 +28,13 @@ def create_payment_link(campaign: Campaign, seller: SellerProfile) -> Campaign:
         log.dim(f"[payments] offline → {link}")
 
     campaign.payment_link = link
+    mission.emit(
+        3, PAYMENT,
+        f"Minted a paid-pilot link (₹{seller.pilot_price_inr}) for {campaign.lead.company_name} — "
+        f"when they pay, the webhook flips this deal to WON on its own.",
+        campaign_id=campaign.id, company=campaign.lead.company_name,
+        kind="payment", dwell=1.6, payload={"link": link},
+    )
     log.ok(f"Paid-pilot link ready ({seller.pilot_price_inr} INR)")
     return campaign
 

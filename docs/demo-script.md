@@ -14,7 +14,7 @@ console at `localhost:5175` and one microsite open in a second tab.
 > delete. We built the agency that ships **working software** instead."
 
 Open Hermes on Telegram. Dictate the seller identity with **Wispr Flow**:
-> *"We sell Ring AI — voice AI that answers every patient call for busy clinics."*
+> *"We sell EchoDesk AI — voice AI that answers every patient call for busy clinics."*
 
 Hermes fires `ghost-onboard` → `ghost-hunt`.
 

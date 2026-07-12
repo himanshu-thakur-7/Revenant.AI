@@ -1,0 +1,9 @@
+{
+  "name": "revenant-ai",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Revenant.AI — autonomous outbound engineer. Convex backend lives in convex/.",
+  "dependencies": {
+    "convex": "^1.42.1"
+  }
+}

@@ -71,8 +71,8 @@ Founder (Wispr Flow / Telegram)
 uv venv --python 3.11 && source .venv/bin/activate
 uv pip install -e ".[dev]"
 
-# 2. run the whole loop offline against the built-in Ring AI seller config
-ghost run --seller ring-ai --limit 3
+# 2. run the whole loop offline against the built-in EchoDesk AI seller config
+ghost run --seller echodesk --limit 3
 
 # 3. prove the gate does its job
 pytest ghost/tests/test_gate.py -q

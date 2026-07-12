@@ -307,9 +307,125 @@ body {
 .rv-link { color: var(--wisp); text-decoration: none; }
 .rv-link:hover { text-decoration: underline; }
 
+/* ── act rail ──────────────────────────────────────────────── */
+.rv-acts {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+.rv-act {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  transition: all 0.3s ease;
+  opacity: 0.45;
+}
+.rv-act-num {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 26px;
+  text-align: center;
+}
+.rv-act-title { font-size: 12px; font-weight: 600; line-height: 1.2; }
+.rv-act-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.rv-act-now {
+  opacity: 1;
+  border-color: rgba(82, 224, 196, 0.5);
+  background: rgba(82, 224, 196, 0.07);
+  box-shadow: 0 0 34px -14px rgba(82, 224, 196, 0.8);
+}
+.rv-act-now .rv-act-num { color: var(--wisp); text-shadow: 0 0 14px rgba(82,224,196,.6); }
+.rv-act-past { opacity: 0.8; }
+.rv-act-past .rv-act-num { color: var(--summon); }
+
+/* ── mission log ───────────────────────────────────────────── */
+.rv-log {
+  border-left: 2px solid var(--ag, var(--line-strong));
+  padding: 6px 10px 8px;
+  border-radius: 4px 10px 10px 4px;
+  background: rgba(148, 163, 184, 0.03);
+  animation: logIn 0.45s ease both;
+}
+@keyframes logIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.rv-log-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.rv-log-icon { font-size: 13px; }
+.rv-log-agent { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; color: var(--ag, var(--ink)); text-transform: uppercase; }
+.rv-log-company { font-size: 10.5px; color: var(--muted); }
+.rv-log-time { margin-left: auto; font-size: 9.5px; color: var(--faint); }
+.rv-log-msg { margin-top: 4px; font-size: 13px; line-height: 1.55; color: #c9d1e0; }
+.rv-log-alert {
+  background: rgba(245, 166, 35, 0.05);
+  box-shadow: 0 0 26px -14px var(--ag, var(--ember));
+}
+.rv-cursor { color: var(--wisp); animation: blink 1s steps(2) infinite; font-size: 13px; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* agent colors */
+.ag-detective { --ag: #52e0c4; }
+.ag-ledger { --ag: #b9c6dd; }
+.ag-gate { --ag: #f5a623; }
+.ag-profiler { --ag: #b98cff; }
+.ag-dev { --ag: #5ef2a0; }
+.ag-sandbox { --ag: #9df25e; }
+.ag-weaver { --ag: #5aa9ff; }
+.ag-copy { --ag: #e0aaff; }
+.ag-voice { --ag: #ff9ecb; }
+.ag-director { --ag: #ffd166; }
+.ag-outreach { --ag: #7cc0ff; }
+.ag-persist { --ag: #8a93ab; }
+.ag-closer { --ag: #ff9e6d; }
+.ag-human { --ag: #ffffff; }
+.ag-pay { --ag: #5ef2a0; }
+.ag-default { --ag: var(--muted); }
+
+/* ── tabs ──────────────────────────────────────────────────── */
+.rv-tab {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.rv-tab:hover { color: var(--ink); }
+.rv-tab-on { color: var(--wisp); border-bottom-color: var(--wisp); }
+
+/* ── WON banner ────────────────────────────────────────────── */
+.rv-won-banner {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(94, 242, 160, 0.45);
+  background: linear-gradient(90deg, rgba(94, 242, 160, 0.12), rgba(82, 224, 196, 0.04));
+  box-shadow: 0 0 50px -14px rgba(94, 242, 160, 0.65);
+  font-size: 14px;
+  animation: wonIn 0.7s ease both;
+}
+@keyframes wonIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
 /* responsive: stack the console on narrow screens */
-@media (max-width: 900px) {
+@media (max-width: 1020px) {
   .rv-grid { grid-template-columns: 1fr !important; }
   .rv-two { grid-template-columns: 1fr !important; }
+  .rv-acts { grid-template-columns: 1fr 1fr; }
   aside { position: static !important; }
 }

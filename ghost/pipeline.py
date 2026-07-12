@@ -2,17 +2,15 @@
 
 Runs one seller's campaign lifecycle end to end: recon → gate → (route by tier)
 → profiler → builder → deploy → director → voice → payments → outreach draft →
-awaiting_review. State transitions are persisted to the ledger after every step
-so a crash resumes where it stopped (conceptually — buildathon runs in-process).
-
-This mirrors the master-plan graph (§5) with the Addendum-001 signal gate as
-the routing front-door. It is intentionally sequential and readable; the Go
-concurrency model from the master plan is out of scope for the buildathon.
+awaiting_review. State transitions persist to the ledger after every step, and
+every move emits a mission-log event so the console can replay the run agent
+by agent — the storyline, visible.
 """
 
 from __future__ import annotations
 
 from . import builder, deploy, director, outreach, payments, profiler, recon, voice
+from .events import GATEKEEPER, OUTREACH, PROFILER, mission
 from .gate import evaluate
 from .ledger import ledger
 from .log import log
@@ -32,6 +30,7 @@ def run_seller(seller: SellerProfile, limit: int = 3) -> list[Campaign]:
         campaigns.append(camp)
 
     _summary(seller, campaigns)
+    ledger.publish_events()
     return campaigns
 
 
@@ -50,12 +49,25 @@ def _run_one(seller: SellerProfile, lead: Lead, forensics: SignalScore) -> Campa
     )
 
     if score.tier == Tier.KILL:
-        log.kill(f"  killed for ~$0.001 — boilerplate, no spend")
+        mission.emit(
+            2, GATEKEEPER,
+            f"{lead.company_name}: HR boilerplate, zero technical signal. KILLED for "
+            f"$0.001 — not one expensive token spent.",
+            campaign_id=camp.id, company=lead.company_name, kind="verdict", dwell=2.2,
+            payload={"tier": "kill", "score": round(score.combined, 2), "state": "killed"},
+        )
+        log.kill("  killed for ~$0.001 — boilerplate, no spend")
         ledger.set_state(camp, CampaignState.KILLED)
         return camp
 
     if score.tier in (Tier.WARM_ONLY,):
-        # soft path: draft a warm intro, no engineered artifact
+        mission.emit(
+            2, GATEKEEPER,
+            f"{lead.company_name}: pain is real but thin ({score.combined:.2f}). Routed "
+            f"WARM-ONLY — a soft intro, no engineered artifact. We never fake a prototype.",
+            campaign_id=camp.id, company=lead.company_name, kind="verdict", dwell=2.2,
+            payload={"tier": "warm_only", "score": round(score.combined, 2), "state": "warm_only"},
+        )
         camp.persona = profiler.profile(lead, seller)
         outreach.draft(camp, seller)
         ledger.set_state(camp, CampaignState.WARM_ONLY)
@@ -63,7 +75,30 @@ def _run_one(seller: SellerProfile, lead: Lead, forensics: SignalScore) -> Campa
         return camp
 
     # ── promote (and corroborate, which we treat as promote at v0) ──
+    mission.emit(
+        2, GATEKEEPER,
+        f"{lead.company_name}: VERIFIED HIGH-VALUE TARGET ({score.tier.value}, "
+        f"{score.combined:.2f}). {len(score.evidence)} pieces of cited evidence. "
+        f"Dispatching the swarm.",
+        campaign_id=camp.id, company=lead.company_name, kind="verdict", dwell=2.4,
+        payload={"tier": score.tier.value, "score": round(score.combined, 2)},
+    )
+    mission.emit(
+        2, PROFILER,
+        f"Reading {lead.person_name or 'the decision-maker'} ({lead.person_title}) — "
+        f"public writing only. Scoring tone axes for the pitch voice.",
+        campaign_id=camp.id, company=lead.company_name, kind="info", dwell=2.0,
+    )
     camp.persona = profiler.profile(lead, seller)
+    p = camp.persona
+    mission.emit(
+        2, PROFILER,
+        f"Persona locked: {'formal' if p.casual_formal > 0.55 else 'casual'}, "
+        f"{'technical' if p.technical_strategic > 0.5 else 'strategic'}, "
+        f"{'direct' if p.warm_blunt > 0.55 else 'warm'}. "
+        f"Callback material: {p.references[0] if p.references else 'n/a'}",
+        campaign_id=camp.id, company=lead.company_name, kind="info", dwell=2.0,
+    )
 
     ledger.set_state(camp, CampaignState.BUILDING)
     builder.build(camp, seller)
@@ -79,11 +114,18 @@ def _run_one(seller: SellerProfile, lead: Lead, forensics: SignalScore) -> Campa
     voice.synthesize(camp, seller)
 
     # re-render the site now that walkthrough + voice + payment exist
-    builder.build(camp, seller)
-    deploy.deploy(camp)
+    builder.build(camp, seller, quiet=True)
+    deploy.deploy(camp, quiet=True)
 
     outreach.draft(camp, seller)
     ledger.set_state(camp, CampaignState.AWAITING_REVIEW)
+    mission.emit(
+        5, OUTREACH,
+        f"{lead.company_name} package complete — live prototype, AI walkthrough, voice "
+        f"memo, pilot link. Parked in the review queue. Nothing sends without a human click.",
+        campaign_id=camp.id, company=lead.company_name, kind="state", dwell=2.4,
+        payload={"state": "awaiting_review"},
+    )
     log.ok(f"  {lead.company_name} → awaiting_review "
            f"(${camp.cost_cents/100:.2f} all-in)")
     return camp

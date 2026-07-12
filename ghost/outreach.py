@@ -12,6 +12,7 @@ from __future__ import annotations
 import httpx
 
 from .config import settings
+from .events import OUTREACH, mission
 from .llm import complete_json
 from .log import log
 from .models import Campaign, Persona, SellerProfile
@@ -57,6 +58,12 @@ def draft(campaign: Campaign, seller: SellerProfile) -> Campaign:
     campaign.email_subject = out.get("subject", offline["subject"])
     campaign.email_body = out.get("body", offline["body"])
     campaign.add_cost(1)
+    mission.emit(
+        5, OUTREACH,
+        f"Drafted for {lead.person_name or 'the decision-maker'}: “{campaign.email_subject}” — "
+        f"carries the live deployment link and the AI walkthrough. Precision, not spray.",
+        campaign_id=campaign.id, company=lead.company_name, kind="mail", dwell=2.2,
+    )
     log.ok("Email drafted → awaiting human review")
     return campaign
 

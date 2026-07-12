@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 
 from .config import settings
+from .events import DETECTIVE, LEDGER, mission
 from .fixtures import CANNED_LEADS
 from .log import log
 from .models import Evidence, Lead, SellerProfile, SignalScore
@@ -50,9 +51,27 @@ def hunt(seller: SellerProfile, limit: int = 5) -> list[tuple[Lead, SignalScore]
     pairs; the forensic score carries external-source signals only — the gate
     adds the JD analysis and the final tier."""
     log.stage(f"Recon: hunting '{seller.name}' pain across the web…")
+    mission.emit(
+        2, DETECTIVE,
+        f"03:00 — the office is dark. Waking up with one directive: find companies "
+        f"leaking the pain {seller.name} solves.",
+        kind="info", dwell=0.5,
+    )
+    mission.emit(
+        2, DETECTIVE,
+        f"Profiling the seller: {seller.one_liner} ICP → {seller.icp}",
+        kind="info",
+    )
+    for kw in seller.pain_keywords[:4]:
+        mission.emit(
+            2, DETECTIVE,
+            f'Formulating forensic query → "{kw}" ∩ hiring signals ∩ status pages ∩ careers boards',
+            kind="query", dwell=1.1,
+        )
 
     if settings.require_live("linkup_api_key"):
         raw_leads = _live_hunt(seller, limit)
+        mission.emit(2, DETECTIVE, "Linkup sweep complete — live web results in.", kind="info")
     else:
         log.dim("[recon] offline → canned leads")
         raw_leads = CANNED_LEADS.get(seller.slug, [])[:limit]
@@ -69,8 +88,28 @@ def hunt(seller: SellerProfile, limit: int = 5) -> list[tuple[Lead, SignalScore]
             person_title=raw.get("person_title", ""),
             job_description=jd,
         )
-        out.append((lead, _forensic_scores(raw)))
+        forensics = _forensic_scores(raw)
+        mission.emit(
+            2, DETECTIVE,
+            f"Candidate surfaced: {lead.company_name} ({lead.company_domain}) — "
+            f"{lead.person_name or 'decision-maker unknown'}, {lead.person_title or 'title tbd'}",
+            company=lead.company_name, kind="info", dwell=1.8,
+        )
+        for ev in forensics.evidence[:2]:
+            mission.emit(
+                2, LEDGER,
+                f'Grounding verbatim evidence [{ev.source}] — "{ev.excerpt}"',
+                company=lead.company_name, kind="evidence", dwell=1.9,
+                payload={"source": ev.source, "url": ev.url},
+            )
+        out.append((lead, forensics))
     log.ok(f"Recon surfaced {len(out)} candidate leads")
+    mission.emit(
+        2, DETECTIVE,
+        f"Sweep complete — {len(out)} candidates on the board. No guesses; every claim "
+        f"is written to the truth ledger with a source.",
+        kind="info",
+    )
     return out
 
 

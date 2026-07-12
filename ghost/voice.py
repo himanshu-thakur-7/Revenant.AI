@@ -19,6 +19,7 @@ from pathlib import Path
 import httpx
 
 from .config import settings
+from .events import COPYWRITER, VOICE, mission
 from .llm import complete
 from .log import log
 from .models import Campaign, Persona, SellerProfile
@@ -64,9 +65,24 @@ def script_for(campaign: Campaign, seller: SellerProfile) -> str:
 
 def synthesize(campaign: Campaign, seller: SellerProfile) -> Campaign:
     log.stage(f"Voice: recording a memo for {campaign.lead.person_name or 'the exec'}…")
+    mission.emit(
+        4, COPYWRITER,
+        f"Scripting for {campaign.lead.person_name or 'the exec'}: callback → their pain, "
+        f"verbatim → the live prototype → one soft ask. Every claim checked against evidence.",
+        campaign_id=campaign.id, company=campaign.lead.company_name, kind="info", dwell=2.0,
+    )
     script = script_for(campaign, seller)
     persona = campaign.persona or Persona()
     params = _voice_params(persona)
+    mission.emit(
+        4, VOICE,
+        f"Tuning the synthetic voice to {campaign.lead.person_name or 'the exec'}'s vibe — "
+        f"stability {params['stability']} ({'measured' if params['stability'] > 0.55 else 'loose'}), "
+        f"style {params['style']} ({'warm' if params['style'] > 0.45 else 'even'}). "
+        f"Not a robot voiceover; a memo a human would leave.",
+        campaign_id=campaign.id, company=campaign.lead.company_name,
+        kind="voice", dwell=2.4, payload=params,
+    )
 
     stem = OUT_VOICE / f"{campaign.id}"
     (stem.with_suffix(".txt")).write_text(script)

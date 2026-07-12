@@ -1,6 +1,6 @@
 """``ghost`` / ``revenant`` CLI — the operator's entry point.
 
-    ghost run --seller ring-ai --limit 3     # full loop, offline by default
+    ghost run --seller echodesk --limit 3     # full loop, offline by default
     ghost onboard "we sell ..."              # dictated blurb → new seller
     ghost sellers                            # list built-in configs
     ghost approve <campaign_id> --to a@b.com # send an awaiting_review campaign
@@ -25,7 +25,7 @@ console = Console()
 
 @app.command()
 def run(
-    seller: str = typer.Option("ring-ai", help="Seller config slug (see `ghost sellers`)."),
+    seller: str = typer.Option("echodesk", help="Seller config slug (see `ghost sellers`)."),
     limit: int = typer.Option(3, help="Max leads to process."),
 ):
     """Run the full hunt → review loop for a seller."""

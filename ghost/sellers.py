@@ -3,7 +3,7 @@
 A ``SellerProfile`` is the single swap point that re-targets the whole pipeline
 at a new vertical. Two configs ship in-repo:
 
-* ``ring-ai``  — voice AI for healthcare (the rehearsed buildathon default).
+* ``echodesk`` — voice AI for healthcare (the rehearsed buildathon default).
 * ``ledgerloop`` — a generic dev-tools seller, to prove "configurable" live.
 
 :func:`onboard` turns a free-text dictated blurb (Wispr Flow → Hermes) into a
@@ -17,9 +17,9 @@ from .llm import complete_json
 from .models import SellerProfile
 
 _BUILTINS: dict[str, SellerProfile] = {
-    "ring-ai": SellerProfile(
-        slug="ring-ai",
-        name="Ring AI",
+    "echodesk": SellerProfile(
+        slug="echodesk",
+        name="EchoDesk AI",
         one_liner="Voice AI that answers every patient call so no appointment slips.",
         product="An AI front-desk agent for healthcare: books, reschedules, triages, "
         "and routes patient calls 24/7 — integrates with existing phone systems.",

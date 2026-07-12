@@ -17,6 +17,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .config import settings
+from .events import DEVELOPER, SANDBOX, mission
 from .llm import complete
 from .log import log
 from .models import Artifact, Campaign, Persona, SellerProfile
@@ -93,11 +94,34 @@ def _mock_receptionist(company: str) -> str:
     )
 
 
-def build(campaign: Campaign, seller: SellerProfile) -> Campaign:
+def build(campaign: Campaign, seller: SellerProfile, quiet: bool = False) -> Campaign:
     """Generate + verify the microsite. Sets campaign.microsite_url once
-    deployed (deploy step handles hosting); here we render and self-verify."""
+    deployed (deploy step handles hosting); here we render and self-verify.
+    ``quiet`` skips mission-log events (used for the post-media re-render)."""
     log.stage(f"Builder: engineering a prototype for {campaign.lead.company_name}…")
     persona = campaign.persona or Persona()
+    lead = campaign.lead
+
+    if not quiet:
+        pain = lead.job_description[:110]
+        mission.emit(
+            3, DEVELOPER,
+            f"Isolating {lead.company_name}'s problem: “{pain}…” Stops pitching. Starts building.",
+            campaign_id=campaign.id, company=lead.company_name, kind="info", dwell=2.2,
+        )
+        if seller.prototype_kind == "voice_demo":
+            mission.emit(
+                3, DEVELOPER,
+                f"Writing a call-routing voice agent for {lead.company_name}: booking + "
+                f"triage flows, tuned to their phone stack, zero hold time.",
+                campaign_id=campaign.id, company=lead.company_name, kind="code", dwell=2.4,
+            )
+        else:
+            mission.emit(
+                3, DEVELOPER,
+                f"Writing a reference implementation for the pattern their posting names.",
+                campaign_id=campaign.id, company=lead.company_name, kind="code", dwell=2.2,
+            )
 
     proto_html, proto_cite = _prototype_html(campaign, seller)
 
@@ -143,6 +167,14 @@ def build(campaign: Campaign, seller: SellerProfile) -> Campaign:
                  meta={"headline": headline})
     )
     campaign.add_cost(3)  # ~$0.03 build amortized
+    if not quiet:
+        mission.emit(
+            3, SANDBOX,
+            f"Sandbox run: render → structural checks → checksum {checksum[:8]}… "
+            f"{'ALL CHECKS PASS ✓ artifact is VERIFIED' if verified else 'FAILED — artifact quarantined, will not ship'}",
+            campaign_id=campaign.id, company=lead.company_name, kind="verdict", dwell=2.2,
+            payload={"verified": verified, "checksum": checksum},
+        )
     if verified:
         log.ok(f"Prototype verified & rendered → {out_file}")
     else:

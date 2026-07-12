@@ -1,18 +1,16 @@
 // Data layer for the console.
 //
-// Two backends, same shape:
-//   • live  — when VITE_CONVEX_URL is set, poll Convex `campaigns:list` so the
-//             funnel updates in realtime (a full Convex client would use
-//             useQuery; we poll to keep the console dependency-light and
-//             demoable without a Convex codegen step).
-//   • offline — fetch the pipeline's out/ledger.json (copied into public/).
+// Fallback chain, same shapes throughout:
+//   1. live   — VITE_CONVEX_URL set → query the deployed Convex truth ledger
+//   2. dev    — /ledger.json synced by scripts/sync_console.py
+//   3. static — baked-in demoData (the Vercel deploy path)
 //
-// The pipeline is the source of truth either way; the console never mutates
-// pipeline state except through explicit approve/kill actions.
+// The console never mutates pipeline state except through explicit actions.
+
+export type Evidence = { source: string; url: string; excerpt: string; weight: number };
 
 export type Campaign = {
   id: string;
-  campaign_id?: string;
   seller_id: string;
   state: string;
   tier?: string;
@@ -31,58 +29,80 @@ export type Campaign = {
     person_name: string;
     person_title: string;
     job_description: string;
-    score?: {
-      combined: number;
-      tier: string;
-      evidence: { source: string; url: string; excerpt: string; weight: number }[];
-    };
+    score?: { combined: number; tier: string; evidence: Evidence[] };
   };
+};
+
+export type MissionEvent = {
+  id: string;
+  at: number; // seconds on the replay clock
+  act: number; // 2..5
+  agent: string;
+  kind: string; // info|query|evidence|verdict|code|artifact|film|voice|mail|alert|payment|state
+  message: string;
+  campaign_id: string;
+  company: string;
+  payload: Record<string, unknown>;
 };
 
 const CONVEX_URL = (import.meta as any).env?.VITE_CONVEX_URL as string | undefined;
 
-export async function loadCampaigns(): Promise<Campaign[]> {
-  // 1. live Convex (realtime) if configured
-  if (CONVEX_URL) {
-    try {
-      const res = await fetch(`${CONVEX_URL}/api/query`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: "campaigns:list", args: {} }),
-      });
-      const json = await res.json();
-      const rows = (json.value ?? json) as Campaign[];
-      if (rows?.length) return rows;
-    } catch {
-      /* fall through */
-    }
+async function convexQuery(path: string): Promise<any | null> {
+  if (!CONVEX_URL) return null;
+  try {
+    const res = await fetch(`${CONVEX_URL}/api/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, args: {}, format: "json" }),
+    });
+    const json = await res.json();
+    if (json.status === "success") return json.value;
+  } catch {
+    /* fall through */
   }
-  // 2. locally-synced ledger (dev)
+  return null;
+}
+
+export async function loadAll(): Promise<{
+  campaigns: Campaign[];
+  events: MissionEvent[];
+  source: "convex" | "ledger" | "demo";
+}> {
+  // 1. live Convex
+  const [c, e] = await Promise.all([
+    convexQuery("ledger:listCampaigns"),
+    convexQuery("ledger:listEvents"),
+  ]);
+  if (c?.length) {
+    return { campaigns: c, events: e ?? [], source: "convex" };
+  }
+  // 2. locally-synced ledger
   try {
     const res = await fetch("/ledger.json", { cache: "no-store" });
     if (res.ok) {
       const snap = await res.json();
-      if (snap.campaigns?.length) return snap.campaigns as Campaign[];
+      if (snap.campaigns?.length) {
+        return { campaigns: snap.campaigns, events: snap.events ?? [], source: "ledger" };
+      }
     }
   } catch {
     /* fall through */
   }
-  // 3. baked-in demo dataset (static deploy — Vercel)
-  const { DEMO_CAMPAIGNS } = await import("./demoData");
-  return DEMO_CAMPAIGNS;
+  // 3. baked-in demo dataset
+  const { DEMO_CAMPAIGNS, DEMO_EVENTS } = await import("./demoData");
+  return { campaigns: DEMO_CAMPAIGNS, events: DEMO_EVENTS, source: "demo" };
 }
 
-export const TIER_COLOR: Record<string, string> = {
-  promote: "text-emerald-400",
-  corroborate: "text-sky-400",
-  warm_only: "text-amber-400",
-  kill: "text-rose-500",
-};
-
-export const STATE_BADGE: Record<string, string> = {
-  awaiting_review: "bg-indigo-500/20 text-indigo-300 border-indigo-500/40",
-  won: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
-  sent: "bg-sky-500/20 text-sky-300 border-sky-500/40",
-  warm_only: "bg-amber-500/20 text-amber-300 border-amber-500/40",
-  killed: "bg-rose-500/15 text-rose-400 border-rose-500/30",
-};
+export async function convexSetState(campaign_id: string, state: string): Promise<boolean> {
+  if (!CONVEX_URL) return false;
+  try {
+    const res = await fetch(`${CONVEX_URL}/api/mutation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "ledger:setState", args: { campaign_id, state }, format: "json" }),
+    });
+    return (await res.json()).status === "success";
+  } catch {
+    return false;
+  }
+}

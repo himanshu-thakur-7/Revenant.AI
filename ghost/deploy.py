@@ -15,11 +15,12 @@ from pathlib import Path
 import httpx
 
 from .config import settings
+from .events import SITE_WEAVER, mission
 from .log import log
 from .models import Campaign
 
 
-def deploy(campaign: Campaign) -> Campaign:
+def deploy(campaign: Campaign, quiet: bool = False) -> Campaign:
     site = campaign.artifact("site")
     if not site or not site.verified:
         log.warn("Deploy skipped — no verified site artifact")
@@ -35,6 +36,15 @@ def deploy(campaign: Campaign) -> Campaign:
     campaign.microsite_url = url
     site.meta["url"] = url
     campaign.add_cost(1)
+    if not quiet:
+        slug = campaign.lead.company_domain.split(".")[0]
+        mission.emit(
+            3, SITE_WEAVER,
+            f"Deployed: personalized landing page for {campaign.lead.company_name} is LIVE "
+            f"at /{slug} — their name, their pain quoted verbatim, the working prototype embedded.",
+            campaign_id=campaign.id, company=campaign.lead.company_name,
+            kind="artifact", dwell=2.6, payload={"url": url, "state": "deployed"},
+        )
     log.ok(f"Microsite live → {url}")
     return campaign
 

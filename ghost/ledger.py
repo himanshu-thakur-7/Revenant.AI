@@ -1,22 +1,28 @@
 """The truth ledger — all campaign state reads/writes go through here.
 
-In ``live`` mode this talks to Convex over its HTTP API. In ``offline`` mode
-it keeps an in-memory store and mirrors every write to ``out/ledger.json`` so
-the console can render a run without a Convex deployment. The interface is the
-same either way, so no downstream code knows which backend it hit.
+In ``live`` mode this talks to the deployed Convex backend over its HTTP API
+(mutations under ``convex/ledger.ts``). In ``offline`` mode it keeps an
+in-memory store. Either way every write is mirrored to ``out/ledger.json`` so
+the console can always render a run. The interface is identical, so no
+downstream code knows which backend it hit.
+
+The ledger also carries the *mission log* — the event stream that lets the
+console replay the run, agent by agent (see :mod:`ghost.events`).
 """
 
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
 import httpx
 
 from .config import settings
+from .events import mission
 from .log import log
-from .models import Campaign, SellerProfile
+from .models import Campaign, SellerProfile, new_id
 
 OUT = Path("out")
 OUT.mkdir(exist_ok=True)
@@ -28,21 +34,22 @@ class Ledger:
         self._sellers: dict[str, SellerProfile] = {}
         self._campaigns: dict[str, Campaign] = {}
         self._memories: list[dict[str, Any]] = []
+        self._run_id = new_id("run_")
         self._live = settings.require_live("convex_url")
         if self._live:
-            log.dim("[ledger] live → Convex")
+            log.dim(f"[ledger] live → Convex ({settings.convex_url})")
         else:
             log.dim("[ledger] offline → out/ledger.json")
 
     # ── writes ────────────────────────────────────────────────
     def upsert_seller(self, seller: SellerProfile) -> None:
         self._sellers[seller.id] = seller
-        self._convex("sellers:upsert", seller.model_dump())
+        self._convex("ledger:upsertSeller", {"doc": seller.model_dump()})
         self._flush()
 
     def upsert_campaign(self, camp: Campaign) -> None:
         self._campaigns[camp.id] = camp
-        self._convex("campaigns:upsert", _campaign_row(camp))
+        self._convex("ledger:upsertCampaign", {"doc": _campaign_row(camp)})
         self._flush()
 
     def set_state(self, camp: Campaign, state: Any) -> None:
@@ -62,7 +69,14 @@ class Ledger:
             "re_ping_at": re_ping_at,
         }
         self._memories.append(row)
-        self._convex("memories:add", row)
+        self._convex("ledger:addMemory", {"doc": row})
+        self._flush()
+
+    def publish_events(self) -> None:
+        """Batch-push the mission log to Convex (one call, not N)."""
+        events = mission.all()
+        if events:
+            self._convex("ledger:addEvents", {"runId": self._run_id, "docs": events})
         self._flush()
 
     def due_memories(self, now: float) -> list[dict[str, Any]]:
@@ -76,31 +90,36 @@ class Ledger:
     def campaigns(self) -> list[Campaign]:
         return list(self._campaigns.values())
 
-    def memories(self) -> list[dict[str, Any]]:
-        return list(self._memories)
-
     def sellers(self) -> list[SellerProfile]:
         return list(self._sellers.values())
+
+    def memories(self) -> list[dict[str, Any]]:
+        return list(self._memories)
 
     # ── backends ──────────────────────────────────────────────
     def _convex(self, fn: str, args: dict[str, Any]) -> None:
         if not self._live:
             return
         try:  # pragma: no cover - network path
-            httpx.post(
+            resp = httpx.post(
                 f"{settings.convex_url}/api/mutation",
-                json={"path": fn, "args": args},
-                headers={"Authorization": f"Bearer {settings.convex_deploy_key}"},
-                timeout=10,
+                json={"path": fn, "args": args, "format": "json"},
+                timeout=15,
             )
+            body = resp.json()
+            if body.get("status") != "success":
+                log.warn(f"[ledger] convex {fn}: {str(body)[:160]}")
         except Exception as exc:  # pragma: no cover
             log.warn(f"[ledger] convex {fn} failed: {exc!r}")
 
     def _flush(self) -> None:
         snapshot = {
+            "run_id": self._run_id,
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "sellers": [s.model_dump() for s in self._sellers.values()],
             "campaigns": [_campaign_row(c) for c in self._campaigns.values()],
             "memories": self._memories,
+            "events": mission.all(),
         }
         _LEDGER_FILE.write_text(json.dumps(snapshot, indent=2, default=str))
 
@@ -113,6 +132,13 @@ def _campaign_row(camp: Campaign) -> dict[str, Any]:
     if camp.lead.score:
         d["tier"] = camp.lead.score.tier.value
         d["combined_score"] = round(camp.lead.score.combined, 3)
+    # inline the rendered microsite so remote consoles can iframe-srcdoc it
+    site = camp.artifact("site")
+    if site and site.verified:
+        try:
+            d["microsite_html"] = Path(site.storage_ref).read_text()
+        except OSError:
+            d["microsite_html"] = ""
     return d
 
 
