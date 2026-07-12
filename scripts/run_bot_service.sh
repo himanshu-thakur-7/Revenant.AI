@@ -20,7 +20,10 @@ set -euo pipefail
 cd "$HOME/Revenant.AI"
 
 export REVENANT_MODE=live
-export DIRECTOR_SKIP_LIPSYNC=1
+# Lip-sync ON so the walkthrough shows the Sana avatar (each run ~1 D-ID
+# credit). Set to 1 to save credits when iterating (falls back to the
+# static bubble).
+export DIRECTOR_SKIP_LIPSYNC=0
 export PYTHONUNBUFFERED=1
 # Prefer Homebrew Node 22+ on PATH so wrangler 4 works if ever needed
 # (deploy code pins wrangler@3, which is fine on Node 18 too).

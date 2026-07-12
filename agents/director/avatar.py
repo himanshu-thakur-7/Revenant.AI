@@ -20,6 +20,7 @@ caller can decide whether to fall back to the static bubble.
 from __future__ import annotations
 
 import base64
+import os
 import time
 from pathlib import Path
 
@@ -37,10 +38,11 @@ POLL_MAX_WAIT = 180
 # are stale ("Unsupported file url"); the current v2 clips-presenter CDN
 # works with the /talks endpoint too. Override with DID_PRESENTER_URL in
 # .env to switch presenter without editing code.
-DEFAULT_SOURCE_URL = (
+_FIONA = (
     "https://clips-presenters.d-id.com/v2/Fiona_NoHands_BlackJacket_ClassRoom"
     "/1BOeggEufb/dbRUIwY6KY/image.png"
 )
+DEFAULT_SOURCE_URL = os.getenv("DID_PRESENTER_URL", _FIONA)
 
 
 class DIDError(RuntimeError):
