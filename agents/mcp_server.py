@@ -47,7 +47,7 @@ if str(_ROOT) not in sys.path:
 # Everything downstream assumes live mode (real Apollo / deploys / Gmail).
 os.environ.setdefault("REVENANT_MODE", "live")
 
-from mcp.server.fastmcp import FastMCP  # noqa: E402
+from mcp.server.fastmcp import Context, FastMCP  # noqa: E402
 
 REV = Path.home() / ".revenant"
 ACTIVE_CTX_PATH = REV / "active_context.json"
@@ -398,8 +398,9 @@ def build_campaign(choice: str = "1") -> str:
 
 
 @mcp.tool()
-def build_prototype(startup: str, merchant: str, merchant_domain: str = "",
-                    pain: str = "", startup_summary: str = "") -> str:
+async def build_prototype(startup: str, merchant: str, merchant_domain: str = "",
+                          pain: str = "", startup_summary: str = "",
+                          mcp_ctx: "Context | None" = None) -> str:
     """Build & DEPLOY a real, working prototype for ONE merchant, selling `startup`.
 
     Use this INSIDE an Engineer sub-agent once a merchant is chosen — or run
@@ -416,6 +417,20 @@ def build_prototype(startup: str, merchant: str, merchant_domain: str = "",
         startup_summary: what `startup` does — only needed for non-Razorpay startups.
     """
     _log_call("build_prototype", f"{startup} -> {merchant}")
+
+    # Progress heartbeat helper — surface stage narration through MCP so the
+    # caller (Hermes/console) has something to render instead of ~75s of dead
+    # air. Best-effort: never break the build if progress delivery fails.
+    async def _tick(msg: str) -> None:
+        if mcp_ctx is None:
+            return
+        try:
+            await mcp_ctx.info(msg)
+        except Exception:
+            pass
+
+    await _tick(f"🎯 Building prototype for {merchant}…")
+
     from ghost.config import get_settings
     get_settings.cache_clear()
 
@@ -449,6 +464,7 @@ def build_prototype(startup: str, merchant: str, merchant_domain: str = "",
     #    With the planner+author architecture producing clean 22kB pages,
     #    polish usually returns +0 → opt-in via REVENANT_POLISH=1 to save ~9s.
     #    Ngrok stays as a fallback if CF is unreachable.
+    import anyio
     try:
         import os as _os
         from agents.engineer import Engineer
@@ -456,34 +472,71 @@ def build_prototype(startup: str, merchant: str, merchant_domain: str = "",
         from agents.engineer.cf_pages import deploy_dir
         import re as _re
         _run_polish = _os.getenv("REVENANT_POLISH", "0") not in ("", "0", "false", "no")
-        with _quiet_stdout():
-            eng = Engineer(founder_context=ctx, prospect=prospect)
-            res = eng.build()
-            url = (res or {}).get("url", "")          # Engineer's own CF Pages URL
-            ws = Path(res.get("workspace") or eng._state.workspace)
-            idx = ws / "index.html"
-            if idx.exists() and _run_polish:
-                from agents.engineer import polish as _polish
-                original = idx.read_text(encoding="utf-8")
-                polished = _polish.polish_html(
-                    original, startup=startup, merchant=merchant, passes=1)
-                # Vision QA often returns +0 (nothing to fix). Only rewrite +
-                # redeploy when it actually changed things — saves ~12s of a
-                # redundant CF deploy on clean builds.
-                if polished and polished != original:
-                    improved = _harden_html(polished)
-                    idx.write_text(improved, encoding="utf-8")
-                    redeploy = deploy_dir(ws)
-                    url = redeploy.get("url") or url
-            # If the Engineer's CF deploy fell back to file:// (no CF creds
-            # / wrangler failure), publish via local + ngrok as a safety net.
-            if idx.exists() and (not url or url.startswith("file:")):
-                slug = _re.sub(r"[^a-z0-9]+", "-", merchant.lower()).strip("-") or "merchant"
-                try:
-                    from agents.engineer import local_host
-                    url = local_host.publish(slug, idx.read_text(encoding="utf-8"))
-                except Exception:
-                    pass
+
+        # Attach a per-Engineer progress hook so we tick every time the
+        # LLM finishes an internal step. Uses Engineer's `on_event` sink.
+        _phase_names = {
+            "read_prospect_brief":   "📎 Reading the prospect brief…",
+            "read_founder_file":     "📚 Studying the founder's product…",
+            "list_founder_files":    "📚 Studying the founder's product…",
+            "search_founder_context":"📚 Studying the founder's product…",
+            "write_prototype_file":  "🎨 Writing the tailored HTML…",
+            "list_prototype_files":  "🗂  Reviewing the workspace…",
+            "deploy_prototype":      "☁️  Deploying to Cloudflare Pages…",
+            "finalize_prototype":    "✅ Finalising the build…",
+        }
+        _last_ticked_msg = {"v": ""}
+
+        def _on_event(kind: str, payload: Any) -> None:
+            # Called synchronously from the Engineer thread — schedule the
+            # async tick without blocking. Deduplicate rapid repeats.
+            if mcp_ctx is None or kind != "tool_call":
+                return
+            name = (payload or {}).get("name") or ""
+            msg = _phase_names.get(name)
+            if not msg or msg == _last_ticked_msg["v"]:
+                return
+            _last_ticked_msg["v"] = msg
+            try:
+                from anyio.from_thread import run_sync
+                run_sync(lambda m=msg: mcp_ctx.info(m))
+            except Exception:
+                pass
+
+        await _tick("🧠 Planning the prototype (senior-designer spec)…")
+
+        def _do_build():
+            with _quiet_stdout():
+                eng = Engineer(founder_context=ctx, prospect=prospect)
+                res = eng.build(on_event=_on_event)
+                return eng, res
+
+        eng, res = await anyio.to_thread.run_sync(_do_build)
+        url = (res or {}).get("url", "")              # Engineer's own CF Pages URL
+        ws = Path(res.get("workspace") or eng._state.workspace)
+        idx = ws / "index.html"
+        if idx.exists() and _run_polish:
+            await _tick("🔍 Vision QA polish pass…")
+            from agents.engineer import polish as _polish
+            original = idx.read_text(encoding="utf-8")
+            polished = await anyio.to_thread.run_sync(
+                lambda: _polish.polish_html(original, startup=startup,
+                                            merchant=merchant, passes=1))
+            if polished and polished != original:
+                improved = _harden_html(polished)
+                idx.write_text(improved, encoding="utf-8")
+                await _tick("☁️  Redeploying polished build to Cloudflare…")
+                redeploy = await anyio.to_thread.run_sync(lambda: deploy_dir(ws))
+                url = redeploy.get("url") or url
+        if idx.exists() and (not url or url.startswith("file:")):
+            await _tick("🌐 CF unavailable — falling back to local + ngrok…")
+            slug = _re.sub(r"[^a-z0-9]+", "-", merchant.lower()).strip("-") or "merchant"
+            try:
+                from agents.engineer import local_host
+                url = await anyio.to_thread.run_sync(
+                    lambda: local_host.publish(slug, idx.read_text(encoding="utf-8")))
+            except Exception:
+                pass
     except Exception as exc:  # noqa: BLE001
         return f"Build failed for {merchant}: {exc}"
 

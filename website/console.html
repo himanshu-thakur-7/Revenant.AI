@@ -262,13 +262,43 @@ function pretty(tool){
   if(tool&&tool.startsWith('mcp__revenant__')) return ['◆','Revenant · '+tool.replace('mcp__revenant__','')];
   return ['▸', tool||'tool'];
 }
-const runningEv={}; // tool -> [{el, t0}]
+const runningEv={}; // tool -> [{el, t0, ticker?, phases?, subEl?}]
 function traceEmpty(){ trace.querySelector('.empty')?.remove(); }
 function esc(s){ const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
 // "3 tasks: A | B | C" -> ['A','B','C']
 function parseTasks(preview){
   const m=(preview||'').match(/^\s*(\d+)\s+tasks?\s*:\s*(.+)$/i);
   return m ? m[2].split('|').map(s=>s.trim()).filter(Boolean) : null;
+}
+// Client-side phase rotator — Hermes doesn't forward MCP progress
+// notifications through its SSE stream, so we can't know exactly which phase
+// is running. But we KNOW the shape of a build (planner → author → deploy),
+// so tick a plausible "current phase" label + elapsed seconds so users see
+// motion instead of dead air. Only applied to slow tools with known shape.
+const PHASE_SCRIPTS = {
+  'mcp__revenant__build_prototype': [
+    [0,   '🧠 Planning the prototype…'],
+    [12,  '📎 Reading the prospect brief…'],
+    [18,  '🎨 Writing tailored on-brand HTML…'],
+    [55,  '☁️  Deploying to Cloudflare Pages…'],
+    [80,  '✨ Finalising…'],
+  ],
+  'mcp__revenant__build_campaign': [
+    [0,   '📎 Reading the founder brief…'],
+    [8,   '🎨 Building the prototype…'],
+    [55,  '☁️  Deploying…'],
+    [90,  '🎬 Filming the walkthrough…'],
+    [130, '✉️  Drafting the outreach…'],
+  ],
+};
+function startPhaseTicker(tool, subEl, t0){
+  const script = PHASE_SCRIPTS[tool]; if(!script) return null;
+  return setInterval(() => {
+    const dt = (performance.now() - t0) / 1000;
+    let phase = script[0][1];
+    for(const [t, label] of script){ if(dt >= t) phase = label; }
+    subEl.textContent = phase + ' · ' + Math.round(dt) + 's';
+  }, 500);
 }
 function evStart(ev){
   traceEmpty();
@@ -287,19 +317,27 @@ function evStart(ev){
     (runningEv[tool]=runningEv[tool]||[]).push({el,t0}); return;
   }
   const [ic,lbl]=pretty(tool);
+  const hasScript = !!PHASE_SCRIPTS[tool];
   const el=document.createElement('div'); el.className='ev run';
+  const subInitial = hasScript ? PHASE_SCRIPTS[tool][0][1] + ' · 0s' : (ev.preview || '');
   el.innerHTML='<div class="ic"><span class="spin">◠</span></div><div class="txt"><span class="lbl">'+esc(lbl)+'</span>'
-    +(ev.preview?'<div class="sub">'+esc(ev.preview)+'</div>':'')+'</div><div class="rt">running</div>';
+    +(subInitial?'<div class="sub" data-phase>'+esc(subInitial)+'</div>':'')+'</div><div class="rt">running</div>';
   trace.appendChild(el); trace.scrollTop=trace.scrollHeight;
-  (runningEv[tool]=runningEv[tool]||[]).push({el,t0});
+  const subEl = el.querySelector('[data-phase]');
+  const ticker = (hasScript && subEl) ? startPhaseTicker(tool, subEl, t0) : null;
+  (runningEv[tool]=runningEv[tool]||[]).push({el,t0,ticker});
 }
 function evDone(ev){
   const tool=ev.tool||ev.name; const stack=runningEv[tool]; if(!stack||!stack.length) return;
-  const {el,t0}=stack.pop();
+  const {el,t0,ticker}=stack.pop();
+  if(ticker) clearInterval(ticker);
   const dt=(ev.duration!=null?ev.duration:(performance.now()-t0)/1000).toFixed(1);
   el.classList.remove('run'); el.classList.add('done');
   const ic=el.querySelector('.ic'); if(ic) ic.innerHTML=ev.error?'⚠':'✓';
   const rt=el.querySelector('.rt'); if(rt) rt.textContent=dt+'s';
+  // On success, replace the phase indicator with the final result summary.
+  const subEl = el.querySelector('[data-phase]');
+  if(subEl && !ev.error){ subEl.textContent = 'done in ' + dt + 's'; }
 }
 function sysEv(text){
   traceEmpty();
