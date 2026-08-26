@@ -399,10 +399,24 @@ function addMsg(who, text){
   el.querySelector('.body').textContent=text;
   chat.appendChild(el); chat.scrollTop=chat.scrollHeight; return el.querySelector('.body');
 }
+function linkify(text){
+  // esc() first (so a URL-shaped string in untrusted content can't break out
+  // of the markup), THEN wrap URLs in real <a> tags. Safe because esc()'s
+  // entity output never contains raw '<' '>' '&' '"' — nothing a URL regex
+  // matches here can straddle an escaped entity.
+  return esc(text).replace(/https?:\/\/[^\s<>"']+/g, url => {
+    const m = url.match(/^(.*?)([.,;:!?)]*)$/); // don't swallow trailing prose punctuation
+    const clean = m ? m[1] : url, trail = m ? m[2] : '';
+    return `<a href="${clean}" target="_blank" rel="noopener">${clean}</a>${trail}`;
+  });
+}
 function renderRichMessage(bodyEl, text){
   bodyEl.textContent='';
   const textEl=document.createElement('div');
-  textEl.textContent=text||'';
+  // Plain textContent left every URL — prototype, deck, everything but the
+  // one .mp4 link below — as unclickable text; the founder had to select
+  // and copy it by hand. Only the video link had it easy.
+  textEl.innerHTML=linkify(text||'');
   bodyEl.appendChild(textEl);
   const videos=[...new Set((text||'').match(/https:\/\/[^\s<>"')]+\.mp4(?:\?[^\s<>"')]*)?/g)||[])];
   videos.forEach(url=>{
