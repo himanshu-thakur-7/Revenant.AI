@@ -26,6 +26,15 @@ dependencies = [
                      # real work (every @mcp.tool()/Context usage), tracked as a Phase 1
                      # task alongside the supports_parallel_tool_calls hardening, not a
                      # silent drive-by fix.
+    "google-api-python-client>=2.100",  # agents/sales/gmail_draft.py — googleapiclient,
+    "google-auth>=2.30",                # google.auth / google.oauth2, and
+    "google-auth-oauthlib>=1.2",        # google_auth_oauthlib.flow — all lazily imported
+                                         # (function-level, not top-level), so the earlier
+                                         # module-import sweep missed this one entirely;
+                                         # only surfaced by actually running draft_outreach
+                                         # end to end. Deck + email draft generation worked
+                                         # fine; only the final Gmail-draft step 404'd with
+                                         # ModuleNotFoundError('googleapiclient').
 ]
 
 [project.optional-dependencies]
