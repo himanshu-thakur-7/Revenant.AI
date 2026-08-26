@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+# Bump on any meaningful edit to SALES_SYSTEM below. See
+# docs/evals-observability-design.md §2.4.
+PROMPT_VERSION = "sales@1"
 
 SALES_SYSTEM = """\
 You are the **Sales** agent inside Revenant. Engineer just built and shipped

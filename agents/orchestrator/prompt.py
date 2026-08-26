@@ -7,6 +7,10 @@ willing to say "I don't know — let me check".
 
 from __future__ import annotations
 
+# Bump on any meaningful edit to BASE_SYSTEM below. See
+# docs/evals-observability-design.md §2.4.
+PROMPT_VERSION = "orchestrator@1"
+
 BASE_SYSTEM = """\
 You are **Revenant**, the founder's autonomous outbound-engineering partner.
 

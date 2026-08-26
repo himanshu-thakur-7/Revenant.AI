@@ -1,0 +1,30 @@
+{
+  "agents.director.prompt": {
+    "sha": "e74b25236879",
+    "version": "director@1"
+  },
+  "agents.engineer.planner": {
+    "sha": "5d603cb2ce5c",
+    "version": "engineer.planner@1"
+  },
+  "agents.engineer.polish": {
+    "sha": "45759ac76120",
+    "version": "engineer.polish@1"
+  },
+  "agents.engineer.prompt": {
+    "sha": "99ec13b51271",
+    "version": "engineer.author@1"
+  },
+  "agents.orchestrator.prompt": {
+    "sha": "e980a04e0cf1",
+    "version": "orchestrator@1"
+  },
+  "agents.research.prompt": {
+    "sha": "1bf488beeae7",
+    "version": "research@1"
+  },
+  "agents.sales.prompt": {
+    "sha": "d084aa122d8f",
+    "version": "sales@1"
+  }
+}

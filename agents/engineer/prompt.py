@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+# Bump on any meaningful edit to ENGINEER_SYSTEM below — this is what lets a
+# trace get traced back to which prompt version produced it (paired with the
+# content-hash prompt_sha the trace shim computes automatically). See
+# docs/evals-observability-design.md §2.4 and
+# ghost/tests/test_evals_offline.py::test_prompt_versions_declared.
+PROMPT_VERSION = "engineer.author@1"
 
 ENGINEER_SYSTEM = """\
 You are the **Engineer** agent inside Revenant. Research just handed you a

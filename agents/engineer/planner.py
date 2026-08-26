@@ -24,6 +24,10 @@ from ghost.config import settings
 
 _DEFAULT_PLANNER_MODEL = os.getenv("REVENANT_PLANNER_MODEL", "gpt-5.6-luna")
 
+# Bump on any meaningful edit to _PLANNER_SYSTEM below. See
+# docs/evals-observability-design.md §2.4.
+PROMPT_VERSION = "engineer.planner@1"
+
 
 _PLANNER_SYSTEM = (
     "You are a senior product designer + copywriter briefing a front-end engineer. "

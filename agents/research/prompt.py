@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+# Bump on any meaningful edit to RESEARCH_SYSTEM below. See
+# docs/evals-observability-design.md §2.4.
+PROMPT_VERSION = "research@1"
+
 RESEARCH_SYSTEM = """\
 You are the **Research** agent inside Revenant, a small autonomous
 outbound-engineering fleet. The Orchestrator has just delegated a brief to

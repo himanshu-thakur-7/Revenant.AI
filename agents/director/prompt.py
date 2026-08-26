@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+# Bump on any meaningful edit to DIRECTOR_SYSTEM below. See
+# docs/evals-observability-design.md §2.4.
+PROMPT_VERSION = "director@1"
 
 DIRECTOR_SYSTEM = """\
 You are the **Director** agent inside Revenant. Engineer just deployed a live

@@ -64,6 +64,10 @@ def _extract_html(text: str) -> str:
     return ""
 
 
+# Bump on any meaningful edit to _PROMPT below. See
+# docs/evals-observability-design.md §2.4.
+PROMPT_VERSION = "engineer.polish@1"
+
 _PROMPT = (
     "You are a senior front-end designer doing FINAL QA on a one-page sales "
     "prototype for {merchant} (built by {startup}). The screenshot is the page "
