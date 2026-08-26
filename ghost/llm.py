@@ -150,10 +150,22 @@ def complete(
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
+    # Same reasoning-model guard as complete_strong(): gpt-5 / o-series reject
+    # a custom temperature outright (400 Unsupported value). This matters here
+    # more than there — llm_model falls back to Hermes's own configured
+    # default (~/.hermes/config.yaml) when LLM_MODEL isn't set, so it silently
+    # becomes a reasoning model (e.g. gpt-5.6-sol) whenever the founder hasn't
+    # set up a dedicated Revenant .env. Without this, every complete() call —
+    # headlines, pain quotes, most of the deterministic pipeline's copy —
+    # 400s and quietly degrades to the offline stub in "live" mode.
+    kwargs: dict[str, Any] = {"model": model, "messages": messages}
+    if model.startswith(("gpt-5", "o1", "o3", "o4")):
+        kwargs["max_completion_tokens"] = 16000
+    else:
+        kwargs["temperature"] = temperature
+
     try:
-        resp = _client().chat.completions.create(
-            model=model, messages=messages, temperature=temperature
-        )
+        resp = _client().chat.completions.create(**kwargs)
         text = resp.choices[0].message.content or ""
         usage = getattr(resp, "usage", None)
         n_in = getattr(usage, "prompt_tokens", _estimate_tokens(prompt))
