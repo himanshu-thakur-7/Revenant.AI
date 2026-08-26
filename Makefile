@@ -1,4 +1,4 @@
-.PHONY: help install test run demo console sync clean
+.PHONY: help install test run demo console sync clean eval eval-judge eval-live eval-calibrate
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -27,3 +27,25 @@ console:  ## start the review console dev server
 
 clean:  ## remove generated artifacts
 	rm -rf out console/public/ledger.json console/public/sites console/public/walkthroughs console/public/voice
+
+# ── evals (see docs/evals-observability-design.md) ─────────────────────
+# MERCHANT picks which bundle: `make eval MERCHANT=Meesho`. Defaults to a
+# --from-disk lookup so these work against artifacts already on disk with
+# no live pipeline run required.
+MERCHANT ?= Meesho
+
+eval:  ## T1 deterministic checks only, no LLM (fast, cheap)
+	. .venv/bin/activate && python -m evals.cli check --merchant "$(MERCHANT)" --from-disk
+
+eval-judge:  ## T1 + T2 (LLM judge, gated behind T1) for one bundle
+	. .venv/bin/activate && python -m evals.cli score --merchant "$(MERCHANT)" --from-disk
+
+eval-live:  ## full live pipeline run for MERCHANT, then score it (real $ spend)
+	. .venv/bin/activate && REVENANT_MODE=live python -c \
+		"import asyncio; from agents.mcp_server import build_prototype; \
+		print(asyncio.run(build_prototype(startup='Razorpay', merchant='$(MERCHANT)', \
+		merchant_domain='', pain='')))"
+	. .venv/bin/activate && python -m evals.cli score --merchant "$(MERCHANT)"
+
+eval-calibrate:  ## judge calibration set (evals/golden/labeled/) — confirms the judge still discriminates
+	. .venv/bin/activate && python -m evals.cli calibrate

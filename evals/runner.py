@@ -1,13 +1,13 @@
-"""Ties the deterministic (T1) checks together for one Bundle.
-
-Deliberately does NOT include the LLM judge (T2) — that's evals/judge.py,
-a separate module, because T1 is a hard gate: docs/evals-observability-
-design.md §1.6 M2 says the judge must never run on an artifact that
-failed its deterministic checks, so run_t1() has to be callable and
-complete on its own before anything decides whether to call the judge.
+"""Ties the deterministic (T1) checks together for one Bundle, and
+(run_t1_and_t2 / score_bundle) gates the LLM judge (T2) behind them per
+docs/evals-observability-design.md §1.6 M2 — the judge never runs on an
+artifact that already failed its deterministic checks.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
 
 from evals.bundle import Bundle
 from evals.checks import Check
@@ -102,3 +102,77 @@ def summarize(results: dict[str, list[Check]]) -> str:
         for c in checks:
             lines.append(f"  {c}")
     return "\n".join(lines)
+
+
+# ── T2 (LLM judge) — gated behind T1, per §1.6 M2 ──────────────────────
+# Judged kinds are intentionally limited to text-native artifacts for now
+# (prototype HTML, email markdown) — a deck needs python-pptx text
+# extraction and a walkthrough needs its narration transcript to judge
+# meaningfully; both are real, doable extensions, not done here. Scoping
+# this explicitly rather than silently skipping: see the "not yet judged"
+# note in score_bundle()'s return.
+_JUDGEABLE_KINDS = {"prototype", "email"}
+
+
+def _artifact_text_for_judge(b: Bundle, kind: str) -> str:
+    if kind == "prototype":
+        path = b.prototype_html_path
+    elif kind == "email":
+        path = b.email_md_path
+    else:
+        return ""
+    if path and Path(path).exists():
+        return Path(path).read_text(encoding="utf-8", errors="replace")
+    return ""
+
+
+def score_bundle(b: Bundle) -> dict[str, dict[str, Any]]:
+    """T1 for every claimed artifact kind; T2 (LLM judge) additionally for
+    judgeable kinds that PASSED T1. Returns
+    {kind: {"checks": [Check...], "t1_pass": bool, "judge": JudgeResult|None}}.
+    """
+    from evals.judge import judge_bundle
+
+    t1 = run_t1(b)
+    out: dict[str, dict[str, Any]] = {}
+    for kind, checks in t1.items():
+        t1_pass = artifact_pass(checks)
+        judge_result = None
+        if t1_pass and kind in _JUDGEABLE_KINDS:
+            text = _artifact_text_for_judge(b, kind)
+            if text:
+                brief = {"startup": b.startup, "merchant": b.merchant, "pain": b.pain}
+                judge_result = judge_bundle(kind, text, brief)
+        out[kind] = {"checks": checks, "t1_pass": t1_pass, "judge": judge_result}
+    return out
+
+
+def score_summary(scored: dict[str, dict[str, Any]]) -> str:
+    lines = []
+    for kind, info in scored.items():
+        checks = info["checks"]
+        t1_ok = info["t1_pass"]
+        lines.append(f"== {kind}: T1 {'PASS' if t1_ok else 'FAIL'} "
+                     f"({sum(c.passed for c in checks)}/{len(checks)}) ==")
+        for c in checks:
+            lines.append(f"  {c}")
+        judge = info.get("judge")
+        if judge is not None:
+            lines.append(f"  T2 judge: {str(judge).replace(chr(10), chr(10) + '  ')}")
+        elif t1_ok and kind in _JUDGEABLE_KINDS:
+            lines.append("  T2 judge: skipped (no artifact text available)")
+    return "\n".join(lines)
+
+
+def bundle_pass(scored: dict[str, dict[str, Any]], *, judge_threshold: float = 70.0) -> bool:
+    """§1.7's contract: artifact_pass := all T1 PASS and (composite >= 70
+    OR not judged). A missing/optional artifact (kind absent from `scored`
+    entirely, e.g. no walkthrough built yet) does not fail the bundle —
+    only kinds actually present are checked."""
+    for info in scored.values():
+        if not info["t1_pass"]:
+            return False
+        judge = info.get("judge")
+        if judge is not None and judge.composite < judge_threshold:
+            return False
+    return True
