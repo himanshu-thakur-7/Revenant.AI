@@ -1,4 +1,4 @@
-.PHONY: help install test run demo console sync clean eval eval-judge eval-live eval-calibrate eval-propose
+.PHONY: help install test run demo console sync clean eval eval-judge eval-live eval-calibrate eval-propose console-test
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -52,3 +52,10 @@ eval-calibrate:  ## judge calibration set (evals/golden/labeled/) — confirms t
 
 eval-propose:  ## cluster out/evals/history.jsonl for recurring failures, write proposals (never auto-applies)
 	. .venv/bin/activate && python -m evals.cli propose
+
+console-test:  ## regression check: console.html actually renders a playable <video> for a walkthrough URL in chat
+	.venv/bin/python -m http.server 8790 --directory website >/dev/null 2>&1 & \
+	SERVER_PID=$$!; \
+	trap "kill $$SERVER_PID 2>/dev/null" EXIT; \
+	sleep 1; \
+	.venv/bin/python scripts/console_render_test.py
