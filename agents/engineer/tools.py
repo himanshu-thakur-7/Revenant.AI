@@ -9,6 +9,7 @@ Three families:
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from ..context import FounderContext
@@ -59,7 +60,64 @@ def prospect_tool(prospect: dict[str, Any]) -> list[Tool]:
     return [read_prospect_brief]
 
 
-def workspace_tools(state: PrototypeState) -> list[Tool]:
+def _prospect_clues(prospect: dict[str, Any] | None) -> list[str]:
+    if not prospect:
+        return []
+    chunks: list[str] = []
+    for key in ("company_name", "company_domain", "industry", "fit_rationale"):
+        if prospect.get(key):
+            chunks.append(str(prospect[key]))
+    contact = prospect.get("contact") or {}
+    for key in ("title", "name"):
+        if contact.get(key):
+            chunks.append(str(contact[key]))
+    for ev in prospect.get("pain_evidence") or []:
+        if ev.get("excerpt"):
+            chunks.append(str(ev["excerpt"]))
+
+    clues: list[str] = []
+    seen: set[str] = set()
+    for chunk in chunks:
+        for raw in re.findall(r"[A-Za-z][A-Za-z0-9&+-]{3,}", chunk.lower()):
+            if raw in {
+                "with", "from", "this", "that", "their", "your", "they",
+                "them", "company", "startup", "prospect", "merchant",
+                "business", "solution", "platform", "customer", "customers",
+            }:
+                continue
+            if raw not in seen:
+                seen.add(raw)
+                clues.append(raw)
+            if len(clues) >= 28:
+                return clues
+    return clues
+
+
+def _specificity_warning(content: str, prospect: dict[str, Any] | None) -> str:
+    clues = _prospect_clues(prospect)
+    if not clues:
+        return ""
+    lower = content.lower()
+    hits = [c for c in clues if c in lower]
+    company = str((prospect or {}).get("company_name") or "").strip()
+    company_hits = lower.count(company.lower()) if company else 0
+    has_demo = all(
+        re.search(rf"id\s*=\s*['\"]{name}['\"]", lower)
+        for name in ("demoinput", "demooutput")
+    )
+    if len(set(hits)) >= 8 and company_hits >= 4 and has_demo:
+        return ""
+    missing = [c for c in clues if c not in set(hits)][:8]
+    return (
+        " WARNING: this prototype may still be too generic. Before deploying, "
+        "rewrite it to visibly include more prospect-specific clues from the "
+        f"brief/homepage. Missing examples: {', '.join(missing) or 'merchant workflow data'}. "
+        "Every major section, #demoInput, and #demoOutput should use this "
+        "prospect's categories/workflows/KPIs, not generic copy."
+    )
+
+
+def workspace_tools(state: PrototypeState, prospect: dict[str, Any] | None = None) -> list[Tool]:
     """Write prototype files, list them, deploy, finalize. Scoped per-run."""
 
     @tool("Write one file into the prototype workspace. `filename` must be a "
@@ -70,7 +128,10 @@ def workspace_tools(state: PrototypeState) -> list[Tool]:
             path = state.write(filename, content)
         except ValueError as exc:
             return f"[error] {exc}"
-        return f"wrote {path} ({len(content)} chars)"
+        warning = ""
+        if filename.lower().endswith((".html", ".htm")):
+            warning = _specificity_warning(content, prospect)
+        return f"wrote {path} ({len(content)} chars){warning}"
 
     @tool("List files currently in the prototype workspace.")
     def list_prototype_files() -> list[str]:

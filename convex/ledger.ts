@@ -80,3 +80,41 @@ export const setState = mutation({
     if (row) await ctx.db.patch(row._id, { state });
   },
 });
+
+// Console human-in-the-loop amend → update the review draft in place.
+export const updateDraft = mutation({
+  args: {
+    campaign_id: v.string(),
+    email_subject: v.string(),
+    email_body: v.string(),
+  },
+  handler: async (ctx, { campaign_id, email_subject, email_body }) => {
+    const all = await ctx.db.query("campaigns").collect();
+    const row = all.find((d: any) => d.id === campaign_id);
+    if (!row) return false;
+
+    await ctx.db.patch(row._id, {
+      email_subject,
+      email_body,
+      state: "awaiting_review",
+    });
+
+    const events = await ctx.db.query("events").collect();
+    const at = events.length
+      ? Math.max(...events.map((e: any) => Number(e.at ?? 0))) + 0.1
+      : 0;
+    await ctx.db.insert("events", {
+      id: `ev_console_amend_${campaign_id}_${Date.now()}`,
+      run_id: "console",
+      at,
+      act: 5,
+      agent: "Human Closer",
+      kind: "mail",
+      message: "Draft amended by the founder — awaiting final approval.",
+      campaign_id,
+      company: row.lead?.company_name ?? "",
+      payload: { state: "awaiting_review", amended: true },
+    });
+    return true;
+  },
+});

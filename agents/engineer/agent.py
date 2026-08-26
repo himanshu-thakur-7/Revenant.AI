@@ -40,7 +40,7 @@ class Engineer(Agent):
 
         self.add_tools(founder_tools(founder_context))
         self.add_tools(prospect_tool(prospect))
-        self.add_tools(workspace_tools(self._state))
+        self.add_tools(workspace_tools(self._state, prospect=prospect))
 
     @property
     def state(self) -> PrototypeState:
@@ -88,6 +88,7 @@ class Engineer(Agent):
                     merchant_domain=domain,
                     pain=self._prospect.get("fit_rationale") or "",
                     brand_brief=brand_brief,
+                    prospect_brief=self._prospect,
                 )
         except Exception:
             prototype_spec = ""
@@ -103,8 +104,9 @@ class Engineer(Agent):
                 "I pulled these signals straight from their homepage. Make the "
                 "prototype look like it belongs on THEIR site: use their accent "
                 "colours, echo their font choices (via Google Fonts if needed), "
-                "and mirror their wordmark styling in the hero. This is what "
-                "makes it feel custom-built for them.\n\n"
+                "mirror their wordmark styling in the hero, and reuse their "
+                "homepage language/category cues in your copy and demo data. "
+                "This is what makes it feel custom-built for them.\n\n"
                 f"{brand_brief}"
             )
         if prototype_spec:
@@ -116,6 +118,18 @@ class Engineer(Agent):
                 "this spec (aim for 15,000+ characters of dense, on-brand HTML), "
                 "then deploy. Do NOT rewrite the spec — implement it. If a small "
                 "detail is missing, use judgment.\n\n"
+                "ACCOUNT-SPECIFICITY CONTRACT:\n"
+                "- Every visible section must include something only this "
+                "prospect would recognise: a homepage phrase, category, order "
+                "type, operational workflow, buyer KPI, location/channel, or "
+                "sample data row.\n"
+                "- The #demoInput prefill must be a realistic object from the "
+                "prospect's world, not a generic paragraph.\n"
+                "- The #demoOutput must produce prospect-specific rows/metrics. "
+                "Never end with only 'processed successfully'.\n"
+                "- Include the spec's exact phrases/data points in the final "
+                "HTML copy. If the page could be used for another company by "
+                "changing the logo, it is wrong.\n\n"
                 "STRICT RULE: DO NOT USE `<img>` TAGS. Every image URL you "
                 "guess will 404 and render as a broken icon. Use CSS gradients, "
                 "inline SVG, or emoji for all visuals. The only external asset "

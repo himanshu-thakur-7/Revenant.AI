@@ -85,6 +85,7 @@ def _profile_email(creds) -> str:
 
 
 def create_draft(*, to_email: str, subject: str, body: str,
+                 from_email: str = "",
                  attachments: list[str | Path] | None = None) -> dict[str, Any]:
     """Create a Gmail draft with attachments. Returns
     ``{ok, draft_id, gmail_url, attached, skipped}`` or ``{ok: False, error}``.
@@ -97,6 +98,8 @@ def create_draft(*, to_email: str, subject: str, body: str,
         return {"ok": False, "error": f"gmail auth error: {exc}"}
 
     msg = EmailMessage()
+    if from_email:
+        msg["From"] = from_email
     if to_email:
         msg["To"] = to_email
     msg["Subject"] = subject
