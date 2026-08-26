@@ -146,6 +146,9 @@ def complete_strong_json(prompt: str, *, agent: str = "unknown",
             COST.record(agent, settings.strong_model,
                         _estimate_tokens(prompt),
                         _estimate_tokens(json.dumps(offline)))
+            # Same gap as complete_json() -- see the comment there.
+            trace.event("offline_stub")
+            log.dim(f"[llm:{agent}:strong] offline stub (json, {len(json.dumps(offline))} chars)")
             return dict(offline)
 
         sys = (system or "") + "\nRespond with a single valid JSON object and nothing else."
@@ -233,6 +236,14 @@ def complete_json(
         if settings.offline or not settings.llm_api_key:
             model = model or settings.llm_model
             COST.record(agent, model, _estimate_tokens(prompt), _estimate_tokens(json.dumps(offline)))
+            # Caught live (evals/judge.py's judge_once(), see evals/__init__.py's
+            # own comment on the same bug): unlike complete()'s offline branch,
+            # this one returned the stub with NO trace signal at all -- a caller
+            # that treats {} as a legitimate empty result (as judge_once() did)
+            # has nothing in out/traces/*.jsonl to show why. Mirror complete()'s
+            # signal exactly so this failure mode is at least visible there.
+            trace.event("offline_stub")
+            log.dim(f"[llm:{agent}] offline stub (json, {len(json.dumps(offline))} chars)")
             return dict(offline)
 
         sys = (system or "") + "\nRespond with a single valid JSON object and nothing else."
