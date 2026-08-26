@@ -1012,8 +1012,13 @@ def draft_email(to_email: str = "") -> str:
         return f"Couldn't create the draft: {exc}"
 
     if not res.get("ok"):
-        return (f"Couldn't create the draft: {res.get('error','unknown error')}. "
-                "You may need to authorize Gmail (`revenant gmail-auth`).")
+        err = res.get("error", "unknown error")
+        # The auth-not-configured error already tells the user to run
+        # `revenant gmail-auth` — appending the same hint again read as a
+        # sloppy, redundant double-period message. Only add it for errors
+        # that don't already say so (a real API failure, quota, etc).
+        hint = "" if "gmail-auth" in err else " You may need to authorize Gmail (`revenant gmail-auth`)."
+        return f"Couldn't create the draft: {err}{hint}"
     url = res.get("gmail_url", "")
     skipped = res.get("skipped") or []
     msg = f"✉️ Draft saved to Gmail for {recipient} — {url}"
