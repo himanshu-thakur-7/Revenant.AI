@@ -48,6 +48,8 @@ if str(_ROOT) not in sys.path:
 os.environ.setdefault("REVENANT_MODE", "live")
 
 from mcp.server.fastmcp import Context, FastMCP  # noqa: E402
+from ghost import trace  # noqa: E402
+from ghost.trace import traced_tool as _traced_tool  # noqa: E402
 
 REV = Path.home() / ".revenant"
 ACTIVE_CTX_PATH = REV / "active_context.json"
@@ -473,6 +475,7 @@ def build_campaign(choice: str = "1") -> str:
 
 
 @mcp.tool()
+@_traced_tool("build_prototype")
 async def build_prototype(startup: str, merchant: str, merchant_domain: str = "",
                           pain: str = "", startup_summary: str = "",
                           mcp_ctx: "Context | None" = None) -> str:
@@ -569,8 +572,10 @@ async def build_prototype(startup: str, merchant: str, merchant_domain: str = ""
 
         await _tick("🧠 Planning the prototype (senior-designer spec)…")
 
+        _trace_ctx = trace.capture_context()
+
         def _do_build():
-            with _quiet_stdout():
+            with _quiet_stdout(), trace.propagate_into(_trace_ctx):
                 eng = Engineer(founder_context=ctx, prospect=prospect)
                 res = eng.build(on_event=_on_event)
                 return eng, res
@@ -616,6 +621,7 @@ async def build_prototype(startup: str, merchant: str, merchant_domain: str = ""
 
 
 @mcp.tool()
+@_traced_tool("film_walkthrough")
 async def film_walkthrough(prototype_url: str, merchant: str, startup: str = "Razorpay",
                            pain: str = "", startup_summary: str = "",
                            mcp_ctx: "Context | None" = None) -> str:
@@ -699,8 +705,10 @@ async def film_walkthrough(prototype_url: str, merchant: str, startup: str = "Ra
     try:
         from agents.director.agent import Director
 
+        _trace_ctx = trace.capture_context()
+
         def _do_film():
-            with _quiet_stdout():
+            with _quiet_stdout(), trace.propagate_into(_trace_ctx):
                 d = Director(prototype_url=prototype_url, prospect=prospect)
                 return d.film(on_event=_on_event)
 
@@ -738,6 +746,7 @@ async def film_walkthrough(prototype_url: str, merchant: str, startup: str = "Ra
 
 
 @mcp.tool()
+@_traced_tool("draft_outreach")
 async def draft_outreach(startup: str, merchant: str, prototype_url: str,
                          walkthrough_url: str = "", pain: str = "",
                          merchant_domain: str = "", startup_summary: str = "",
@@ -835,8 +844,10 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
             except Exception:
                 pass
 
+        _trace_ctx = trace.capture_context()
+
         def _do_sales():
-            with _quiet_stdout():
+            with _quiet_stdout(), trace.propagate_into(_trace_ctx):
                 sales = Sales(
                     founder_context=ctx,
                     prospect=prospect,
@@ -931,6 +942,7 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
 
 
 @mcp.tool()
+@_traced_tool("build_full_outreach")
 async def build_full_outreach(startup: str, merchant: str,
                               merchant_domain: str = "", pain: str = "",
                               startup_summary: str = "",
@@ -1009,6 +1021,7 @@ async def build_full_outreach(startup: str, merchant: str,
 
 
 @mcp.tool()
+@_traced_tool("draft_email")
 def draft_email(to_email: str = "") -> str:
     """Save the last built campaign's email as a Gmail draft (deck + video attached).
 
@@ -1060,6 +1073,7 @@ def draft_email(to_email: str = "") -> str:
 
 
 @mcp.tool()
+@_traced_tool("status")
 def status() -> str:
     """Report what Revenant currently has loaded: active startup, last shortlist,
     last built campaign."""

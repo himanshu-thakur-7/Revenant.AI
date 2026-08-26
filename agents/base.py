@@ -342,6 +342,14 @@ class Agent:
         """One raw call to the LLM with retry — a venue-wifi blip or a 429
         must not kill a 4-minute autopilot chain. Returns the assistant
         message object."""
+        from ghost import trace as _trace
+
+        with _trace.span("agent.llm_step", kind="llm", agent=self.name):
+            return self._llm_step_inner()
+
+    def _llm_step_inner(self) -> Any:
+        from ghost import trace as _trace
+
         # Strong-model agents (Sales) run on OpenAI gpt-4o for copy quality;
         # everyone else defaults to the shared Nous Hermes-4 route.
         if self.use_strong_model and (settings.strong_api_key
@@ -403,6 +411,11 @@ class Agent:
             kwargs["tools"] = tool_schemas
             kwargs["tool_choice"] = "auto"
 
+        _trace.event("llm_step_resolved", model=model, base_url=base_url,
+                    use_strong_model=self.use_strong_model, reasoning=_reasoning,
+                    tool_count=len(tool_schemas) if tool_schemas else 0,
+                    reasoning_effort=kwargs.get("reasoning_effort"))
+
         import time as _time
         last_exc: Exception | None = None
         for attempt in range(1 + self._LLM_RETRIES):
@@ -411,6 +424,7 @@ class Agent:
                 break
             except Exception as exc:  # httpx timeouts, 429s, 5xx — all retryable
                 last_exc = exc
+                _trace.event("llm_retry", attempt=attempt, error=repr(exc)[:200])
                 if attempt >= self._LLM_RETRIES:
                     raise
                 _time.sleep(self._RETRY_BACKOFF_S[min(attempt, len(self._RETRY_BACKOFF_S) - 1)])
@@ -418,6 +432,8 @@ class Agent:
             raise last_exc or RuntimeError("llm call failed")
 
         msg = resp.choices[0].message
+        _trace.record_io(outputs={"content_preview": (msg.content or "")[:500],
+                                  "tool_calls": len(msg.tool_calls or [])})
 
         # crude cost telemetry
         usage = getattr(resp, "usage", None)

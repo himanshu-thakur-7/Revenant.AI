@@ -89,41 +89,58 @@ _PROMPT = (
 def polish_html(html: str, *, startup: str, merchant: str, passes: int = 1) -> str:
     """Render → vision-critique → fix, up to ``passes`` times. Returns improved
     HTML (or the original if the pass can't run / fails)."""
+    from ghost import trace
+    from ghost.llm import COST  # this call site never recorded cost before —
+                                # polish spend was invisible to the cost panel.
+
     key = _openai_key()
     if not key or not html:
         return html
     base = (settings.llm_base_url or "https://api.openai.com/v1").rstrip("/")
-    for _ in range(max(1, passes)):
-        png = _screenshot(html)
-        if not png:
-            break
-        b64 = base64.b64encode(png).decode()
-        try:
-            r = httpx.post(
-                base + "/chat/completions",
-                headers={"Authorization": f"Bearer {key}"},
-                json={
-                    "model": _VISION_MODEL,
-                    "messages": [{"role": "user", "content": [
-                        {"type": "text", "text":
-                            _PROMPT.format(merchant=merchant, startup=startup)
-                            + "\n\nCurrent HTML:\n" + html},
-                        {"type": "image_url", "image_url":
-                            {"url": f"data:image/png;base64,{b64}"}},
-                    ]}],
-                    "temperature": 0.2,
-                    "max_tokens": 16000,
-                },
-                timeout=180,
-            )
-            if r.status_code != 200:
+    with trace.span("engineer.polish", kind="llm.vision", agent="engineer.polish",
+                    model=_VISION_MODEL, passes=passes):
+        for i in range(max(1, passes)):
+            png = _screenshot(html)
+            if not png:
+                trace.event("screenshot_failed", pass_num=i)
                 break
-            fixed = _extract_html(r.json()["choices"][0]["message"]["content"])
-        except Exception:
-            break
-        # Only accept a fix that's plausibly a full doc (don't shrink to junk).
-        if fixed and len(fixed) > max(400, int(len(html) * 0.5)):
-            html = fixed
-        else:
-            break
-    return html
+            b64 = base64.b64encode(png).decode()
+            try:
+                r = httpx.post(
+                    base + "/chat/completions",
+                    headers={"Authorization": f"Bearer {key}"},
+                    json={
+                        "model": _VISION_MODEL,
+                        "messages": [{"role": "user", "content": [
+                            {"type": "text", "text":
+                                _PROMPT.format(merchant=merchant, startup=startup)
+                                + "\n\nCurrent HTML:\n" + html},
+                            {"type": "image_url", "image_url":
+                                {"url": f"data:image/png;base64,{b64}"}},
+                        ]}],
+                        "temperature": 0.2,
+                        "max_tokens": 16000,
+                    },
+                    timeout=180,
+                )
+                if r.status_code != 200:
+                    trace.event("http_error", pass_num=i, status=r.status_code,
+                               body_preview=r.text[:300])
+                    break
+                data = r.json()
+                fixed = _extract_html(data["choices"][0]["message"]["content"])
+                usage = data.get("usage") or {}
+                COST.record("engineer.polish", _VISION_MODEL,
+                            usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
+            except Exception as exc:  # noqa: BLE001
+                trace.event("exception", pass_num=i, error=repr(exc)[:200])
+                break
+            # Only accept a fix that's plausibly a full doc (don't shrink to junk).
+            accepted = bool(fixed) and len(fixed) > max(400, int(len(html) * 0.5))
+            trace.event("pass_result", pass_num=i, accepted=accepted,
+                       fixed_len=len(fixed) if fixed else 0, original_len=len(html))
+            if accepted:
+                html = fixed
+            else:
+                break
+        return html

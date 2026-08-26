@@ -231,6 +231,94 @@ def score(name: str, value: float, *, comment: str = "", trace_id: str | None = 
         pass
 
 
+def capture_context() -> dict[str, str]:
+    """Call from the thread that holds the current span context (e.g. the
+    asyncio event-loop thread inside an @mcp.tool()) BEFORE spawning a
+    worker thread. Returns a token for propagate_into() to use inside
+    that worker thread. Empty dict if there's no open span to capture."""
+    try:
+        stack = _stack()
+        if not stack:
+            return {}
+        return {"trace_id": stack[0]["trace_id"], "parent_span_id": stack[-1]["span_id"]}
+    except Exception:
+        return {}
+
+
+@contextlib.contextmanager
+def propagate_into(ctx: dict[str, str]) -> Iterator[None]:
+    """Call from INSIDE a worker thread (e.g. the target of
+    anyio.to_thread.run_sync) to adopt a trace/span context captured via
+    capture_context() in a DIFFERENT thread.
+
+    Needed because threading.local() — what the span stack is built on —
+    by design does not share state across threads. agents/mcp_server.py's
+    build_prototype/film_walkthrough/draft_outreach/build_full_outreach
+    all run their real work via anyio.to_thread.run_sync(), a genuinely
+    different OS thread from the one that opened the @mcp.tool() root
+    span. Caught live: without this, every span opened inside that worker
+    thread (planner, every agent.llm_step, ...) started its own brand-new
+    root trace with parent_span_id=None — the exact correlation this
+    tracing effort exists to provide was silently missing even though
+    every individual span recorded correctly.
+    """
+    if not ctx:
+        yield
+        return
+    stack = _stack()
+    # Not a real span (never emitted) — a placeholder so span() below
+    # inherits trace_id from ctx and treats ctx['parent_span_id'] as ITS
+    # parent, then span() pops its own entry and this one remains for any
+    # sibling span in the same thread call, popped in `finally` below.
+    placeholder = {"trace_id": ctx["trace_id"], "span_id": ctx["parent_span_id"]}
+    stack.append(placeholder)
+    try:
+        yield
+    finally:
+        try:
+            stack.remove(placeholder)
+        except ValueError:
+            pass
+
+
+def traced_tool(name: str | None = None, *, kind: str = "mcp"):
+    """Decorator for async functions — opens a root span for the call
+    duration, no reindentation of the wrapped function needed. Used for
+    agents/mcp_server.py's @mcp.tool() functions, which are large enough
+    (each is the whole build_prototype/film_walkthrough/... body) that
+    wrapping their bodies in `with span():` directly would mean
+    reindenting 50-150 lines per function — this decorator gets the same
+    span tree with a single added line per tool."""
+    def deco(fn):
+        import asyncio
+        import functools
+
+        span_name = name or fn.__name__
+
+        if asyncio.iscoroutinefunction(fn):
+            @functools.wraps(fn)
+            async def async_wrapper(*args, **kwargs):
+                # Log the call's own kwargs as attrs (startup/merchant/etc
+                # are exactly what you want visible without opening the
+                # trace) — skip mcp_ctx, not JSON-serializable, not useful.
+                attrs = {k: v for k, v in kwargs.items() if k != "mcp_ctx"}
+                with span(span_name, kind=kind, **attrs):
+                    result = await fn(*args, **kwargs)
+                    record_io(outputs=result)
+                    return result
+            return async_wrapper
+
+        @functools.wraps(fn)
+        def sync_wrapper(*args, **kwargs):
+            attrs = {k: v for k, v in kwargs.items() if k != "mcp_ctx"}
+            with span(span_name, kind=kind, **attrs):
+                result = fn(*args, **kwargs)
+                record_io(outputs=result)
+                return result
+        return sync_wrapper
+    return deco
+
+
 def flush() -> None:
     """No-op for the jsonl backend (writes are synchronous); real work
     once a batching backend (langfuse) exists. Call at process exit and

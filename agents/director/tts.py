@@ -55,6 +55,8 @@ def narrate(text: str, out_path: Path, *, voice_id: str | None = None) -> tuple[
     quota_exceeded — burning seconds on failed retries. Set
     REVENANT_PREFER_ELEVENLABS=1 to restore the ElevenLabs-first order.
     """
+    from ghost import trace
+
     text = _fix_pronunciation(text)
 
     prefer_eleven = os.getenv("REVENANT_PREFER_ELEVENLABS", "0") not in ("", "0", "false", "no")
@@ -68,6 +70,7 @@ def narrate(text: str, out_path: Path, *, voice_id: str | None = None) -> tuple[
                                 or _DEFAULT_VOICE_ID)
             return True
         except Exception as exc:  # quota_exceeded (401), network, etc.
+            trace.event("provider_failed", provider="elevenlabs", error=str(exc)[:200])
             print(f"[tts] ElevenLabs failed ({str(exc)[:120]}); trying next.",
                   file=sys.stderr, flush=True)
             return False
@@ -79,24 +82,31 @@ def narrate(text: str, out_path: Path, *, voice_id: str | None = None) -> tuple[
             _openai_render(text, out_path, api_key=oai_key)
             return True
         except Exception as exc:
+            trace.event("provider_failed", provider="openai", error=str(exc)[:200])
             print(f"[tts] OpenAI TTS failed ({str(exc)[:120]}); trying next.",
                   file=sys.stderr, flush=True)
             return False
 
-    order = (_try_elevenlabs, _try_openai) if prefer_eleven else (_try_openai, _try_elevenlabs)
-    for step in order:
-        if step():
-            return out_path, _measure(out_path)
+    with trace.span("director.tts", kind="tts", chars=len(text),
+                    prefer_eleven=prefer_eleven):
+        order = (("elevenlabs", _try_elevenlabs), ("openai", _try_openai)) if prefer_eleven \
+            else (("openai", _try_openai), ("elevenlabs", _try_elevenlabs))
+        for provider_name, step in order:
+            if step():
+                trace.event("provider_used", provider=provider_name)
+                return out_path, _measure(out_path)
 
-    # 3. macOS `say` — last resort.
-    if platform.system() == "Darwin":
-        _say_render(text, out_path)
-    else:
-        raise RuntimeError(
-            "All TTS providers failed and macOS `say` isn't available on this "
-            "platform. Add ELEVENLABS_API_KEY or a working OPENAI_API_KEY to .env."
-        )
-    return out_path, _measure(out_path)
+        # 3. macOS `say` — last resort.
+        if platform.system() == "Darwin":
+            trace.event("provider_used", provider="macos_say")
+            _say_render(text, out_path)
+        else:
+            trace.event("all_providers_failed")
+            raise RuntimeError(
+                "All TTS providers failed and macOS `say` isn't available on this "
+                "platform. Add ELEVENLABS_API_KEY or a working OPENAI_API_KEY to .env."
+            )
+        return out_path, _measure(out_path)
 
 
 def _elevenlabs_render(text: str, out_path: Path, *, voice_id: str) -> None:

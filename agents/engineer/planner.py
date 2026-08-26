@@ -130,34 +130,51 @@ def build_prototype_spec(*, startup: str, startup_summary: str, merchant: str,
     Cheap: one LLM call, no tools. On failure returns "" so the Engineer just
     proceeds with its original opening — the planner is best-effort acceleration.
     """
+    from ghost import trace
+    from ghost.llm import COST  # this call site never recorded cost before —
+                                # planner spend was invisible to the cost panel.
+
     key, base = _openai_key_and_base()
-    if not key:
-        return ""
     model = model or _DEFAULT_PLANNER_MODEL
-    prompt = _build_prompt(startup, startup_summary, merchant,
-                           merchant_domain, pain, brand_brief,
-                           prospect_brief=prospect_brief)
-    body: dict[str, Any] = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": _PLANNER_SYSTEM},
-            {"role": "user", "content": prompt},
-        ],
-    }
-    # gpt-5 / o-series don't accept a custom temperature; other models get 0.4
-    # for a bit of copywriting warmth without hallucination.
-    is_reasoning = bool(re.match(r"^(gpt-5|o[134])", model))
-    if is_reasoning:
-        body["max_completion_tokens"] = 5500
-    else:
-        body["temperature"] = 0.4
-        body["max_tokens"] = 3500
-    try:
-        r = httpx.post(base + "/chat/completions",
-                       headers={"Authorization": f"Bearer {key}"},
-                       json=body, timeout=timeout)
-        if r.status_code != 200:
+    with trace.span("engineer.planner", kind="llm", agent="engineer.planner", model=model):
+        if not key:
+            trace.event("no_key")
             return ""
-        return (r.json()["choices"][0]["message"]["content"] or "").strip()
-    except Exception:
-        return ""
+        prompt = _build_prompt(startup, startup_summary, merchant,
+                               merchant_domain, pain, brand_brief,
+                               prospect_brief=prospect_brief)
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": _PLANNER_SYSTEM},
+                {"role": "user", "content": prompt},
+            ],
+        }
+        # gpt-5 / o-series don't accept a custom temperature; other models get 0.4
+        # for a bit of copywriting warmth without hallucination.
+        is_reasoning = bool(re.match(r"^(gpt-5|o[134])", model))
+        if is_reasoning:
+            body["max_completion_tokens"] = 5500
+        else:
+            body["temperature"] = 0.4
+            body["max_tokens"] = 3500
+        try:
+            r = httpx.post(base + "/chat/completions",
+                           headers={"Authorization": f"Bearer {key}"},
+                           json=body, timeout=timeout)
+            if r.status_code != 200:
+                trace.event("http_error", status=r.status_code, body_preview=r.text[:300])
+                return ""
+            data = r.json()
+            spec = (data["choices"][0]["message"]["content"] or "").strip()
+            usage = data.get("usage") or {}
+            n_in = usage.get("prompt_tokens", 0)
+            n_out = usage.get("completion_tokens", 0)
+            COST.record("engineer.planner", model, n_in, n_out)
+            trace.record_io(inputs=prompt[:2000], outputs=spec[:2000])
+            if not spec:
+                trace.event("planner_returned_empty")
+            return spec
+        except Exception as exc:  # noqa: BLE001
+            trace.event("exception", error=repr(exc)[:200])
+            return ""
