@@ -1017,11 +1017,13 @@ async def build_full_outreach(startup: str, merchant: str,
         try:
             from evals.bundle import slug
             from evals.bundle import Bundle
+            from evals.history import record_run
             from evals.runner import bundle_pass, score_summary, score_bundle
             b = Bundle.load(slug(merchant))
             scored = score_bundle(b)
             verdict = "PASS" if bundle_pass(scored) else "FAIL"
             qa_block = f"\n\nQA: {verdict}\n{score_summary(scored)}"
+            record_run(b, scored)
         except Exception as exc:  # noqa: BLE001
             # Autoscore is a bonus, never a blocker — a bug in the eval
             # framework must not be able to hide a real, working campaign.
@@ -1167,6 +1169,11 @@ def critique_campaign(merchant: str = "") -> str:
 
     scored = score_bundle(b)
     verdict = "PASS" if bundle_pass(scored) else "FAIL"
+    try:
+        from evals.history import record_run
+        record_run(b, scored)
+    except Exception:
+        pass  # history is a bonus record, never blocks the verdict itself
     return f"QA: {verdict}\n\n{score_summary(scored)}"
 
 

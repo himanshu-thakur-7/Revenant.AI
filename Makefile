@@ -1,4 +1,4 @@
-.PHONY: help install test run demo console sync clean eval eval-judge eval-live eval-calibrate
+.PHONY: help install test run demo console sync clean eval eval-judge eval-live eval-calibrate eval-propose
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -49,3 +49,6 @@ eval-live:  ## full live pipeline run for MERCHANT, then score it (real $ spend)
 
 eval-calibrate:  ## judge calibration set (evals/golden/labeled/) — confirms the judge still discriminates
 	. .venv/bin/activate && python -m evals.cli calibrate
+
+eval-propose:  ## cluster out/evals/history.jsonl for recurring failures, write proposals (never auto-applies)
+	. .venv/bin/activate && python -m evals.cli propose

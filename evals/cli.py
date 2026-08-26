@@ -45,6 +45,7 @@ def score(merchant: str = typer.Option(..., "--merchant", "-m"),
          accept: bool = typer.Option(False, "--accept-baseline",
                                      help="Write this run as the new baseline for this golden.")):
     """T1 + T2 (LLM judge, gated behind T1) for one merchant's bundle."""
+    from evals.history import record_run
     from evals.report import accept_baseline, diff_against_baseline, render_report, save_report
     from evals.runner import bundle_pass, score_bundle, score_summary
 
@@ -55,6 +56,7 @@ def score(merchant: str = typer.Option(..., "--merchant", "-m"),
 
     scored = score_bundle(b)
     typer.echo(score_summary(scored))
+    record_run(b, scored)
 
     golden_id = slug(merchant)
     regressions = diff_against_baseline("agents_fleet", golden_id, scored)
@@ -86,6 +88,24 @@ def calibrate():
     typer.echo(report)
     typer.echo(f"\n{'PASS' if ok else 'FAIL'} — judge calibration")
     raise typer.Exit(0 if ok else 1)
+
+
+@app.command()
+def propose():
+    """Read out/evals/history.jsonl, cluster recurring failure modes,
+    and write a proposal .md under out/evals/proposals/ for anything
+    that crossed the threshold. Never edits a prompt file itself —
+    see evals/improve.py's module docstring."""
+    from evals.improve import propose_patch
+
+    paths = propose_patch()
+    if not paths:
+        typer.echo("No recurring failure mode crossed the threshold. Nothing written.")
+        raise typer.Exit(0)
+    typer.echo(f"Wrote {len(paths)} proposal(s):")
+    for p in paths:
+        typer.echo(f"  {p}")
+    raise typer.Exit(0)
 
 
 @app.command("list-bundles")
