@@ -1012,11 +1012,27 @@ async def build_full_outreach(startup: str, merchant: str,
         mcp_ctx=mcp_ctx,
     )
 
+    qa_block = ""
+    if os.getenv("REVENANT_EVAL_AUTOSCORE", "1") not in ("", "0", "false", "no"):
+        try:
+            from evals.bundle import slug
+            from evals.bundle import Bundle
+            from evals.runner import bundle_pass, score_summary, score_bundle
+            b = Bundle.load(slug(merchant))
+            scored = score_bundle(b)
+            verdict = "PASS" if bundle_pass(scored) else "FAIL"
+            qa_block = f"\n\nQA: {verdict}\n{score_summary(scored)}"
+        except Exception as exc:  # noqa: BLE001
+            # Autoscore is a bonus, never a blocker — a bug in the eval
+            # framework must not be able to hide a real, working campaign.
+            qa_block = f"\n\n(QA check skipped: {exc})"
+
     return (
         f"✅ {merchant}: full campaign package is ready.\n\n"
         f"Engineer:\n{build_res}\n\n"
         f"Director:\n{film_res}\n\n"
         f"Sales:\n{sales_res}"
+        f"{qa_block}"
     )
 
 
@@ -1104,6 +1120,54 @@ def status() -> str:
         except Exception:
             pass
     return "\n".join(lines) if lines else "Nothing loaded yet."
+
+
+@mcp.tool()
+@_traced_tool("critique_campaign")
+def critique_campaign(merchant: str = "") -> str:
+    """Score the last (or a named) campaign against Revenant's quality bar.
+
+    Deterministic checks (live URL, real audio, working demo) run FIRST and
+    are hard gates — an artifact that fails them is scored 0 and the LLM
+    judge never runs on it (a judge can't rescue a dead link). Only if
+    those pass does the LLM judge critique prototype/email copy against a
+    rubric, with every score backed by verified quotes from the actual
+    artifact — a judge that can't quote real evidence for a score can't
+    give that score.
+
+    Call this AFTER build_full_outreach (or build_prototype/draft_outreach)
+    returns, to get an honest PASS/FAIL + composite + the top concrete
+    fix instructions — not the crew's own self-report of what it built.
+    """
+    _log_call("critique_campaign", merchant)
+    try:
+        from evals.bundle import Bundle, from_disk, slug
+        from evals.runner import bundle_pass, score_summary, score_bundle
+    except Exception as exc:  # noqa: BLE001
+        return f"Couldn't load the eval framework: {exc}"
+
+    if not merchant:
+        # No merchant named — fall back to whatever the last campaign was.
+        if not CAMPAIGN_PATH.exists():
+            return "No campaign to critique yet — build one first."
+        try:
+            merchant = json.loads(CAMPAIGN_PATH.read_text()).get("company", "")
+        except Exception:
+            merchant = ""
+        if not merchant:
+            return "No campaign to critique yet — build one first."
+
+    try:
+        b = Bundle.load(slug(merchant))
+    except Exception:
+        b = from_disk(merchant)
+
+    if not any(b.artifacts().values()):
+        return f"No artifacts found for '{merchant}' — nothing to critique yet."
+
+    scored = score_bundle(b)
+    verdict = "PASS" if bundle_pass(scored) else "FAIL"
+    return f"QA: {verdict}\n\n{score_summary(scored)}"
 
 
 if __name__ == "__main__":

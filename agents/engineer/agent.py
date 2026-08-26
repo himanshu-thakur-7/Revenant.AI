@@ -46,10 +46,17 @@ class Engineer(Agent):
     def state(self) -> PrototypeState:
         return self._state
 
-    def build(self, on_event: EventSink = None) -> dict[str, Any]:
+    def build(self, on_event: EventSink = None, extra_instruction: str = "") -> dict[str, Any]:
         """Run one autonomous build for the bound prospect. Returns the
         finalized payload (URL + summary), regardless of whether the LLM
-        called finalize_prototype explicitly."""
+        called finalize_prototype explicitly.
+
+        extra_instruction: appended to the opening prompt verbatim — the
+        self-heal retry path (evals + critique_campaign, see
+        docs/evals-observability-design.md §3.2) uses this to hand the
+        Engineer a judge's fail_reasons on a bounded single retry. Mirrors
+        agents/sales/agent.py's Sales.draft(extra_instruction=...), which
+        had this and Engineer didn't."""
         # Pre-fetch the prospect's live brand (colours/fonts/wordmark) so the
         # prototype can match their site instead of a generic template. Baked
         # into the opening so the LLM can't skip it (best-effort; empty on fail).
@@ -136,6 +143,8 @@ class Engineer(Agent):
                 "allowed is Google Fonts.\n\n"
                 f"{prototype_spec}"
             )
+        if extra_instruction:
+            opening += "\n\n## Fix this before you finish\n" + extra_instruction.strip()
         text = self.run_turn(opening, on_event=on_event)
 
         finalized = self._state.finalized or bool(self._state.deployment_url)
