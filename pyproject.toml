@@ -43,6 +43,9 @@ dependencies = [
 # require network or a browser.
 media = ["playwright>=1.45"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.5"]
+# ghost/trace_langfuse.py — only needed when REVENANT_TRACE_BACKEND=langfuse.
+# The jsonl backend (default) needs nothing here.
+observability = ["langfuse>=3.0"]
 
 [project.scripts]
 # Legacy scripted pipeline — kept working for the console demo.

@@ -123,10 +123,16 @@ def _emit(record: dict[str, Any]) -> None:
     if not TRACE_ENABLED or TRACE_BACKEND == "none":
         return
     if TRACE_BACKEND == "langfuse":
-        # Not implemented yet — needs LANGFUSE_PUBLIC_KEY/SECRET_KEY, task
-        # 9 in docs/evals-observability-design.md. Fall through to jsonl
-        # so tracing degrades rather than silently vanishing if someone
-        # sets the backend before the keys/implementation exist.
+        try:
+            from . import trace_langfuse
+            trace_langfuse.emit(record)
+        except Exception:
+            pass
+        # Also write jsonl — belt-and-suspenders: if LANGFUSE_PUBLIC_KEY/
+        # SECRET_KEY aren't actually set (langfuse silently no-ops rather
+        # than raising in that case), tracing still lands somewhere instead
+        # of quietly vanishing. Cheap; the whole point of tracing is not
+        # losing data because one backend wasn't fully configured.
         _write_jsonl(record)
         return
     _write_jsonl(record)
@@ -320,10 +326,16 @@ def traced_tool(name: str | None = None, *, kind: str = "mcp"):
 
 
 def flush() -> None:
-    """No-op for the jsonl backend (writes are synchronous); real work
-    once a batching backend (langfuse) exists. Call at process exit and
-    at the end of any CLI entry point."""
-    pass
+    """No-op for the jsonl backend (writes are synchronous). Flushes the
+    langfuse backend's batched exporter when that backend is active. Call
+    at process exit (already registered below) and at the end of any CLI
+    entry point that might otherwise exit before a batch flushes."""
+    if TRACE_BACKEND == "langfuse":
+        try:
+            from . import trace_langfuse
+            trace_langfuse.flush()
+        except Exception:
+            pass
 
 
 import atexit  # noqa: E402
