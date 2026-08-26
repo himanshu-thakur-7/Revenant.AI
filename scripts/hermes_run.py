@@ -375,7 +375,6 @@ def _resolve_choice(choice: str, prospects: list):
 def _do_send() -> None:
     os.environ.setdefault("REVENANT_MODE", "live")
     recipient = _arg_after("--send").strip()
-    target = _resolve_target()
     import json as _json
     if not CAMPAIGN_PATH.exists():
         print("There's no drafted campaign to send yet. Build one first with "

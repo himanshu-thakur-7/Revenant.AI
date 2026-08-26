@@ -246,6 +246,7 @@ def build(campaign: Campaign, seller: SellerProfile, quiet: bool = False) -> Cam
     ``quiet`` skips mission-log events (used for the post-media re-render)."""
     log.stage(f"Builder: engineering a prototype for {campaign.lead.company_name}…")
     persona = campaign.persona or Persona()
+    persona_ref = persona.references[0] if persona.references else ""
     lead = campaign.lead
 
     if not quiet:
@@ -273,7 +274,9 @@ def build(campaign: Campaign, seller: SellerProfile, quiet: bool = False) -> Cam
 
     headline = complete(
         f"Write a punchy 8-word headline for a microsite {seller.name} built for "
-        f"{campaign.lead.company_name} to solve: {campaign.lead.job_description[:200]}",
+        f"{campaign.lead.company_name} to solve: {campaign.lead.job_description[:200]}"
+        + (f" Ground it in this specific signal about them if it fits naturally, "
+           f"without quoting it verbatim: {persona_ref}" if persona_ref else ""),
         agent="copywriter",
         offline=f"We built {seller.name} into {campaign.lead.company_name}'s front desk.",
         temperature=0.6,
