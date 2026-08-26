@@ -39,7 +39,10 @@ export default async function handler(req) {
   let upstream;
   try {
     upstream = await fetch(`${base.replace(/\/$/, "")}/v1/runs/${id}/events`, {
-      headers: { Authorization: `Bearer ${key}` },
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "ngrok-skip-browser-warning": "true",
+      },
     });
   } catch (err) {
     return new Response(

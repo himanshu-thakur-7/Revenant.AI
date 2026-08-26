@@ -27,6 +27,7 @@ export default async function handler(req, res) {
     const to = setTimeout(() => ctrl.abort(), 3500);
     const upstream = await fetch(`${base.replace(/\/$/, "")}/health`, {
       signal: ctrl.signal,
+      headers: { "ngrok-skip-browser-warning": "true" },
     });
     clearTimeout(to);
     res.status(200).json({ ok: upstream.ok });

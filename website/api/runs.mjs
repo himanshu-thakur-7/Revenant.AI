@@ -41,6 +41,9 @@ export default async function handler(req, res) {
       headers: {
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
+        // harmless if HERMES_BASE isn't ngrok; skips the free-tier browser
+        // interstitial when it is (PLAN.md's ngrok gotcha).
+        "ngrok-skip-browser-warning": "true",
       },
       body: JSON.stringify(body || {}),
     });
