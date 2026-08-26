@@ -73,13 +73,26 @@ def _ensure_server() -> int:
     return _port
 
 
-def _existing_tunnel() -> str:
-    """Return an already-running ngrok https tunnel URL, or '' if none."""
+def _existing_tunnel(port: int) -> str:
+    """Return an already-running ngrok https tunnel that forwards to
+    ``port``, or '' if none.
+
+    ngrok's local API lists EVERY tunnel active on the machine, not just
+    ones this process started — e.g. a tunnel someone opened by hand to a
+    completely different local service. The old version took the first
+    https tunnel it saw with no port check, so whenever any other ngrok
+    tunnel was already running, every prototype/walkthrough URL silently
+    pointed at the wrong backend (404, or worse, someone else's server)
+    while build_prototype / film_walkthrough still reported success —
+    the artifact never actually existed at the URL handed back.
+    """
     try:
         r = httpx.get(_NGROK_API, timeout=3)
+        want = {f"http://localhost:{port}", f"http://127.0.0.1:{port}"}
         for t in r.json().get("tunnels", []):
             u = t.get("public_url", "")
-            if u.startswith("https"):
+            addr = (t.get("config") or {}).get("addr", "")
+            if u.startswith("https") and addr in want:
                 return u
     except Exception:
         pass
@@ -89,9 +102,20 @@ def _existing_tunnel() -> str:
 def _ensure_tunnel(port: int) -> str:
     global _public_url, _ngrok_proc
     if _public_url:
-        return _public_url
-    # Reuse a tunnel that's already up (e.g. left by a prior process).
-    existing = _existing_tunnel()
+        # Cached from an earlier call in this same process — but ngrok can
+        # die independently (crash, network blip, laptop sleep/wake, or
+        # someone kills it by hand) without this process knowing. Reusing a
+        # dead cached URL blindly is exactly how this bug hid the longest:
+        # every future publish() in the process's lifetime would keep
+        # returning a URL that used to work. Re-validate against the CURRENT
+        # tunnel list every time; only trust the cache if it's still there.
+        if _public_url in {t for t in [_existing_tunnel(port)] if t}:
+            return _public_url
+        _public_url = ""
+        _ngrok_proc = None
+    # Reuse a tunnel that's already up FOR OUR OWN PORT (e.g. left by a
+    # prior process) — never someone else's tunnel to a different service.
+    existing = _existing_tunnel(port)
     if existing:
         _public_url = existing
         return _public_url
@@ -100,7 +124,7 @@ def _ensure_tunnel(port: int) -> str:
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     for _ in range(60):
-        u = _existing_tunnel()
+        u = _existing_tunnel(port)
         if u:
             _public_url = u
             return _public_url
