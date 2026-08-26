@@ -65,6 +65,7 @@ def email_checks(b: Bundle) -> list[Check]:
                                   pain=b.pain, contact_name=b.contact_name,
                                   contact_title=b.contact_title),
         email_.no_placeholder_name(path),
+        email_.no_truncated_signoff(path),
         email_.links_present_and_alive(path, b.prototype_url, b.walkthrough_url),
     ]
 

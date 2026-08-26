@@ -15,6 +15,17 @@ _BANNED_OPENERS = (
 )
 _PLACEHOLDER_MARKERS = ("[name]", "{{", "<recipient>", "<company>", "[company]")
 
+# A bare, lone stopword as the email's final line -- not a real sentence,
+# not a name, just a dangling function word. Small and curated on purpose:
+# a real short sign-off ("Alex", "— Sam", "the Razorpay team") must never
+# false-positive here, so this only fires when the ENTIRE last line is a
+# single word from this set.
+_TRUNCATION_TAIL_WORDS = frozenset({
+    "the", "a", "an", "and", "or", "but", "for", "to", "of", "in", "on",
+    "at", "is", "are", "was", "were", "be", "been", "this", "that",
+    "these", "those", "with", "as", "by", "from", "if", "so", "we", "i",
+})
+
 
 def _read(email_md_path: str) -> str | None:
     if not email_md_path or not Path(email_md_path).exists():
@@ -77,6 +88,32 @@ def no_placeholder_name(email_md_path: str, *, name: str = "no_placeholder_name"
     lower = body.lower()
     hits = [m for m in _PLACEHOLDER_MARKERS if m in lower]
     return Check(name, not hits, f"found: {hits}" if hits else "clean", measured=hits)
+
+
+def no_truncated_signoff(email_md_path: str, *, name: str = "no_truncated_signoff") -> Check:
+    """Live-caught, real, and recurring: two separate campaigns this
+    session (Meesho, PhonePe) both shipped an email whose body ends with
+    the single bare word "the" and nothing after it -- the LLM's closing
+    sign-off line got cut off mid-thought, and nothing downstream
+    (save_draft's body.strip(), _render_markdown) would ever catch or
+    repair it, so it shipped straight to the review queue looking
+    unfinished. This check only flags when the file's LAST non-empty line
+    is a single word from a small stopword list -- deliberately narrow so
+    a real short sign-off (a first name, "— Alex", "the Razorpay team")
+    never false-positives."""
+    body = _read(email_md_path)
+    if body is None:
+        return Check(name, False, "no file to check")
+    lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
+    if not lines:
+        return Check(name, False, "email body is empty")
+    last = lines[-1]
+    words = last.split()
+    bare_word = re.sub(r"[^\w'-]", "", words[0]).lower() if len(words) == 1 else ""
+    truncated = len(words) == 1 and bare_word in _TRUNCATION_TAIL_WORDS
+    return Check(name, not truncated,
+                f"last line is the bare word {last!r} -- looks like a cut-off sign-off"
+                if truncated else "clean")
 
 
 def links_present_and_alive(email_md_path: str, prototype_url: str = "", walkthrough_url: str = "",

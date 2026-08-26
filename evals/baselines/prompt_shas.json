@@ -24,7 +24,7 @@
     "version": "research@1"
   },
   "agents.sales.prompt": {
-    "sha": "d084aa122d8f",
-    "version": "sales@1"
+    "sha": "b79f78908ce9",
+    "version": "sales@2"
   }
 }
