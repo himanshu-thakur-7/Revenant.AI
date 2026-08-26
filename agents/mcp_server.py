@@ -82,6 +82,20 @@ def _log_call(name: str, detail: str = "") -> None:
         pass
 
 
+def _record_bundle(merchant: str, **fields: Any) -> None:
+    """Persist this call's slice into evals/'s addressable Bundle for the
+    merchant (see evals/bundle.py). One bundle_id per merchant — a rebuild
+    updates it rather than creating a new one, matching how
+    ~/.revenant/last_campaign.json already works. Must never raise or
+    print to stdout (this is a stdio MCP server — see _log_call above for
+    the same constraint) and must never block the tool's real return."""
+    try:
+        from evals.bundle import merge_into, slug
+        merge_into(slug(merchant), merchant=merchant, **fields)
+    except Exception:
+        pass
+
+
 def _looks_like_repo(src: str) -> bool:
     return src.startswith(("http://", "https://", "git@")) or (
         "/" in src and not src.startswith(("~", "/", ".")))
@@ -590,6 +604,11 @@ async def build_prototype(startup: str, merchant: str, merchant_domain: str = ""
     except Exception as exc:  # noqa: BLE001
         return f"Build failed for {merchant}: {exc}"
 
+    _record_bundle(merchant, startup=startup, startup_summary=startup_summary,
+                   merchant_domain=merchant_domain, pain=pain,
+                   prototype_url=url if url and not url.startswith("file:") else "",
+                   prototype_html_path=str(idx) if idx.exists() else "")
+
     if not url or url.startswith("file:"):
         return (f"Built a prototype for {merchant}, but the deploy didn't return a "
                 f"public URL ({url or 'none'}).")
@@ -707,6 +726,11 @@ async def film_walkthrough(prototype_url: str, merchant: str, startup: str = "Ra
                     pass
     except Exception as exc:  # noqa: BLE001
         return f"Filming failed for {merchant}: {exc}"
+
+    _record_bundle(merchant, startup=startup, startup_summary=startup_summary, pain=pain,
+                   prototype_url=prototype_url,
+                   walkthrough_url=url if url and not url.startswith("file:") else "",
+                   walkthrough_mp4_path=(res or {}).get("mp4_path", ""))
 
     if not url or url.startswith("file:"):
         return f"Filmed a walkthrough for {merchant}, but publishing didn't return a public URL."
@@ -871,6 +895,14 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
         "email_body": Path(email_md).read_text(encoding="utf-8") if email_md and Path(email_md).exists() else "",
         "campaign_id": (res or {}).get("campaign_id", ""),
     }), encoding="utf-8")
+
+    _record_bundle(merchant, startup=startup, startup_summary=startup_summary,
+                   merchant_domain=merchant_domain, pain=pain,
+                   prototype_url=prototype_url, walkthrough_url=walkthrough_url,
+                   deck_url=deck_url, deck_pptx_path=deck_pptx,
+                   email_md_path=email_md, email_subject=subject,
+                   recipient_email=recipient_email, contact_name=contact_name,
+                   contact_title=contact_title)
 
     out = [
         f"✉️ {merchant}: sales pitch drafted.",
