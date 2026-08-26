@@ -1,0 +1,30 @@
+{
+  "good-meesho": {
+    "artifact_kind": "prototype",
+    "artifact_path": "good-meesho/prototype.html",
+    "brief": {
+      "startup": "Razorpay",
+      "merchant": "Meesho",
+      "pain": "High-volume marketplace payments, refunds, COD settlements, and seller payouts create major reconciliation complexity."
+    },
+    "expected_composite_band": [50, 100],
+    "note": "The real, verified-live Meesho build from this session (build_full_outreach, confirmed 200 OK + real content at the time). Live judge run scored 63.8/100 with specific, checkable critiques (a real arithmetic bug in the demo output, hardcoded values) — this band should hold for any comparably real build, not just this exact score."
+  },
+  "generic-strawman": {
+    "artifact_kind": "prototype",
+    "artifact_path": "generic-strawman/prototype.html",
+    "brief": {
+      "startup": "Razorpay",
+      "merchant": "Meesho",
+      "pain": "High-volume marketplace payments, refunds, COD settlements, and seller payouts create major reconciliation complexity."
+    },
+    "expected_composite_band": [0, 40],
+    "note": "Deliberately generic/logo-swappable HTML — no company names, no specific workflow, banned-phrase copy ('AI-powered', 'boost conversion', 'unlock growth'), placeholder demo. Live judge run scored 0.0/100. Written by hand for this calibration set, not produced by the pipeline."
+  },
+  "dead-url": {
+    "artifact_kind": "prototype",
+    "note": "Not a judge calibration case — a T1 (deterministic) calibration case. A bundle whose prototype_url points at a killed tunnel must FAIL url_alive() and never reach the judge at all (evals/runner.py's T1-gates-T2 contract, §1.6 M2). This session hit this exact failure mode three separate times for real (see git log: the ngrok tunnel-matching and cache-staleness fixes) before it was fixed — this case exists so a regression in that gating logic is caught here, not rediscovered live again.",
+    "expected_t1_result": "FAIL",
+    "expected_composite": 0
+  }
+}

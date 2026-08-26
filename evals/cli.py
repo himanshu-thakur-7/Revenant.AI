@@ -39,6 +39,19 @@ def check(merchant: str = typer.Option(..., "--merchant", "-m"),
     raise typer.Exit(0 if all_pass else 1)
 
 
+@app.command()
+def calibrate():
+    """Run the labeled judge-calibration set (evals/golden/labeled/) —
+    confirms the LLM judge still separates a real build from a
+    deliberately generic one. Costs a handful of live API calls."""
+    from evals.judge import calibrate as _calibrate
+
+    ok, report = _calibrate()
+    typer.echo(report)
+    typer.echo(f"\n{'PASS' if ok else 'FAIL'} — judge calibration")
+    raise typer.Exit(0 if ok else 1)
+
+
 @app.command("list-bundles")
 def list_bundles():
     """List every saved bundle id."""

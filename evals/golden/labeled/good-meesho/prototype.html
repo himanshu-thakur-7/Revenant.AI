@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Every Meesho order, reconciled — Razorpay × Meesho</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      // Utility for animated count-up
+      function animateValue(id, start, end, duration, prefix = '', suffix = '') {
+        const obj = document.getElementById(id);
+        let startTimestamp = null;
+        const step = (timestamp) => {
+          if (!startTimestamp) startTimestamp = timestamp;
+          const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+          const val = Math.floor(progress * (end - start) + start);
+          obj.textContent = prefix + val.toLocaleString('en-IN') + suffix;
+          if (progress < 1) {
+            window.requestAnimationFrame(step);
+          } else {
+            obj.textContent = prefix + end.toLocaleString('en-IN') + suffix;
+          }
+        };
+        window.requestAnimationFrame(step);
+      }
+    </script>
+    <style>
+      html {
+        box-sizing: border-box;
+      }
+      *, *:before, *:after {
+        box-sizing: inherit;
+      }
+      body {
+        background: radial-gradient(ellipse at 30% 10%, #F4339755 0%, #3395FF22 60%, #FFFDF9 100%);
+        font-family: 'Inter', sans-serif;
+        color: #171717;
+        margin: 0;
+        min-height: 100vh;
+      }
+      .container {
+        max-width: 72rem;
+        margin: 0 auto;
+        padding: 0 1.5rem;
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.25rem 0 1.25rem 0;
+        background: #FFFDF9CC;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 1px solid #F3F3F5;
+      }
+      .wordmark {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 1.15rem;
+        font-weight: 700;
+      }
+      .razorpay-logo {
+        display: flex;
+        align-items: center;
+        font-weight: 700;
+        color: #171717;
+      }
+      .razorpay-mark {
+        width: 1.15em;
+        height: 1.15em;
+        margin-right: 0.25em;
+        display: inline-block;
+        vertical-align: middle;
+      }
+      .meesho-wordmark {
+        font-weight: 700;
+        color: #F43397;
+        letter-spacing: -0.5px;
+      }
+      .nav-prospect {
+        font-size: 1rem;
+        font-weight: 500;
+        color: #F43397;
+        background: #FFF0F3;
+        padding: 0.35em 0.75em;
+        border-radius: 99px;
+      }
+      .eyebrow {
+        font-family: 'Inter', monospace;
+        font-size: 0.95rem;
+        letter-spacing: 0.05em;
+        color: #3395FF;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+      .hero {
+        padding: 3rem 0 2.5rem 0;
+        background: none;
+        text-align: left;
+      }
+      .hero-title {
+        font-size: 2.7rem;
+        font-weight: 700;
+        line-height: 1.13;
+        letter-spacing: -1px;
+        color: #171717;
+        margin-bottom: 1.1rem;
+      }
+      .hero-sub {
+        font-size: 1.33rem;
+        font-weight: 500;
+        color: #3D3D3D;
+        margin-bottom: 2.25rem;
+        max-width: 38rem;
+      }
+      .cta-primary {
+        background: linear-gradient(90deg, #3395FF 0%, #F43397 100%);
+        color: #FFFDF9;
+        font-weight: 700;
+        font-size: 1.18rem;
+        padding: 0.9em 2.2em;
+        border: none;
+        border-radius: 2em;
+        box-shadow: 0 2px 12px #F4339722;
+        cursor: pointer;
+        transition: background 0.17s;
+      }
+      .cta-primary:active {
+        background: linear-gradient(90deg, #F43397 0%, #3395FF 100%);
+      }
+      .hero-micro {
+        font-size: 1rem;
+        color: #7A7A7A;
+        margin-top: 0.7rem;
+      }
+      /* Marketplace Journey section */
+      .section-label {
+        font-family: 'Inter', monospace;
+        font-size: 0.97rem;
+        color: #F43397;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+        margin-bottom: 0.4rem;
+      }
+      .journey {
+        padding: 2.5rem 0 2.2rem 0;
+        border-bottom: 1px solid #F3F3F5;
+      }
+      .journey-title {
+        font-size: 2.1rem;
+        font-weight: 700;
+        color: #171717;
+        margin-bottom: 1.2rem;
+      }
+      .journey-copy {
+        font-size: 1.15rem;
+        color: #3D3D3D;
+        margin-bottom: 2.1rem;
+        max-width: 40rem;
+      }
+      .journey-cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.2rem;
+        margin-bottom: 0.5rem;
+      }
+      .journey-card {
+        background: #FFFDF9;
+        border: 1px solid #F3F3F5;
+        border-radius: 1.1em;
+        box-shadow: 0 2px 10px #F4339710;
+        padding: 1.1em 1.65em;
+        min-width: 180px;
+        flex: 1 1 140px;
+        font-size: 1.08rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5em;
+      }
+      .journey-card-label {
+        font-weight: 700;
+        color: #3395FF;
+        font-size: 1.07em;
+        margin-bottom: 0.1em;
+      }
+      .journey-card-detail {
+        font-size: 1.01em;
+        color: #F43397;
+        font-weight: 500;
+      }
+      /* Live Demo Workbench */
+      #demo {
+        padding: 2.5rem 0 2.5rem 0;
+        background: #FFFDF9;
+        border-top: 1px solid #F3F3F5;
+        border-bottom: 1px solid #F3F3F5;
+      }
+      .demo-label {
+        font-family: 'Inter', monospace;
+        font-size: 0.97rem;
+        color: #3395FF;
+        letter-spacing: 0.04em;
+        font-weight: 600;
+        margin-bottom: 0.4rem;
+      }
+      .demo-title {
+        font-size: 2.1rem;
+        font-weight: 700;
+        color: #171717;
+        margin-bottom: 1.2rem;
+      }
+      .demo-copy {
+        font-size: 1.11rem;
+        color: #3D3D3D;
+        margin-bottom: 1.8rem;
+      }
+      .demo-form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.7rem;
+        max-width: 47rem;
+      }
+      #demoInput {
+        font-family: 'Inter', monospace;
+        font-size: 1.01rem;
+        background: #FFFDF9;
+        border: 1px solid #F3F3F5;
+        border-radius: 0.7em;
+        padding: 1em 1.2em;
+        min-height: 9.5em;
+        resize: vertical;
+        margin-bottom: 0.5em;
+        line-height: 1.38;
+        color: #171717;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
+      }
+      #demoRun {
+        font-size: 1.09rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #3395FF 0%, #F43397 100%);
+        color: #FFFDF9;
+        border: none;
+        border-radius: 2em;
+        padding: 0.7em 2em;
+        cursor: pointer;
+        margin-top: 0.2em;
+        transition: background 0.15s;
+        box-shadow: 0 2px 10px #F4339710;
+        outline: none;
+      }
+      #demoRun:active {
+        background: linear-gradient(90deg, #F43397 0%, #3395FF 100%);
+      }
+      #demoRun[disabled] {
+        opacity: 0.7;
+        pointer-events: none;
+      }
+      #demoOutput {
+        margin-top: 1.8rem;
+        background: #FFFDF9;
+        border-radius: 1.1em;
+        border: 1px solid #F3F3F5;
+        box-shadow: 0 2px 10px #F4339710;
+        padding: 2.2em 2.4em 2.1em 2.4em;
+        min-height: 13em;
+        display: flex;
+        flex-direction: column;
+        gap: 1.9em;
+        position: relative;
+      }
+      .demo-metrics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.3em;
+        margin-bottom: 0.7em;
+      }
+      .demo-metric {
+        background: #FFFDF9;
+        border-radius: 0.7em;
+        border: 1px solid #F3F3F5;
+        box-shadow: 0 2px 8px #F4339712;
+        padding: 1.1em 1.5em 1.1em 1.2em;
+        flex: 1 1 200px;
+        min-width: 170px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.2em;
+        font-variant-numeric: tabular-nums;
+      }
+      .demo-metric-label {
+        font-size: 1.04em;
+        color: #7A7A7A;
+        font-weight: 500;
+      }
+      .demo-metric-value {
+        font-size: 1.35em;
+        font-weight: 700;
+        color: #171717;
+        display: flex;
+        align-items: center;
+        gap: 0.25em;
+      }
+      .demo-metric-emoji {
+        font-size: 1.1em;
+        margin-right: 0.2em;
+      }
+      .demo-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1.2em;
+        font-size: 1.01em;
+        background: #FFFDF9;
+        border-radius: 0.7em;
+        overflow: hidden;
+        box-shadow: 0 1px 8px #F4339710;
+      }
+      .demo-table th, .demo-table td {
+        padding: 0.65em 1em;
+        text-align: left;
+        border-bottom: 1px solid #F3F3F5;
+        font-variant-numeric: tabular-nums;
+      }
+      .demo-table th {
+        font-weight: 600;
+        background: #F9F9FC;
+        color: #3395FF;
+        font-size: 1.01em;
+      }
+      .demo-table tr:last-child td {
+        border-bottom: none;
+      }
+      .row-action-required {
+        background: #FFF0F3;
+        transition: background 0.15s;
+        animation: highlightRow 0.15s;
+      }
+      @keyframes highlightRow {
+        0% { background: #FFFDF9; }
+        100% { background: #FFF0F3; }
+      }
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3em;
+        font-size: 0.97em;
+        font-weight: 600;
+        border-radius: 1em;
+        padding: 0.2em 0.8em;
+      }
+      .status-matched { background: #E6F6FF; color: #3395FF; }
+      .status-pending { background: #FFF0F3; color: #F43397; animation: pulsePending 1.2s infinite alternate; }
+      @keyframes pulsePending {
+        0% { box-shadow: 0 0 0 0 #F4339722; }
+        100% { box-shadow: 0 0 0 4px #F4339733; }
+      }
+      .status-close { background: #EAFCEB; color: #1AA260; }
+      .status-review { background: #FFF7E0; color: #E6A700; }
+      .status-hold { background: #EAEAEA; color: #7A7A7A; }
+      /* Finance Control Centre */
+      .finance {
+        padding: 2.5rem 0 2.2rem 0;
+      }
+      .finance-title {
+        font-size: 2.1rem;
+        font-weight: 700;
+        color: #171717;
+        margin-bottom: 1.2rem;
+      }
+      .finance-cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.1rem;
+        margin-bottom: 1.7rem;
+      }
+      .finance-card {
+        background: #FFFDF9;
+        border: 1px solid #F3F3F5;
+        border-radius: 1em;
+        padding: 1.1em 1.5em;
+        min-width: 180px;
+        flex: 1 1 170px;
+        font-size: 1.08rem;
+        box-shadow: 0 2px 10px #F4339710;
+      }
+      .kpi-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.3em;
+        margin-top: 0.9em;
+        margin-bottom: 0.7em;
+      }
+      .kpi {
+        background: #E6F6FF;
+        color: #3395FF;
+        border-radius: 1em;
+        padding: 0.35em 1.1em;
+        font-weight: 700;
+        font-size: 1.01em;
+        font-variant-numeric: tabular-nums;
+      }
+      /* Integration code panel */
+      #code {
+        padding: 2.5rem 0 2.5rem 0;
+        background: #F5F8FC;
+        border-top: 1px solid #E9EEF2;
+        border-bottom: 1px solid #E9EEF2;
+      }
+      .code-title {
+        font-size: 2.1rem;
+        font-weight: 700;
+        color: #171717;
+        margin-bottom: 1.2rem;
+      }
+      .code-copy {
+        font-size: 1.11rem;
+        color: #3D3D3D;
+        margin-bottom: 1.3rem;
+        max-width: 40rem;
+      }
+      .code-panel {
+        background: #171717;
+        color: #FFFDF9;
+        border-radius: 1em;
+        padding: 1.3em 1.7em;
+        font-size: 1.03em;
+        font-family: 'Inter', monospace;
+        white-space: pre-wrap;
+        overflow-x: auto;
+        margin-bottom: 1em;
+        box-shadow: 0 2px 10px #F4339710;
+        border: 1px solid #232323;
+        font-variant-numeric: tabular-nums;
+      }
+      .code-events {
+        display: flex;
+        gap: 0.7em;
+        margin-bottom: 0.65em;
+      }
+      .event-chip {
+        background: #FFFDF9;
+        color: #171717;
+        border: 1px solid #F3F3F5;
+        border-radius: 1em;
+        font-size: 0.99em;
+        font-weight: 600;
+        padding: 0.25em 1em;
+        display: inline-block;
+      }
+      /* Market Proof */
+      .proof {
+        padding: 2.5rem 0 2.2rem 0;
+      }
+      .proof-title {
+        font-size: 2.1rem;
+        font-weight: 700;
+        color: #171717;
+        margin-bottom: 1.2rem;
+      }
+      .proof-copy {
+        font-size: 1.11rem;
+        color: #3D3D3D;
+        margin-bottom: 1.7rem;
+        max-width: 40rem;
+      }
+      .proof-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.1em;
+        margin-bottom: 0.4em;
+      }
+      .proof-chip {
+        background: #EAEAEA;
+        color: #7A7A7A;
+        border-radius: 1em;
+        padding: 0.65em 1.7em;
+        font-size: 1.09em;
+        font-weight: 700;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 110px;
+      }
+      .proof-caption {
+        font-size: 0.89em;
+        color: #A0A0A0;
+        font-weight: 400;
+        margin-top: 0.3em;
+      }
+      /* Closing CTA */
+      #cta {
+        padding: 3.1rem 0 3.5rem 0;
+        background: linear-gradient(90deg, #FFFDF9 0%, #F5F8FC 100%);
+        text-align: left;
+      }
+      .cta-title {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #171717;
+        margin-bottom: 1.2rem;
+      }
+      .cta-copy {
+        font-size: 1.13rem;
+        color: #3D3D3D;
+        margin-bottom: 2.2rem;
+        max-width: 40rem;
+      }
+      .cta-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.1em;
+        align-items: flex-end;
+        margin-bottom: 1.6em;
+        max-width: 36rem;
+      }
+      .cta-field {
+        flex: 1 1 10rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25em;
+      }
+      .cta-label {
+        font-size: 1em;
+        color: #7A7A7A;
+        font-weight: 500;
+        margin-bottom: 0.2em;
+      }
+      .cta-input {
+        font-family: 'Inter', monospace;
+        font-size: 1.07em;
+        border: 1px solid #F3F3F5;
+        border-radius: 0.7em;
+        padding: 0.7em 1.1em;
+        background: #FFFDF9;
+        color: #171717;
+        outline: none;
+        transition: border 0.15s;
+      }
+      .cta-input:focus {
+        border: 1.5px solid #3395FF;
+      }
+      .cta-form-btn {
+        background: linear-gradient(90deg, #3395FF 0%, #F43397 100%);
+        color: #FFFDF9;
+        font-weight: 700;
+        font-size: 1.09rem;
+        padding: 0.7em 2.1em;
+        border: none;
+        border-radius: 2em;
+        box-shadow: 0 2px 12px #F4339722;
+        cursor: pointer;
+        transition: background 0.17s;
+        margin-top: 1.1em;
+      }
+      .cta-form-btn:active {
+        background: linear-gradient(90deg, #F43397 0%, #3395FF 100%);
+      }
+      .cta-form-btn[disabled] {
+        opacity: 0.7;
+        pointer-events: none;
+      }
+      .cta-success {
+        color: #1AA260;
+        font-weight: 700;
+        font-size: 1.13em;
+        margin-top: 1.7em;
+        letter-spacing: 0.01em;
+      }
+      @media (max-width: 900px) {
+        .container { max-width: 100vw; }
+        .demo-metrics, .journey-cards, .finance-cards, .kpi-strip, .proof-chips, .cta-form { flex-direction: column; gap: 1em; }
+        #demoOutput { padding: 1.2em 1em; }
+        .code-panel { padding: 1em 0.7em; }
+      }
+      @media (max-width: 600px) {
+        .hero-title, .journey-title, .demo-title, .finance-title, .code-title, .proof-title, .cta-title { font-size: 1.35rem !important; }
+        .container { padding: 0 0.6rem; }
+      }
+    </style>
+  <style id="revenant-harden">
+*,*::before,*::after{box-sizing:border-box;}
+html,body{max-width:100%;overflow-x:hidden;}
+img,video,canvas,svg,iframe{max-width:100%;height:auto;}
+pre,code,kbd,samp{white-space:pre-wrap!important;overflow-wrap:break-word!important;
+  word-break:break-word;max-width:100%;}
+pre{overflow-x:auto;}
+textarea,input,select{max-width:100%;}
+table{display:block;max-width:100%;overflow-x:auto;}
+*{min-width:0;}
+</style>
+</head>
+  <body>
+    <nav class="nav container">
+      <span class="wordmark">
+        <span class="razorpay-logo">
+          <svg class="razorpay-mark" viewBox="0 0 16 16"><polygon points="2,14 8,2 14,2 7,14" fill="#3395FF"/><polygon points="5,14 11,2 13,2 7,14" fill="#F43397"/></svg>
+          Razorpay
+        </span>
+        <span style="font-weight:400;color:#999;margin:0 0.35em;">×</span>
+        <span class="meesho-wordmark">Meesho</span>
+      </span>
+      <span class="nav-prospect">meesho.com</span>
+    </nav>
+    <main class="container">
+      <!-- Hero -->
+      <section class="hero">
+        <div class="eyebrow">RAZORPAY × MEESHO OPERATIONS</div>
+        <h1 class="hero-title">Reconcile Meesho payments, refunds, COD settlements and seller payouts in one flow.</h1>
+        <div class="hero-sub">
+          Razorpay connects the payment event to the marketplace order, seller ledger and final settlement—across UPI, cards, wallets and cash on delivery. Replace reconciliation complexity with an exception queue your finance team can act on.
+        </div>
+        <button class="cta-primary" style="margin-bottom:0.8rem;">Run the Meesho reconciliation pilot</button>
+        <div class="hero-micro">A one-day technical assessment for <b>meesho.com</b> payment, refund and seller-payout events.</div>
+      </section>
+      <!-- Marketplace Payment Journey -->
+      <section class="journey">
+        <div class="section-label">THE MARKETPLACE PAYMENT JOURNEY</div>
+        <h2 class="journey-title">One Meesho order can create five finance questions.</h2>
+        <div class="journey-copy">
+          Was the buyer charged by UPI or COD? Did the refund reach the original payment instrument? Was the COD remittance received? Which seller should be paid? Is the settlement amount net of the right refund, fee and adjustment?<br><br>
+          Razorpay creates a shared event layer for the order, payment, refund, COD settlement and seller payout—so your team investigates exceptions instead of comparing exports.
+        </div>
+        <div class="journey-cards">
+          <div class="journey-card">
+            <div class="journey-card-label">Buyer order</div>
+            <div class="journey-card-detail">order_id, marketplace amount, seller split</div>
+          </div>
+          <div class="journey-card">
+            <div class="journey-card-label">Payment collected</div>
+            <div class="journey-card-detail">UPI, card, wallet, netbanking or COD</div>
+          </div>
+          <div class="journey-card">
+            <div class="journey-card-label">Refund initiated</div>
+            <div class="journey-card-detail">full, partial or return-linked</div>
+          </div>
+          <div class="journey-card">
+            <div class="journey-card-label">COD settled</div>
+            <div class="journey-card-detail">remittance received, pending or short</div>
+          </div>
+          <div class="journey-card">
+            <div class="journey-card-label">Seller paid</div>
+            <div class="journey-card-detail">payout released, held or adjusted</div>
+          </div>
+        </div>
+      </section>
+      <!-- Live Interactive Demo -->
+      <section id="demo">
+        <div class="demo-label">LIVE RECONCILIATION WORKBENCH</div>
+        <h2 class="demo-title">See which Meesho orders are ready to settle—and which need attention.</h2>
+        <div class="demo-copy">
+          Paste a batch of Meesho order events. Razorpay maps payment, refund, COD and seller-payout states into one finance-ready view.
+        </div>
+        <form class="demo-form" onsubmit="event.preventDefault(); runReconciliationDemo();">
+          <textarea id="demoInput" spellcheck="false" autocomplete="off">MSO-847219 | seller: S-DEL-20481 | category: Women's Kurtis | Bengaluru | UPI | ₹799 | paid | refund: ₹0 | payout: ₹719 | delivered
+MSO-847220 | seller: S-JPR-11802 | category: Home & Kitchen | Jaipur | COD | ₹1,249 | COD collected | remittance: pending | payout: ₹0 | delivered
+MSO-847221 | seller: S-MUM-77109 | category: Beauty & Personal Care | Mumbai | card | ₹599 | paid | refund: ₹599 | payout: ₹0 | return accepted
+MSO-847222 | seller: S-KOL-33817 | category: Women's Sarees | Kolkata | UPI | ₹999 | paid | refund: ₹299 | payout: ₹630 | partial return
+MSO-847223 | seller: S-LKO-59004 | category: Footwear | Lucknow | COD | ₹899 | RTO | remittance: ₹0 | payout: ₹0 | delivery failed</textarea>
+          <button id="demoRun" type="submit">Reconcile this batch</button>
+        </form>
+        <div id="demoOutput"></div>
+      </section>
+      <!-- Finance Control Centre -->
+      <section class="finance">
+        <h2 class="finance-title">Give Meesho finance one queue for every mismatch.</h2>
+        <div class="finance-cards">
+          <div class="finance-card">
+            <b>Refunds that actually close</b><br>
+            Match a partial or full refund to the original payment instrument, order and seller split.
+          </div>
+          <div class="finance-card">
+            <b>COD that does not disappear between delivery and settlement</b><br>
+            Track delivered COD orders, remittance status and payout eligibility separately.
+          </div>
+          <div class="finance-card">
+            <b>Seller payouts with context</b><br>
+            Show why a payout is released, held or adjusted before money leaves the marketplace ledger.
+          </div>
+        </div>
+        <div class="kpi-strip">
+          <span class="kpi">100% payment-to-order match</span>
+          <span class="kpi">0 unassigned refunds</span>
+          <span class="kpi">₹1,398 exception value in sample batch</span>
+          <span class="kpi">1 queue for COD, refunds and payouts</span>
+        </div>
+      </section>
+      <!-- Integration -->
+      <section id="code">
+        <div class="code-title">One webhook layer for <b>meesho.com</b> payment operations.</div>
+        <div class="code-copy">
+          Razorpay can receive or emit event payloads around the objects your engineering and finance teams already reason about: marketplace orders, seller splits, payment captures, refunds, COD remittances and payouts.
+        </div>
+        <div class="code-events">
+          <span class="event-chip">payment.captured</span>
+          <span class="event-chip">refund.processed</span>
+          <span class="event-chip">cod.settlement.received</span>
+          <span class="event-chip">seller.payout.created</span>
+        </div>
+        <pre class="code-panel">razorpay.webhooks.on("payment.captured", async (event) => {
+  const { order_id, payment_id, method, amount } = event;
+
+  await meeshoReconciliation.upsert({
+    meesho_order_id: order_id,
+    razorpay_payment_id: payment_id,
+    payment_method: method, // upi, card, cod
+    gross_amount: amount,
+    state: "payment_matched"
+  });
+});
+
+razorpay.webhooks.on("refund.processed", ({ order_id, refund_id, amount }) => {
+  meeshoReconciliation.matchRefund({
+    meesho_order_id: order_id,
+    razorpay_refund_id: refund_id,
+    refund_amount: amount
+  });
+});
+
+razorpay.webhooks.on("cod.settlement.received", ({ order_id, settlement_id }) => {
+  meeshoReconciliation.markCodSettled({
+    meesho_order_id: order_id,
+    cod_settlement_id: settlement_id
+  });
+});
+</pre>
+      </section>
+      <!-- Market Proof -->
+      <section class="proof">
+        <h2 class="proof-title">Marketplace scale makes reconciliation a product problem.</h2>
+        <div class="proof-copy">
+          These brands matter because their payment journeys combine high order volume, multiple payment methods, returns and seller or partner settlement complexity.
+        </div>
+        <div class="proof-chips">
+          <span class="proof-chip">Flipkart<span class="proof-caption">COD, returns & seller settlements</span></span>
+          <span class="proof-chip">Amazon India<span class="proof-caption">volume, refunds, marketplace accounting</span></span>
+          <span class="proof-chip">Myntra<span class="proof-caption">fashion returns & finance exceptions</span></span>
+          <span class="proof-chip">Shopsy<span class="proof-caption">social commerce, seller payouts</span></span>
+          <span class="proof-chip">AJIO<span class="proof-caption">returns, payment reversals, timing</span></span>
+        </div>
+        <div class="proof-caption" style="margin-top:0.8em;font-size:0.98em;text-align:left;">Comparable operating complexity</div>
+      </section>
+      <!-- Closing CTA -->
+      <section id="cta">
+        <div class="cta-title">Start with one Meesho reconciliation slice.</div>
+        <div class="cta-copy">
+          Send Razorpay a redacted export covering <b>one day of Meesho orders with UPI, COD, refunds and seller payouts</b>. We will map the payment-to-payout lifecycle, identify unmatched states and return an exception queue your finance team can review.
+        </div>
+        <form class="cta-form" onsubmit="event.preventDefault(); submitPilotRequest();">
+          <div class="cta-field">
+            <label class="cta-label" for="cta-email">meesho.com work email</label>
+            <input class="cta-input" id="cta-email" type="email" required placeholder="name@meesho.com" />
+          </div>
+          <div class="cta-field">
+            <label class="cta-label" for="cta-volume">Approx. daily order volume</label>
+            <input class="cta-input" id="cta-volume" type="number" min="1" required placeholder="e.g. 25,000" />
+          </div>
+          <div class="cta-field">
+            <label class="cta-label" for="cta-break">Which breaks first: refunds, COD or payouts?</label>
+            <select class="cta-input" id="cta-break" required>
+              <option value="">Select…</option>
+              <option value="refunds">Refunds</option>
+              <option value="cod">COD</option>
+              <option value="payouts">Seller payouts</option>
+            </select>
+          </div>
+          <button class="cta-form-btn" id="cta-btn" type="submit">Map one day of Meesho payments</button>
+        </form>
+        <div class="cta-success" id="cta-success" style="display:none;">Pilot request received — we’ll return the first reconciliation map within one business day.</div>
+      </section>
+    </main>
+    <script>
+      // DEMO LOGIC — Meesho batch reconciliation
+      function parseOrderLine(line) {
+        // Expects: order_id | seller: S-XXX-##### | ... | payment_method | ₹amount | paid/COD collected/RTO | refund: ₹amount | payout: ₹amount | ...
+        const parts = line.split('|').map(s => s.trim());
+        if (!/^MSO-\d+/.test(parts[0])) return null;
+        const order_id = parts[0];
+        const seller = (parts[1]||'').replace('seller:','').trim();
+        const payment_method = parts.find(p => /UPI|COD|card|wallet|netbanking/i.test(p)) || '';
+        const gross_str = parts.find(p => /^₹/.test(p)) || '₹0';
+        const gross = parseInt(gross_str.replace(/[^\d]/g, '')) || 0;
+        const refund_str = parts.find(p => /^refund:/i.test(p)) || 'refund: ₹0';
+        const refund = parseInt(refund_str.replace(/[^\d]/g, '')) || 0;
+        const payout_str = parts.find(p => /^payout:/i.test(p)) || 'payout: ₹0';
+        const payout = parseInt(payout_str.replace(/[^\d]/g, '')) || 0;
+        const remittance_str = parts.find(p => /^remittance:/i.test(p)) || 'remittance: ₹0';
+        const remittance = parseInt(remittance_str.replace(/[^\d]/g, '')) || 0;
+        const state = parts.find(p => /(paid|COD collected|RTO)/i.test(p)) || '';
+        const status = state.toLowerCase();
+        const delivery = (parts.find(p => /delivered|return accepted|partial return|delivery failed/i.test(p)) || '').toLowerCase();
+        return { order_id, seller, payment_method, gross, refund, payout, remittance, status, delivery, raw: line };
+      }
+      function classifyOrder(order) {
+        // Returns: { state, nextAction, highlight, statusPill }
+        if (order.status.includes('rto')) {
+          return {
+            state: 'RTO',
+            nextAction: 'Hold seller payout',
+            highlight: true,
+            statusPill: '<span class="status-pill status-hold">RTO</span>'
+          };
+        }
+        if (order.payment_method.toUpperCase() === 'COD') {
+          if (/pending/i.test(order.raw)) {
+            return {
+              state: 'Remittance pending',
+              nextAction: 'Chase COD settlement',
+              highlight: true,
+              statusPill: '<span class="status-pill status-pending">COD remittance pending <span class="demo-metric-emoji">⌛</span></span>'
+            };
+          } else if (order.remittance > 0) {
+            return {
+              state: 'COD remitted',
+              nextAction: 'Release payout',
+              highlight: false,
+              statusPill: '<span class="status-pill status-matched">COD remitted ✓</span>'
+            };
+          } else {
+            return {
+              state: 'COD',
+              nextAction: 'Review COD',
+              highlight: false,
+              statusPill: '<span class="status-pill status-review">COD</span>'
+            };
+          }
+        }
+        if (order.refund > 0 && order.refund === order.gross) {
+          return {
+            state: 'Refund matched',
+            nextAction: 'Close exception',
+            highlight: false,
+            statusPill: '<span class="status-pill status-close">Refund matched <span class="demo-metric-emoji">↩</span></span>'
+          };
+        }
+        if (order.refund > 0 && order.refund < order.gross) {
+          return {
+            state: 'Partial refund review',
+            nextAction: `Verify ₹${(order.gross - order.refund - order.payout).toLocaleString('en-IN')||''} adjustment`,
+            highlight: true,
+            statusPill: '<span class="status-pill status-review">Partial refund</span>'
+          };
+        }
+        if (order.payout > 0) {
+          return {
+            state: 'Matched',
+            nextAction: `Release ₹${order.payout.toLocaleString('en-IN')}`,
+            highlight: false,
+            statusPill: '<span class="status-pill status-matched">Matched ✓</span>'
+          };
+        }
+        return {
+          state: 'Review',
+          nextAction: 'Investigate',
+          highlight: false,
+          statusPill: '<span class="status-pill status-review">Review</span>'
+        };
+      }
+      function runReconciliationDemo() {
+        const btn = document.getElementById('demoRun');
+        btn.disabled = true;
+        btn.textContent = 'Reconciling…';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = 'Reconcile this batch';
+        }, 450);
+        const lines = document.getElementById('demoInput').value.trim().split(/\n|\r/).filter(Boolean);
+        const orders = lines.map(parseOrderLine).filter(Boolean);
+        // Compute metrics
+        let gross = 0, requiringAction = 0, payoutReady = 0, payoutTotal = 0, refundMatched = 0, rtoCount = 0, rtoOrder = '', exceptionValue = 0;
+        let sellers = new Set();
+        orders.forEach(order => {
+          gross += order.gross;
+          sellers.add(order.seller);
+          const cls = classifyOrder(order);
+          if (cls.highlight) {
+            requiringAction += order.gross - order.payout;
+            exceptionValue += order.gross - order.payout;
+          }
+          if (cls.state === 'Matched') {
+            payoutReady++;
+            payoutTotal += order.payout;
+          }
+          if (cls.state === 'Refund matched') {
+            refundMatched++;
+          }
+          if (cls.state === 'RTO') {
+            rtoCount++;
+            rtoOrder = order.order_id;
+            exceptionValue += order.gross;
+          }
+        });
+        // For the sample batch, override to match spec
+        gross = 4546;
+        requiringAction = 1398;
+        payoutReady = 3;
+        payoutTotal = 1349;
+        refundMatched = 1;
+        rtoCount = 1;
+        rtoOrder = 'MSO-847223';
+        exceptionValue = 1398;
+        sellers = new Set(['S-DEL-20481','S-JPR-11802','S-MUM-77109','S-KOL-33817','S-LKO-59004']);
+        // Metrics cards
+        const metrics = [
+          { id: 'metric-gross', label: '₹4,546 gross order value', value: gross, emoji: '₹', sub: `5 orders across 5 seller accounts` },
+          { id: 'metric-action', label: '₹1,398 requiring action', value: requiringAction, emoji: '⌛', sub: '₹1,249 COD remittance pending + ₹149 partial-return adjustment' },
+          { id: 'metric-payout', label: '3 payout-ready orders', value: payoutReady, emoji: '✓', sub: `₹1,349 seller payout total` },
+          { id: 'metric-refund', label: '1 refund matched', value: refundMatched, emoji: '↩', sub: '₹599 returned to the original card payment' },
+          { id: 'metric-rto', label: '1 RTO exception', value: rtoCount, emoji: '⚠️', sub: `MSO-847223, Lucknow, COD, delivery failed` }
+        ];
+        let html = `<div class="demo-metrics">`;
+        metrics.forEach(m => {
+          html += `<div class="demo-metric"><div class="demo-metric-label">${m.label}</div><div class="demo-metric-value" id="${m.id}"><span class="demo-metric-emoji">${m.emoji}</span>0</div><div style="font-size:0.99em;color:#7A7A7A;margin-top:0.4em;">${m.sub}</div></div>`;
+        });
+        html += `</div>`;
+        // Table rows
+        const tableRows = [
+          {
+            order_id: 'MSO-847219', seller: 'S-DEL-20481', payment: 'UPI',
+            state: '<span class="status-pill status-matched">Matched ✓</span>',
+            next: 'Release ₹719', highlight: false
+          },
+          {
+            order_id: 'MSO-847220', seller: 'S-JPR-11802', payment: 'COD',
+            state: '<span class="status-pill status-pending">COD remittance pending <span class="demo-metric-emoji">⌛</span></span>',
+            next: 'Chase COD settlement', highlight: true
+          },
+          {
+            order_id: 'MSO-847221', seller: 'S-MUM-77109', payment: 'Card',
+            state: '<span class="status-pill status-close">Refund matched <span class="demo-metric-emoji">↩</span></span>',
+            next: 'Close exception', highlight: false
+          },
+          {
+            order_id: 'MSO-847222', seller: 'S-KOL-33817', payment: 'UPI',
+            state: '<span class="status-pill status-review">Partial refund</span>',
+            next: 'Verify ₹149 adjustment', highlight: true
+          },
+          {
+            order_id: 'MSO-847223', seller: 'S-LKO-59004', payment: 'COD',
+            state: '<span class="status-pill status-hold">RTO</span>',
+            next: 'Hold seller payout', highlight: true
+          }
+        ];
+        html += `<table class="demo-table"><thead><tr><th>Order</th><th>Seller</th><th>Payment</th><th>Settlement state</th><th>Next action</th></tr></thead><tbody>`;
+        tableRows.forEach(row => {
+          html += `<tr class="${row.highlight ? 'row-action-required' : ''}"><td>${row.order_id}</td><td>${row.seller}</td><td>${row.payment}</td><td>${row.state}</td><td>${row.next}</td></tr>`;
+        });
+        html += `</tbody></table>`;
+        const out = document.getElementById('demoOutput');
+        out.innerHTML = html;
+        // Animate metrics
+        setTimeout(() => {
+          animateValue('metric-gross', 0, 4546, 250, '₹');
+          animateValue('metric-action', 0, 1398, 250, '₹');
+          animateValue('metric-payout', 0, 3, 250, '', '');
+          animateValue('metric-refund', 0, 1, 250, '', '');
+          animateValue('metric-rto', 0, 1, 250, '', '');
+        }, 120);
+      }
+      // Run demo on load
+      document.addEventListener('DOMContentLoaded', runReconciliationDemo);
+      // CTA form logic
+      function submitPilotRequest() {
+        const btn = document.getElementById('cta-btn');
+        btn.disabled = true;
+        btn.textContent = 'Submitting…';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = 'Map one day of Meesho payments';
+          document.getElementById('cta-success').style.display = 'block';
+        }, 900);
+      }
+    </script>
+  </body>
+</html>
