@@ -15,6 +15,11 @@ dependencies = [
     "rich>=13.7",
     "jinja2>=3.1",
     "openai>=1.40",
+    "python-pptx>=1.0",  # agents/sales/deck.py + agents/demo_razorpay_deck.py —
+                         # hard top-level imports, never declared here; agents.sales
+                         # (and everything that imports it, incl. the MCP server's
+                         # build_full_outreach/draft_outreach tools) failed to import
+                         # at all in a fresh env until this was added.
     "mcp>=1.2,<2",   # agents/mcp_server.py uses the v1 FastMCP API (mcp.server.fastmcp);
                      # v2 renamed it to MCPServer + moved the import path — see
                      # https://py.sdk.modelcontextprotocol.io/v2/migration/. Migrating is
