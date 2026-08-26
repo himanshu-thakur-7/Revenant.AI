@@ -32,3 +32,17 @@ import os
 # which can pull in ghost.config first and lock the (cached) singleton to
 # offline before evals.judge is ever imported.
 os.environ.setdefault("REVENANT_MODE", "live")
+
+# Belt-and-suspenders, matching the existing pattern in scripts/hermes_run.py
+# and scripts/autopilot_demo.py: if some OTHER import in the same process
+# already triggered ghost.config's @lru_cache'd get_settings() before evals
+# was ever imported (a real, if unlikely, ordering this package can't fully
+# rule out on its own), the setdefault above is too late to matter --
+# ghost.config already has whatever REVENANT_MODE it saw cached forever.
+# Clearing the cache here is cheap and makes the NEXT settings read pick up
+# what this line just set, regardless of what ran first.
+try:
+    from ghost.config import get_settings as _get_settings
+    _get_settings.cache_clear()
+except Exception:
+    pass
