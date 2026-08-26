@@ -39,7 +39,7 @@ build-backend = "hatchling.build"
 packages = ["ghost", "agents"]
 
 [tool.pytest.ini_options]
-testpaths = ["ghost/tests"]
+testpaths = ["ghost/tests", "agents"]
 asyncio_mode = "auto"
 
 [tool.ruff]
