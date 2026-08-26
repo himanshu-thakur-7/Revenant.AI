@@ -8,6 +8,8 @@ not `pytest -q`.
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 
 from evals.bundle import Bundle, from_disk, merge_into, slug
 
@@ -78,3 +80,37 @@ def test_from_disk_no_artifacts_is_all_false():
 def test_bundle_new_id_is_slug_based():
     bid = Bundle.new_id("Bombay Shaving Company")
     assert bid.endswith("bombay-shaving-company")
+
+
+def test_importing_evals_forces_live_mode_for_the_judge():
+    # Regression test for a live-caught bug: `revenant-eval score` run from
+    # a bare shell with REVENANT_MODE unset silently ran the LLM judge in
+    # OFFLINE mode -- ghost/llm.py's complete_json() returned its stub
+    # ({"scores": []}) with no error, and judge.py's own verification logic
+    # (raw_score == 0 skips citation checking BY DESIGN) turned that into a
+    # fully "verified" flat 0.0/100 composite, indistinguishable from a
+    # real harsh verdict. evals/__init__.py now forces REVENANT_MODE=live
+    # (via os.environ.setdefault) as a side effect of importing the evals
+    # package at all -- mirrors agents/mcp_server.py's own setdefault at
+    # its top for the identical reason.
+    #
+    # Must run in a FRESH subprocess, not in-process: this test suite's
+    # own ghost/tests/conftest.py deliberately hardcodes
+    # os.environ["REVENANT_MODE"] = "offline" (a plain assignment, not
+    # setdefault) so the suite never needs a network -- that assignment
+    # runs before any test module's imports and would make evals/
+    # __init__.py's setdefault a no-op if checked in-process, which would
+    # not actually tell us whether the real-world bare-shell bug is fixed.
+    import subprocess
+    import sys
+
+    env = {k: v for k, v in os.environ.items() if k != "REVENANT_MODE"}
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "import evals.judge; from ghost.config import settings; "
+         "print(settings.mode, settings.offline)"],
+        cwd=str(Path(__file__).resolve().parent.parent.parent),
+        env=env, capture_output=True, text=True, timeout=30, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "live False"
