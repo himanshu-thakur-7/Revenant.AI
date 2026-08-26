@@ -48,7 +48,14 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.5"]
 # Legacy scripted pipeline — kept working for the console demo.
 ghost = "ghost.cli:app"
 # The new agent-fleet CLI. `revenant chat` opens the Orchestrator REPL.
+# NOTE: `hermes profile create revenant` (the isolated bot profile set up
+# this session) also generates a wrapper script named `revenant` at
+# ~/.local/bin/revenant — a DIFFERENT thing (Hermes CLI, not this one).
+# Whichever is earlier on PATH wins; check `which revenant` if unsure.
 revenant = "agents.cli:app"
+# T1 deterministic eval checks (evals/). Deliberately NOT named `revenant`
+# for the same collision reason.
+revenant-eval = "evals.cli:app"
 
 [build-system]
 requires = ["hatchling"]
