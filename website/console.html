@@ -244,7 +244,7 @@ let lastFilm=CFG.lastFilm||null;
 let lastDraft=CFG.lastDraft||null;
 let lastTurnText='';
 const MAX_AUTO_RETRIES=2;
-const RETRYABLE_RX=/temporarily down|requested reconnection|reconnect|connection (?:is )?(?:down|lost|closed)|gateway unreachable|networkerror|failed to fetch|load failed|service unavailable|timeout|502|503|504|run failed:\s*5/i;
+const RETRYABLE_RX=/temporarily (?:down|unavailable)|requested reconnection|reconnect|connection (?:is )?(?:down|lost|closed)|gateway unreachable|networkerror|failed to fetch|load failed|(?:service|server) (?:is )?unavailable|timeout|502|503|504|run failed:\s*5/i;
 const COST_BY_TOOL={
   'delegate_task':0.002,
   'mcp__revenant__build_full_outreach':0.36,
