@@ -9,6 +9,7 @@ per Hunter's public pattern stats.
 from __future__ import annotations
 
 import re
+import unicodedata
 
 
 _PATTERNS: list[tuple[str, str]] = [
@@ -27,7 +28,23 @@ _SLUG_RX = re.compile(r"[^a-z0-9]+")
 
 
 def _slug(s: str) -> str:
-    return _SLUG_RX.sub("", s.strip().lower())
+    """Fold a name to the ASCII form a mail system would actually use.
+
+    NFKD-decomposes first so an accented letter becomes base + combining
+    mark, then drops the marks — José -> jose, Müller -> muller. Without
+    that decomposition the accented character simply fails the [a-z0-9]
+    filter and VANISHES: José became "jos" and Müller became "mller",
+    which produces a confidently-wrong address. That is worse than no
+    guess, because it either bounces or reaches a different real person.
+
+    German would conventionally expand ü to "ue" (mueller); we do not try
+    to encode per-language conventions, because guessing the wrong
+    convention is no better than this one and the pattern list already
+    offers several candidates.
+    """
+    decomposed = unicodedata.normalize("NFKD", s.strip().lower())
+    ascii_only = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return _SLUG_RX.sub("", ascii_only)
 
 
 def _clean_domain(domain: str) -> str:

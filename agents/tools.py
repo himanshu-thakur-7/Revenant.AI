@@ -28,6 +28,18 @@ def _hint_to_schema(hint: Any) -> dict[str, Any]:
     if hint in _PRIMITIVE:
         return {"type": _PRIMITIVE[hint]}
 
+    # BARE generics must be handled before get_origin(), which returns None
+    # for an unsubscripted `dict`/`list` (only dict[str, Any] has an origin).
+    # Without this they fell through to the string fallback, so a tool
+    # declared as `def f(config: dict)` silently told the LLM to send a
+    # string while the function expected an object — a schema that is wrong
+    # rather than merely imprecise. No live tool takes a bare generic today;
+    # this is here so the next one that does doesn't fail silently.
+    if hint is dict:
+        return {"type": "object"}
+    if hint in (list, tuple):
+        return {"type": "array", "items": {"type": "string"}}
+
     origin = get_origin(hint)
     args = get_args(hint)
 
