@@ -153,6 +153,32 @@ def merge_into(bundle_id: str, *, startup: str = "", merchant: str = "", **patch
     return b
 
 
+def _last_campaign_path() -> Path:
+    """Where the most-recent campaign's live URLs live.
+
+    This moved when multi-tenancy landed: it used to be one global
+    ~/.revenant/last_campaign.json, and is now per-tenant under
+    ~/.revenant/startups/<tenant>/. Resolves to the ACTIVE tenant
+    (whichever startup most recently built something) rather than
+    slug(startup) — from_disk()'s `startup` parameter is a display
+    default ("Razorpay"), not an assertion about which tenant to read,
+    and using it as a tenant key would look in the wrong directory for
+    any install whose state migrated into the default tenant.
+
+    Falls back to the pre-multi-tenant global location if the per-tenant
+    file isn't there, so a bundle can still be reconstructed on an
+    install that hasn't been migrated yet.
+    """
+    try:
+        from agents import tenancy
+        p = tenancy.state_path(tenancy.resolve(""), "last_campaign.json")
+        if p.exists():
+            return p
+    except Exception:
+        pass
+    return REVENANT_HOME / "last_campaign.json"
+
+
 def from_disk(merchant: str, *, startup: str = "Razorpay") -> Bundle:
     """Reconstruct a bundle purely from what's on disk — no dependency on
     a prior live tool call having written bundle metadata. Used for the
@@ -165,7 +191,7 @@ def from_disk(merchant: str, *, startup: str = "Razorpay") -> Bundle:
     email = OUT / "drafts" / s / f"{s}-email.md"
 
     urls: dict[str, Any] = {}
-    camp_path = REVENANT_HOME / "last_campaign.json"
+    camp_path = _last_campaign_path()
     if camp_path.exists():
         try:
             camp = json.loads(camp_path.read_text())

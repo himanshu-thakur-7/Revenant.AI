@@ -77,6 +77,26 @@ def test_from_disk_no_artifacts_is_all_false():
     assert not any(b.artifacts().values())
 
 
+def _isolate_campaign_state(tmp_path, monkeypatch):
+    """Point BOTH the per-tenant lookup and the legacy fallback at
+    tmp_path. Patching only evals.bundle.REVENANT_HOME is not enough
+    since multi-tenancy landed: from_disk() resolves through
+    agents/tenancy.py first, which reads the developer's REAL
+    ~/.revenant — caught by this exact test going green against actual
+    user state instead of its own fixture."""
+    import agents.tenancy as tenancy
+    import evals.bundle as bundle_mod
+
+    monkeypatch.setattr(bundle_mod, "REVENANT_HOME", tmp_path)
+    monkeypatch.setattr(tenancy, "REVENANT_HOME", tmp_path)
+    monkeypatch.setattr(tenancy, "STARTUPS_DIR", tmp_path / "startups")
+    monkeypatch.setattr(tenancy, "LAST_ACTIVE_PATH", tmp_path / "last_active_tenant")
+    # Write into the tenant location from_disk() actually prefers.
+    dest = tenancy.tenant_home(tenancy.DEFAULT_TENANT)
+    dest.mkdir(parents=True, exist_ok=True)
+    return dest
+
+
 def test_from_disk_recovers_domain_pain_and_contact_title(tmp_path, monkeypatch):
     # Live-caught gap: from_disk() only ever mapped a handful of
     # last_campaign.json fields into the Bundle. "domain" was present in
@@ -85,10 +105,8 @@ def test_from_disk_recovers_domain_pain_and_contact_title(tmp_path, monkeypatch)
     # build_full_outreach) since they weren't persisted to the file at
     # all. Without pain especially, evidence_grounding()/specificity_lint()
     # lose most of their real clue source under --from-disk.
-    import evals.bundle as bundle_mod
-
-    monkeypatch.setattr(bundle_mod, "REVENANT_HOME", tmp_path)
-    (tmp_path / "last_campaign.json").write_text(json.dumps({
+    dest = _isolate_campaign_state(tmp_path, monkeypatch)
+    (dest / "last_campaign.json").write_text(json.dumps({
         "company": "Acme", "domain": "acme.com",
         "pain": "checkout abandonment on mobile",
         "contact_title": "Head of Growth",
@@ -102,14 +120,30 @@ def test_from_disk_recovers_domain_pain_and_contact_title(tmp_path, monkeypatch)
 def test_from_disk_missing_new_fields_defaults_cleanly(tmp_path, monkeypatch):
     # An OLDER last_campaign.json (written before this fix) has neither
     # key -- must default to "" rather than raise.
-    import evals.bundle as bundle_mod
-
-    monkeypatch.setattr(bundle_mod, "REVENANT_HOME", tmp_path)
-    (tmp_path / "last_campaign.json").write_text(json.dumps({"company": "Acme"}))
+    dest = _isolate_campaign_state(tmp_path, monkeypatch)
+    (dest / "last_campaign.json").write_text(json.dumps({"company": "Acme"}))
     b = from_disk("Acme")
     assert b.merchant_domain == ""
     assert b.pain == ""
     assert b.contact_title == ""
+
+
+def test_from_disk_falls_back_to_legacy_global_path(tmp_path, monkeypatch):
+    # An install that has NOT been migrated yet still has its campaign at
+    # the old flat location; from_disk() must still find it there.
+    import agents.tenancy as tenancy
+    import evals.bundle as bundle_mod
+
+    monkeypatch.setattr(bundle_mod, "REVENANT_HOME", tmp_path)
+    monkeypatch.setattr(tenancy, "REVENANT_HOME", tmp_path)
+    monkeypatch.setattr(tenancy, "STARTUPS_DIR", tmp_path / "startups")
+    monkeypatch.setattr(tenancy, "LAST_ACTIVE_PATH", tmp_path / "last_active_tenant")
+    # Only the legacy location exists — no tenant dir at all.
+    (tmp_path / "last_campaign.json").write_text(json.dumps({
+        "company": "Acme", "domain": "legacy.com",
+    }))
+    b = from_disk("Acme")
+    assert b.merchant_domain == "legacy.com"
 
 
 def test_bundle_new_id_is_slug_based():

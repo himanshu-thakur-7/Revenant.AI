@@ -22,7 +22,16 @@ import os
 import sys
 from pathlib import Path
 
-ACTIVE_CTX_PATH = Path.home() / ".revenant" / "active_context.json"
+def _active_ctx_path(product_name: str = "") -> Path:
+    """Per-tenant active_context.json. Onboarding is where a tenant is
+    ESTABLISHED, so the ingested product name becomes the tenant key (or
+    the active/default tenant when ingestion couldn't name the product) —
+    same rule as agents/mcp_server.py::setup_startup, which is the MCP
+    equivalent of this script."""
+    from agents import tenancy
+    tenant = tenancy.resolve(product_name)
+    tenancy.set_active(tenant)
+    return tenancy.state_path(tenant, "active_context.json")
 
 
 def _looks_like_repo(src: str) -> bool:
@@ -58,10 +67,13 @@ def main() -> None:
         sys.exit(0)
 
     # Persist the active context pointer for hermes_run.py.
-    ACTIVE_CTX_PATH.parent.mkdir(parents=True, exist_ok=True)
-    ACTIVE_CTX_PATH.write_text(json.dumps({
+    product_name = getattr(ctx, "product_name", "") or ""
+    ctx_path = _active_ctx_path(product_name)
+    ctx_path.parent.mkdir(parents=True, exist_ok=True)
+    ctx_path.write_text(json.dumps({
         "source": source,
         "kind": "github" if _looks_like_repo(source) else "folder",
+        "product_name": product_name,
         "n_files": len(ctx.files),
     }), encoding="utf-8")
 

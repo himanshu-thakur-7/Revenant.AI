@@ -83,8 +83,35 @@ def _hermes_send(target: str, *, text: str = "", media: str = "",
         return False
 
 
-SHORTLIST_PATH = Path.home() / ".revenant" / "last_shortlist.json"
-CAMPAIGN_PATH = Path.home() / ".revenant" / "last_campaign.json"
+def _state_path(filename: str) -> Path:
+    """Per-tenant state path. These files moved under
+    ~/.revenant/startups/<tenant>/ when multi-tenancy landed (see
+    agents/tenancy.py); this script is a separate entry point from the
+    MCP server and has to resolve them the same way, or it silently
+    reads/writes a location nothing else looks at.
+
+    Deliberately does NOT fall back to the legacy global path based on
+    whether the file exists: these constants are used for WRITES as well
+    as reads, and an existence check would send the first write of a new
+    shortlist to the old global location (where nothing would ever read
+    it again). Migration below guarantees the tenant path is the real
+    one; there is nothing left to fall back to.
+    """
+    from agents import tenancy
+    return tenancy.state_path(tenancy.resolve(""), filename)
+
+
+# Same one-time migration the MCP server performs at its own import —
+# this script can run first (it is spawned directly by the Hermes skill),
+# so it cannot assume the move has already happened.
+try:
+    from agents import tenancy as _tenancy
+    _tenancy.migrate_legacy_state()
+except Exception:
+    pass
+
+SHORTLIST_PATH = _state_path("last_shortlist.json")
+CAMPAIGN_PATH = _state_path("last_campaign.json")
 
 
 def _chat_id_from_target(target: str) -> str:
@@ -202,10 +229,9 @@ def _load_ctx():
     if not repo:
         try:
             import json as _json
-            if (Path.home() / ".revenant" / "active_context.json").exists():
-                repo = _json.loads(
-                    (Path.home() / ".revenant" / "active_context.json").read_text()
-                ).get("source")
+            ctx_path = _state_path("active_context.json")
+            if ctx_path.exists():
+                repo = _json.loads(ctx_path.read_text()).get("source")
         except Exception:
             repo = None
     repo = os.path.expanduser(repo or "~/shroud")
@@ -329,6 +355,10 @@ def _worker_build() -> None:
         return
 
     # Persist campaign so "send it to <email>" can find it.
+    # mkdir: CAMPAIGN_PATH now lives inside a per-tenant directory that
+    # may not exist yet (it did not need this when the path was a flat
+    # ~/.revenant/last_campaign.json).
+    CAMPAIGN_PATH.parent.mkdir(parents=True, exist_ok=True)
     CAMPAIGN_PATH.write_text(_json.dumps({
         "company": art.company, "campaign_id": art.campaign_id,
         "recipient_email": art.recipient_email,

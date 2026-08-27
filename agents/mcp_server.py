@@ -51,10 +51,40 @@ from mcp.server.fastmcp import Context, FastMCP  # noqa: E402
 from ghost import trace  # noqa: E402
 from ghost.trace import traced_tool as _traced_tool  # noqa: E402
 
+from agents import tenancy  # noqa: E402
+
 REV = Path.home() / ".revenant"
-ACTIVE_CTX_PATH = REV / "active_context.json"
-SHORTLIST_PATH = REV / "last_shortlist.json"
-CAMPAIGN_PATH = REV / "last_campaign.json"
+
+# Per-tenant state. These were module-level global paths until the
+# multi-tenant work (Phase 1) — one machine-wide "which startup we sell
+# for", which meant two customers on one deployment silently overwrote
+# each other's context/shortlist/campaign. They are now functions of the
+# tenant, resolved from the `startup` argument the tools already carry.
+# See agents/tenancy.py, including its trust-boundary note: this is
+# isolation, not yet authorization.
+#
+# Legacy pre-multi-tenant state is moved into the default tenant once, at
+# import, so an existing install keeps its history instead of appearing
+# to have lost it.
+tenancy.migrate_legacy_state()
+
+
+def _ctx_path(startup: str = "") -> Path:
+    return tenancy.state_path(tenancy.resolve(startup), "active_context.json")
+
+
+def _shortlist_path(startup: str = "") -> Path:
+    return tenancy.state_path(tenancy.resolve(startup), "last_shortlist.json")
+
+
+def _campaign_path(startup: str = "") -> Path:
+    return tenancy.state_path(tenancy.resolve(startup), "last_campaign.json")
+
+
+def _tenant_dir(startup: str = "") -> Path:
+    """The tenant's own directory — mkdir this before writing any of the
+    paths above (they live inside it, not in REV any more)."""
+    return tenancy.tenant_home(tenancy.resolve(startup))
 
 mcp = FastMCP(
     "revenant",
@@ -140,17 +170,21 @@ def _split_sources(raw: str) -> list[str]:
     return out
 
 
-def _load_ctx():
+def _load_ctx(startup: str = ""):
     """Ingest the founder's startup (from the /setup pointer, else ~/shroud).
 
     Mirrors scripts/hermes_run.py:_load_ctx so the MCP path and the standalone
     bot resolve the same active context.
+
+    `startup` selects which tenant's active_context.json to read; omit it
+    to use whichever tenant was last active (see agents/tenancy.py).
     """
     from agents.context import FounderContext
     repo = os.getenv("REVENANT_REPO")
-    if not repo and ACTIVE_CTX_PATH.exists():
+    ctx_path = _ctx_path(startup)
+    if not repo and ctx_path.exists():
         try:
-            repo = json.loads(ACTIVE_CTX_PATH.read_text()).get("source")
+            repo = json.loads(ctx_path.read_text()).get("source")
         except Exception:
             repo = None
     repo = os.path.expanduser(repo or "~/shroud")
@@ -305,12 +339,20 @@ def setup_startup(sources: str) -> str:
     if isinstance(report, dict):
         skipped = report.get("skipped") or []
 
-    REV.mkdir(parents=True, exist_ok=True)
-    ACTIVE_CTX_PATH.write_text(json.dumps({
+    # Onboarding is where a tenant is ESTABLISHED: the ingested product
+    # name is what every later startup-bearing tool call will resolve
+    # against, so it becomes this install's tenant key. Falls back to the
+    # active/default tenant when ingestion couldn't name the product,
+    # rather than inventing an id from the raw source URL.
+    product_name = getattr(ctx, "product_name", "") or ""
+    onboarding_tenant = tenancy.resolve(product_name)
+    tenancy.set_active(onboarding_tenant)
+    _tenant_dir(onboarding_tenant).mkdir(parents=True, exist_ok=True)
+    tenancy.state_path(onboarding_tenant, "active_context.json").write_text(json.dumps({
         "source": srcs[0],
         "sources": srcs,
         "kind": "github" if _looks_like_repo(srcs[0]) else "folder",
-        "product_name": getattr(ctx, "product_name", "") or "",
+        "product_name": product_name,
         "n_files": len(ctx.files),
     }), encoding="utf-8")
 
@@ -361,8 +403,8 @@ def find_prospects(brief: str, want: int = 3) -> str:
                 "contact for that brief. Try a different vertical or a looser "
                 "signal — e.g. \"any B2B SaaS handling sensitive customer data\".")
 
-    REV.mkdir(parents=True, exist_ok=True)
-    SHORTLIST_PATH.write_text(
+    _tenant_dir().mkdir(parents=True, exist_ok=True)
+    _shortlist_path().write_text(
         json.dumps({"ask": brief, "repo": repo, "prospects": shortlist}),
         encoding="utf-8")
 
@@ -391,7 +433,8 @@ def build_campaign(choice: str = "1") -> str:
     video + deck) for the gateway to attach. Relay MEDIA: lines verbatim.
     """
     _log_call("build_campaign", choice)
-    if not SHORTLIST_PATH.exists():
+    shortlist_path = _shortlist_path()
+    if not shortlist_path.exists():
         return ("I don't have a shortlist to build from — ask me to "
                 "\"find a customer\" first.")
 
@@ -399,7 +442,7 @@ def build_campaign(choice: str = "1") -> str:
     get_settings.cache_clear()
     from agents.runner import build_campaign_for
 
-    saved = json.loads(SHORTLIST_PATH.read_text())
+    saved = json.loads(shortlist_path.read_text())
     prospects = saved.get("prospects") or []
     picked = _resolve_choice(choice, prospects)
     if picked is None:
@@ -423,8 +466,8 @@ def build_campaign(choice: str = "1") -> str:
         return f"Build failed: {getattr(art, 'error', 'unknown error')}"
 
     # Persist for draft_email / interop with the standalone bot.
-    REV.mkdir(parents=True, exist_ok=True)
-    CAMPAIGN_PATH.write_text(json.dumps({
+    _tenant_dir().mkdir(parents=True, exist_ok=True)
+    _campaign_path().write_text(json.dumps({
         "company": art.company,
         "domain": art.domain,
         "recipient_email": art.recipient_email,
@@ -898,8 +941,13 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
     if not subject and not email_md:
         return f"Sales draft for {merchant} did not produce an email draft."
 
-    REV.mkdir(parents=True, exist_ok=True)
-    CAMPAIGN_PATH.write_text(json.dumps({
+    # This is a startup-bearing tool, so it both writes into that
+    # startup's own directory AND records it as the active tenant — that
+    # pointer is what lets draft_email/status/critique_campaign (which
+    # take no startup) resolve to the right customer afterwards.
+    tenancy.set_active(startup)
+    _tenant_dir(startup).mkdir(parents=True, exist_ok=True)
+    _campaign_path(startup).write_text(json.dumps({
         "company": merchant,
         "domain": dom,
         "recipient_email": recipient_email,
@@ -1065,9 +1113,12 @@ def draft_email(to_email: str = "") -> str:
     Returns the Gmail draft link.
     """
     _log_call("draft_email", to_email)
-    if not CAMPAIGN_PATH.exists():
+    # No startup argument — resolves to whichever tenant last built
+    # something (see agents/tenancy.py::resolve).
+    camp_path = _campaign_path()
+    if not camp_path.exists():
         return ("No campaign to draft yet — run build_campaign first.")
-    camp = json.loads(CAMPAIGN_PATH.read_text())
+    camp = json.loads(camp_path.read_text())
 
     recipient = (to_email or camp.get("recipient_email") or "").strip()
     if not recipient:
@@ -1108,31 +1159,45 @@ def draft_email(to_email: str = "") -> str:
 
 @mcp.tool()
 @_traced_tool("status")
-def status() -> str:
+def status(startup: str = "") -> str:
     """Report what Revenant currently has loaded: active startup, last shortlist,
-    last built campaign."""
-    _log_call("status")
-    lines = []
-    if ACTIVE_CTX_PATH.exists():
+    last built campaign.
+
+    Args:
+        startup: Report on this startup specifically. Omit to report on
+            whichever startup was most recently worked on.
+    """
+    _log_call("status", startup)
+    tenant = tenancy.resolve(startup)
+    lines = [f"Startup (tenant): {tenant}"]
+    others = [t for t in tenancy.list_tenants() if t != tenant]
+    if others:
+        lines.append(f"Other startups with saved state: {', '.join(others)}")
+
+    ctx_path = tenancy.state_path(tenant, "active_context.json")
+    shortlist_path = tenancy.state_path(tenant, "last_shortlist.json")
+    camp_path = tenancy.state_path(tenant, "last_campaign.json")
+
+    if ctx_path.exists():
         try:
-            c = json.loads(ACTIVE_CTX_PATH.read_text())
+            c = json.loads(ctx_path.read_text())
             lines.append(f"Selling for: {c.get('product_name') or c.get('source','?')} "
                          f"(from {', '.join(c.get('sources', [c.get('source','?')]))})")
         except Exception:
             pass
     else:
         lines.append("No startup loaded yet — call setup_startup.")
-    if SHORTLIST_PATH.exists():
+    if shortlist_path.exists():
         try:
-            s = json.loads(SHORTLIST_PATH.read_text())
+            s = json.loads(shortlist_path.read_text())
             ps = s.get("prospects") or []
             names = ", ".join(p.get("company_name", "?") for p in ps)
             lines.append(f"Last shortlist ({s.get('ask','')}): {names}")
         except Exception:
             pass
-    if CAMPAIGN_PATH.exists():
+    if camp_path.exists():
         try:
-            camp = json.loads(CAMPAIGN_PATH.read_text())
+            camp = json.loads(camp_path.read_text())
             lines.append(f"Last campaign built: {camp.get('company','?')} "
                          f"→ {camp.get('prototype_url','')}")
         except Exception:
@@ -1166,10 +1231,11 @@ def critique_campaign(merchant: str = "") -> str:
 
     if not merchant:
         # No merchant named — fall back to whatever the last campaign was.
-        if not CAMPAIGN_PATH.exists():
+        camp_path = _campaign_path()
+        if not camp_path.exists():
             return "No campaign to critique yet — build one first."
         try:
-            merchant = json.loads(CAMPAIGN_PATH.read_text()).get("company", "")
+            merchant = json.loads(camp_path.read_text()).get("company", "")
         except Exception:
             merchant = ""
         if not merchant:
