@@ -19,11 +19,14 @@ codebase reads the founder's repo directly.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
@@ -326,11 +329,85 @@ class FounderContext:
             return "\n".join(paths)
         return "\n".join(paths[:limit]) + f"\n… and {len(paths) - limit} more"
 
+    # ── per-tenant persistent briefing cache ──────────────────
+    def _tenant(self) -> str:
+        """This context's tenant, derived from the INGESTED product name —
+        the same key agents/tenancy.py resolves for the MCP tools, so a
+        briefing cached here is found by any later process working for
+        the same startup. Derived rather than passed in, so no caller has
+        to thread a tenant id through 14 summary() call sites."""
+        from agents import tenancy
+        return tenancy.resolve(self.product_name)
+
+    def _content_fingerprint(self) -> str:
+        """Hash of everything actually ingested, so the cached briefing is
+        invalidated when the founder's repo/docs change. Hashes real
+        content (not just paths and sizes) — a same-length edit is exactly
+        the kind of change a weaker fingerprint would miss, and a stale
+        briefing silently describing an old product is worse than paying
+        for a re-summary. Total ingest is capped at 400KB, so this is
+        milliseconds."""
+        h = hashlib.sha256()
+        for path in sorted(self.files):
+            h.update(path.encode("utf-8", "replace"))
+            h.update(b"\0")
+            h.update(self.files[path].encode("utf-8", "replace"))
+            h.update(b"\0")
+        return h.hexdigest()[:16]
+
+    def _load_cached_briefing(self) -> str | None:
+        try:
+            from agents import tenancy
+            meta_p = tenancy.tenant_file(self._tenant(), "briefing_meta.json")
+            body_p = tenancy.tenant_file(self._tenant(), "briefing.md")
+            if not (meta_p.exists() and body_p.exists()):
+                return None
+            meta = json.loads(meta_p.read_text(encoding="utf-8"))
+            if meta.get("fingerprint") != self._content_fingerprint():
+                return None          # sources changed — re-summarize
+            text = body_p.read_text(encoding="utf-8").strip()
+            return text or None
+        except Exception:
+            return None              # a broken cache must never block a build
+
+    def _save_briefing(self, text: str) -> None:
+        try:
+            from agents import tenancy
+            tenant = self._tenant()
+            tenancy.tenant_home(tenant).mkdir(parents=True, exist_ok=True)
+            tenancy.tenant_file(tenant, "briefing.md").write_text(text, encoding="utf-8")
+            tenancy.tenant_file(tenant, "briefing_meta.json").write_text(
+                json.dumps({
+                    "fingerprint": self._content_fingerprint(),
+                    "product_name": self.product_name,
+                    "source": self.source,
+                    "n_files": len(self.files),
+                    "cached_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                }, indent=2),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass                     # caching is an optimisation, never required
+
     # ── LLM summary ───────────────────────────────────────────
     def summary(self) -> str:
-        """One-shot LLM-generated pitch — cached. Used in the system prompt."""
+        """One-shot LLM-generated pitch — cached in memory for this object,
+        and on disk per-tenant across processes.
+
+        The disk cache matters more than it looks: this is a real LLM call
+        over ~30KB on the strong model, and it was previously re-run from
+        scratch by every process that loaded a context (each MCP tool call,
+        each hermes_run worker). It is also the per-startup product
+        knowledge multi-tenancy is meant to isolate, so it belongs in the
+        tenant's own directory rather than being recomputed globally.
+        """
         if self._summary_cache is not None:
             return self._summary_cache
+
+        cached = self._load_cached_briefing()
+        if cached is not None:
+            self._summary_cache = cached
+            return cached
 
         # Feed the LLM the most-signal files first: README + first ~40k of code.
         prio_names = [p for p in self.paths() if Path(p).name in _PRIORITY_NAMES]
@@ -378,6 +455,14 @@ class FounderContext:
             offline=offline_stub,
             model=brain_model,
         ).strip()
+        # Persist ONLY a real briefing. In offline mode complete_strong()
+        # returns offline_stub verbatim — writing that to disk would poison
+        # the tenant's cache with a placeholder that then gets served to
+        # every later LIVE process as if it were a real product briefing.
+        # Exactly the silent-degradation class this codebase keeps hitting,
+        # so the check is explicit rather than assumed.
+        if self._summary_cache and self._summary_cache != offline_stub.strip():
+            self._save_briefing(self._summary_cache)
         return self._summary_cache
 
 

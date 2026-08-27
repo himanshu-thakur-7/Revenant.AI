@@ -94,6 +94,21 @@ def state_path(tenant: str, filename: str) -> Path:
     return tenant_home(tenant) / filename
 
 
+def tenant_file(tenant: str, name: str) -> Path:
+    """An arbitrary per-tenant file (briefing cache, preferences, ...),
+    as opposed to state_path()'s three fixed state files.
+
+    `name` is slug()'d, so it cannot contain a separator or traverse out
+    of the tenant directory — same containment rule as tenant_home().
+    A single trailing extension is preserved (briefing.md stays .md)
+    because slug() would otherwise flatten the dot into a hyphen.
+    """
+    stem, dot, ext = name.rpartition(".")
+    if dot and ext and "/" not in ext and "." not in ext:
+        return tenant_home(tenant) / f"{slug(stem)}.{slug(ext)}"
+    return tenant_home(tenant) / slug(name)
+
+
 def set_active(tenant: str) -> None:
     """Record the tenant a startup-bearing tool just acted for, so the
     tools that take no startup (draft_email/status/critique_campaign)
