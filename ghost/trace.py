@@ -224,13 +224,23 @@ def prompt_fingerprint(text: str) -> str:
         return "unknown"
 
 
-def score(name: str, value: float, *, comment: str = "", trace_id: str | None = None) -> None:
+def score(name: str, value: float, *, comment: str = "", trace_id: str | None = None,
+          session_id: str | None = None) -> None:
     """Attach an eval score to a trace (own trace if in one, or an
     explicit trace_id for scoring after the fact — e.g. evals/runner.py
-    scoring a bundle recorded minutes earlier)."""
+    scoring a bundle recorded minutes earlier).
+
+    session_id is the fallback anchor when there is no trace to attach
+    to. A score needs SOMETHING to hang off: scoring from the eval CLI
+    happens outside any span, so trace_id is None there, and a score with
+    neither is rejected by the backend (a real 400, found on the first
+    live Langfuse run). Passing the campaign's session id keeps those
+    scores attached to the right customer/campaign instead of dropped.
+    """
     try:
         tid = trace_id or current_trace_id()
-        _emit({"kind": "score", "trace_id": tid, "name": name, "value": value,
+        _emit({"kind": "score", "trace_id": tid, "session_id": session_id,
+              "name": name, "value": value,
               "comment": comment, "at": time.time(),
               "revenant.git_sha": _GIT_SHA, "revenant.release": _RELEASE})
     except Exception:

@@ -68,10 +68,28 @@ def record_run(bundle: Any, scored: dict[str, dict[str, Any]]) -> dict[str, Any]
 
     try:
         from ghost import trace
+
+        # Anchor the score to the campaign's session. Scoring runs from the
+        # eval CLI, outside any span, so there is no current trace_id — and a
+        # score with neither trace nor session is rejected outright by the
+        # backend, which is how every eval score was silently failing to land.
+        # Same session key the span path uses (see ghost/trace_langfuse.py's
+        # _trace_dims), so scores and spans meet on the same campaign.
+        session_id = None
+        try:
+            from agents import tenancy
+            tenant = tenancy.resolve(getattr(bundle, "startup", "") or "")
+            merchant = (getattr(bundle, "merchant", "") or "").lower()
+            if tenant and merchant:
+                session_id = f"{tenant}:{merchant}"
+        except Exception:
+            session_id = None
+
         for kind, info in scored.items():
             judge = info.get("judge")
             if judge is not None:
                 trace.score(f"{kind}.composite", judge.composite,
+                           session_id=session_id,
                            comment=f"bundle={bundle.bundle_id} git_sha={bundle.git_sha}")
     except Exception:
         pass

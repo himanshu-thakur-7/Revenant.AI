@@ -197,9 +197,23 @@ def emit(record: dict[str, Any]) -> None:
         return
     try:
         if record.get("kind") == "score":
+            # A score must attach to SOMETHING — Langfuse rejects one with no
+            # trace_id/session_id/observation_id as a 400 Bad Request. Caught
+            # on the first live run: evals/history.py::record_run() scores a
+            # bundle from the eval CLI, which runs outside any span, so
+            # trace_id was None and every eval score was silently failing to
+            # reach Langfuse (the API error is logged by the SDK, then
+            # swallowed here). Prefer the trace, fall back to the campaign
+            # session, and skip entirely rather than send a known-invalid
+            # request.
+            tid = record.get("trace_id")
+            sid = record.get("session_id")
+            if not tid and not sid:
+                return
             client.create_score(
                 name=record["name"], value=record["value"],
-                trace_id=_langfuse_trace_id(record["trace_id"]) if record.get("trace_id") else None,
+                trace_id=_langfuse_trace_id(tid) if tid else None,
+                session_id=sid or None,
                 comment=record.get("comment") or None,
             )
             return
