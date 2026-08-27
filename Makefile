@@ -1,4 +1,4 @@
-.PHONY: help install test test-web test-all run demo console sync clean eval eval-judge eval-live eval-calibrate eval-propose console-test
+.PHONY: help install test test-web test-ui test-all run demo console sync clean eval eval-judge eval-live eval-calibrate eval-propose console-test
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -18,6 +18,7 @@ test-web:  ## run the website/ API + session tests (node built-in runner, no dep
 test-all:  ## every offline suite: python + web + the console render check
 	$(MAKE) test
 	$(MAKE) test-web
+	$(MAKE) test-ui
 	$(MAKE) console-test
 
 run:  ## run the full loop for the default seller (queuepilot), offline
@@ -67,3 +68,6 @@ console-test:  ## regression check: console.html actually renders a playable <vi
 	trap "kill $$SERVER_PID 2>/dev/null" EXIT; \
 	sleep 1; \
 	.venv/bin/python scripts/console_render_test.py
+
+test-ui:  ## console UI suite (Playwright + Chromium, offline; needs `playwright install chromium`)
+	. .venv/bin/activate && python -m pytest ui_tests/ -q

@@ -192,8 +192,17 @@ let CFG = cfg();
 // stable session for memory + continuity across turns in this browser
 if(!CFG.sid){ CFG.sid = 'web-'+Math.random().toString(36).slice(2,12); }
 setCfg(CFG);
-function gatePassed(){ return localStorage.getItem(GATE_LS)==='1'; }
-function setGatePassed(v){ localStorage.setItem(GATE_LS, v?'1':'0'); }
+// Storage access THROWS (not returns null) in a private window or with
+// site data blocked — accessing window.localStorage itself can raise a
+// SecurityError. An unguarded read here happens during boot, so it took
+// the whole console down to a blank page for those users rather than
+// merely losing the remembered gate state.
+function gatePassed(){
+  try { return localStorage.getItem(GATE_LS)==='1'; } catch(e){ return false; }
+}
+function setGatePassed(v){
+  try { localStorage.setItem(GATE_LS, v?'1':'0'); } catch(e){ /* session-only */ }
+}
 
 const SYSTEM = `You are REVENANT — an autonomous outbound-growth AGENCY run by a CREW of AI agents. You are the MANAGER. You win the founder new customers, working as a real multi-agent team — never as a single assistant doing steps in one thread.
 
@@ -302,7 +311,26 @@ function rememberStartup(text){
   }
 }
 function rememberBuild(text){
-  const url=(text.match(/https:\/\/[^\s<>"')]+revenant-prototypes\.pages\.dev[^\s<>"')]*/)||[])[0];
+  // Find the prototype URL WITHOUT assuming a hosting provider.
+  //
+  // This used to require `revenant-prototypes.pages.dev`. Hosting moved to a
+  // tunnel (…ngrok-free.app/<slug>/), so the pattern stopped matching and
+  // lastBuild silently stayed null — which meant recentHistory() never emitted
+  // its CONSOLE STATE line, so on "film it" the manager had no prototype URL
+  // in context and fell back to asking the founder to paste one. The SYSTEM
+  // prompt explicitly forbids that ask, so the symptom looked like the model
+  // misbehaving rather than the console losing state. Caught by
+  // ui_tests/test_console_behaviour.py.
+  //
+  // Prefer an explicitly labelled "Prototype: <url>" (build_full_outreach's
+  // bundle output), then the "live prototype deployed → <url>" shape
+  // (build_prototype's single-tool output), then any plain URL that is not a
+  // video or a deck. Excluding those two is what keeps a walkthrough or a
+  // .pptx from being mistaken for the prototype in a combined message.
+  const notArtifact = u => !/\.(mp4|pptx|pdf)(\?|$)/i.test(u) && !/walkthrough/i.test(u);
+  const url =
+      (text.match(/(?:Prototype|live prototype deployed)\s*[:→]\s*(https?:\/\/[^\s<>"')]+)/i)||[])[1]
+   || (text.match(/https?:\/\/[^\s<>"')]+/g)||[]).find(notArtifact);
   if(!url) return;
   let merchant='the prospect';
   let startup=CFG.startup||'Razorpay';
