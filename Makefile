@@ -1,4 +1,4 @@
-.PHONY: help install test run demo console sync clean eval eval-judge eval-live eval-calibrate eval-propose console-test
+.PHONY: help install test test-web test-all run demo console sync clean eval eval-judge eval-live eval-calibrate eval-propose console-test
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -11,6 +11,14 @@ install:  ## create venv + install python deps and console deps
 
 test:  ## run the python test suite (offline, no network)
 	. .venv/bin/activate && python -m pytest -q
+
+test-web:  ## run the website/ API + session tests (node built-in runner, no deps)
+	cd website && node --test "test/*.test.mjs"
+
+test-all:  ## every offline suite: python + web + the console render check
+	$(MAKE) test
+	$(MAKE) test-web
+	$(MAKE) console-test
 
 run:  ## run the full loop for the default seller (queuepilot), offline
 	. .venv/bin/activate && PYTHONPATH=. python -m ghost.cli run --seller queuepilot --limit 3

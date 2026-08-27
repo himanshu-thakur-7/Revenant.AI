@@ -1,0 +1,9 @@
+{
+  "name": "revenant-website",
+  "private": true,
+  "type": "module",
+  "description": "Console UI + server-side API proxy (Vercel functions). No runtime dependencies by design — the handlers use Web-standard APIs only so the same files run on both the Node and Edge runtimes.",
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

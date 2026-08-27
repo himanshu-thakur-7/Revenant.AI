@@ -37,3 +37,19 @@ jobs:
         env:
           REVENANT_MODE: offline
         run: ./.venv/bin/python -m pytest -q
+
+  web:
+    # The website/ handlers are the auth boundary and had zero automated
+    # coverage until now. Separate job from t0: no Python, no uv, and it
+    # should stay green independently of the agent suite.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"   # node:test + the glob form used below
+
+      - name: web tests (session + handlers, offline)
+        working-directory: website
+        run: node --test "test/*.test.mjs"
