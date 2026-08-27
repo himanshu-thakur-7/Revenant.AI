@@ -39,7 +39,10 @@ a real follow-up, not done here.
 
 from __future__ import annotations
 
+import contextlib
+import json
 import os
+import re
 import threading
 from typing import Any
 
@@ -53,6 +56,47 @@ _span_objects: dict[str, Any] = {}
 _trace_id_map: dict[str, str] = {}
 
 
+# Redaction for the "sensitive data masked" baseline requirement. Revenant's
+# spans carry real prospect contact details and real founder source code, and
+# span io is truncated-but-verbatim — so without this, live traces would ship
+# a named decision-maker's work email to a third-party service.
+#
+# Deliberately conservative and structural (regex over the serialized payload)
+# rather than field-aware: a field-aware masker only redacts the keys someone
+# remembered to list, and this codebase's whole lesson has been that the
+# dangerous case is the one nobody remembered.
+_EMAIL_RX = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+_APIKEY_RX = re.compile(r"\b(?:sk|pk|rzp|ghp|gho|xox[baprs])[-_][A-Za-z0-9_-]{8,}\b")
+# Note the optional `bearer` after the separator. Without it, the header
+# shape `Authorization: Bearer <token>` matched only through the word
+# "Bearer" (it satisfied the trailing \S+), and the actual token survived
+# masking in the clear — caught by
+# ghost/tests/test_trace_langfuse.py::test_masks_bearer_and_authorization_pairs.
+_BEARER_RX = re.compile(
+    r"(?i)\b(bearer|authorization|api[_-]?key|secret|token)\b"
+    r"[\"']?\s*[:=]?\s*(?:bearer\s+)?[\"']?\S+"
+)
+
+
+def _mask(data: Any) -> Any:
+    """Langfuse calls this on every input/output/metadata payload before it
+    leaves the process. Must never raise: an exception here would drop the
+    observation, and losing a trace is a worse outcome than an unmasked one
+    being caught by the next layer — so a failure returns a hard-redacted
+    placeholder rather than the original."""
+    try:
+        if isinstance(data, str):
+            s = data
+        else:
+            s = json.dumps(data, default=str)
+        s = _EMAIL_RX.sub("<email-redacted>", s)
+        s = _APIKEY_RX.sub("<key-redacted>", s)
+        s = _BEARER_RX.sub("<credential-redacted>", s)
+        return s
+    except Exception:
+        return "<masking-failed:redacted>"
+
+
 def _get_client():
     global _client
     if _client is not None:
@@ -60,16 +104,45 @@ def _get_client():
     with _client_lock:
         if _client is not None:
             return _client
+        # Refuse to construct a client without credentials. The SDK will
+        # happily initialise "disabled", then its background exporter still
+        # attempts real HTTP and logs `Failed to export span batch: 401` on
+        # every flush — noise on every single process, plus pointless network
+        # calls, for a backend that cannot work. Caught exactly this way: a
+        # .env with REVENANT_TRACE_BACKEND=langfuse and blank keys made the
+        # whole test suite emit 401s. jsonl still records everything, so
+        # returning None here loses no tracing.
+        if not (os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY")):
+            _client = False
+            return None
         try:
             from langfuse import Langfuse
             _client = Langfuse(
                 public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
                 secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-                host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+                # Both LANGFUSE_HOST and LANGFUSE_BASE_URL are read natively by
+                # this SDK; BASE_URL is what langfuse-cli documents, so accept
+                # either rather than making the two tools disagree about which
+                # region they point at.
+                host=(os.getenv("LANGFUSE_HOST")
+                      or os.getenv("LANGFUSE_BASE_URL")
+                      or "https://cloud.langfuse.com"),
+                # Keeps offline/dev traffic out of the production dashboard.
+                environment=os.getenv("REVENANT_MODE", "offline"),
+                release=os.getenv("REVENANT_RELEASE") or _git_release(),
+                mask=_mask,
             )
         except Exception:
             _client = False  # sentinel: tried and failed, don't retry every call
     return _client or None
+
+
+def _git_release() -> str:
+    try:
+        from ghost import trace
+        return getattr(trace, "_GIT_SHA", "") or "unknown"
+    except Exception:
+        return "unknown"
 
 
 def _langfuse_trace_id(my_trace_id: str) -> str:
@@ -85,9 +158,33 @@ def _langfuse_trace_id(my_trace_id: str) -> str:
     return lf_id
 
 
+# Langfuse's baseline asks for the MOST SPECIFIC observation type, not a
+# generic span — the type drives the Agent Graph and per-type analytics.
+# Full set (per langfuse.com/docs/observability/features/observation-types):
+# event, span, generation, agent, tool, chain, retriever, evaluator,
+# embedding, guardrail.
 _KIND_TO_AS_TYPE = {
-    "llm": "generation", "llm.vision": "generation", "llm.wrapper": "span",
-    "tool": "tool", "agent": "agent", "mcp": "span", "pipeline": "span", "tts": "span",
+    "llm": "generation",
+    "llm.vision": "generation",
+    # A thin wrapper that delegates to another LLM call is the link between
+    # steps, not a generation itself — double-counting it as a generation
+    # would inflate token/cost analytics for every wrapped call.
+    "llm.wrapper": "chain",
+    "tool": "tool",
+    "agent": "agent",
+    # Each MCP tool call is one self-contained unit of work that orchestrates
+    # the fleet — it decides flow and spawns sub-work, which is Langfuse's
+    # definition of an agent rather than a plain span.
+    "mcp": "agent",
+    "pipeline": "chain",
+    "tts": "tool",
+    # Reading the founder's repo/docs is a pure lookup — the retriever type
+    # exists exactly for this and is what makes retrieval visible separately
+    # from generation in the UI.
+    "context": "retriever",
+    # The eval judge scores outputs; "evaluator" is its literal purpose.
+    "eval": "evaluator",
+    "judge": "evaluator",
 }
 
 
@@ -141,18 +238,83 @@ def emit(record: dict[str, Any]) -> None:
             model=usage.get("model") if as_type == "generation" else None,
             usage_details=usage_details if as_type == "generation" else None,
         )
-        if parent_obj is not None:
-            obj = parent_obj.start_observation(**kwargs)
-        else:
-            obj = client.start_observation(
-                trace_context={"trace_id": lf_trace_id}, **kwargs)
 
-        if record.get("error"):
-            obj.update(level="ERROR", status_message=str(record["error"])[:500])
-        obj.end()
+        # Trace-level dimensions, per Langfuse's "beyond the baseline" table.
+        # Revenant's multi-tenancy maps onto these almost exactly:
+        #   user_id    <- the tenant (which STARTUP this work is for), so cost
+        #                 and quality break down per customer
+        #   session_id <- one campaign (startup+merchant), grouping the whole
+        #                 Engineer -> Director -> Sales chain into one session
+        #   tags       <- tenant + run mode, for dashboard filtering
+        # Attributes come from the span's own attrs, which traced_tool()
+        # already populates from each MCP tool's kwargs (startup, merchant).
+        dims = _trace_dims(record)
+
+        with _propagate(dims):
+            if parent_obj is not None:
+                obj = parent_obj.start_observation(**kwargs)
+            else:
+                obj = client.start_observation(
+                    trace_context={"trace_id": lf_trace_id}, **kwargs)
+
+            if record.get("error"):
+                obj.update(level="ERROR", status_message=str(record["error"])[:500])
+            obj.end()
         _span_objects[my_span_id] = obj
     except Exception:
         pass
+
+
+def _trace_dims(record: dict[str, Any]) -> dict[str, Any]:
+    """Derive user_id / session_id / tags for one span record."""
+    attrs = record.get("attrs") or {}
+    startup = str(attrs.get("startup") or "").strip()
+    merchant = str(attrs.get("merchant") or "").strip()
+
+    tenant = ""
+    if startup:
+        try:
+            from agents import tenancy
+            tenant = tenancy.resolve(startup)
+        except Exception:
+            tenant = startup.lower()
+
+    tags = [t for t in (
+        f"tenant:{tenant}" if tenant else "",
+        f"mode:{record.get('revenant.mode') or ''}" if record.get("revenant.mode") else "",
+        f"env:{record.get('revenant.env') or ''}" if record.get("revenant.env") else "",
+    ) if t]
+
+    return {
+        "user_id": tenant or None,
+        # A campaign is the self-contained unit a founder thinks in; grouping
+        # by startup+merchant puts the prototype, the walkthrough and the
+        # email for one prospect in a single Langfuse session.
+        "session_id": (f"{tenant}:{merchant.lower()}" if tenant and merchant else None),
+        "tags": tags or None,
+    }
+
+
+@contextlib.contextmanager
+def _propagate(dims: dict[str, Any]):
+    """Apply trace-level dimensions to the observation created inside.
+
+    propagate_attributes() is the SDK's supported way to set these; it
+    applies to the active span and any created within the context, which
+    is exactly the scope of one emit(). No-ops cleanly when there is
+    nothing to set (a span with no startup attr, e.g. a bare ghost
+    pipeline run) so unattributed spans still record normally.
+    """
+    kw = {k: v for k, v in dims.items() if v}
+    if not kw:
+        yield
+        return
+    try:
+        from langfuse import propagate_attributes
+        with propagate_attributes(**kw):
+            yield
+    except Exception:
+        yield
 
 
 def flush() -> None:
