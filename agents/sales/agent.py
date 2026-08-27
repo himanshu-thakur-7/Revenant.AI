@@ -72,7 +72,12 @@ class Sales(Agent):
         return self._state
 
     def draft(self, on_event: EventSink = None,
-              extra_instruction: str = "") -> dict[str, Any]:
+              extra_instruction: str = "", preferences: str = "") -> dict[str, Any]:
+        """preferences: this startup's standing preferences (see
+        agents/preferences.py). Kept separate from extra_instruction for
+        the same reason as Engineer.build() — standing rules and a
+        one-off correction are different things and read differently to
+        the model."""
         opening = (
             "Draft the outbound artifact stack for this prospect. Call the "
             "read tools first, then compose the deck outline and render it "
@@ -80,6 +85,8 @@ class Sales(Agent):
             "draft, and finalize. One clean pass — do not re-render the deck "
             "twice."
         )
+        if preferences:
+            opening += "\n\n## This founder's standing preferences\n" + preferences.strip()
         if extra_instruction:
             opening += "\n\n" + extra_instruction.strip()
         text = self.run_turn(opening, on_event=on_event)

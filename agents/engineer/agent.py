@@ -46,7 +46,8 @@ class Engineer(Agent):
     def state(self) -> PrototypeState:
         return self._state
 
-    def build(self, on_event: EventSink = None, extra_instruction: str = "") -> dict[str, Any]:
+    def build(self, on_event: EventSink = None, extra_instruction: str = "",
+              preferences: str = "") -> dict[str, Any]:
         """Run one autonomous build for the bound prospect. Returns the
         finalized payload (URL + summary), regardless of whether the LLM
         called finalize_prototype explicitly.
@@ -56,7 +57,15 @@ class Engineer(Agent):
         docs/evals-observability-design.md §3.2) uses this to hand the
         Engineer a judge's fail_reasons on a bounded single retry. Mirrors
         agents/sales/agent.py's Sales.draft(extra_instruction=...), which
-        had this and Engineer didn't."""
+        had this and Engineer didn't.
+
+        preferences: this startup's standing preferences, from
+        agents/preferences.py. Deliberately NOT folded into
+        extra_instruction: that one is framed "Fix this before you
+        finish" (a correction on a retry), while these are durable rules
+        that hold for every build. Injecting standing preferences under a
+        fix-this heading would read to the model as "you did something
+        wrong" on a first, clean attempt."""
         # Pre-fetch the prospect's live brand (colours/fonts/wordmark) so the
         # prototype can match their site instead of a generic template. Baked
         # into the opening so the LLM can't skip it (best-effort; empty on fail).
@@ -143,6 +152,12 @@ class Engineer(Agent):
                 "allowed is Google Fonts.\n\n"
                 f"{prototype_spec}"
             )
+        # Standing preferences first (they hold for every build), then any
+        # retry-specific correction — so a fix-this note reads as the most
+        # recent, most specific instruction rather than being buried above
+        # a wall of general rules.
+        if preferences:
+            opening += "\n\n## This founder's standing preferences\n" + preferences.strip()
         if extra_instruction:
             opening += "\n\n## Fix this before you finish\n" + extra_instruction.strip()
         text = self.run_turn(opening, on_event=on_event)

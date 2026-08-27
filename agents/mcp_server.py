@@ -51,7 +51,7 @@ from mcp.server.fastmcp import Context, FastMCP  # noqa: E402
 from ghost import trace  # noqa: E402
 from ghost.trace import traced_tool as _traced_tool  # noqa: E402
 
-from agents import tenancy  # noqa: E402
+from agents import preferences, tenancy  # noqa: E402
 
 REV = Path.home() / ".revenant"
 
@@ -624,10 +624,16 @@ async def build_prototype(startup: str, merchant: str, merchant_domain: str = ""
 
         _trace_ctx = trace.capture_context()
 
+        # This startup's standing preferences (Phase 3). Resolved on the
+        # calling thread, not inside the worker, so a slow/failed read
+        # can't stall the build thread; for_startup() already swallows
+        # its own errors and returns "" when there's nothing stored.
+        _prefs = preferences.for_startup(startup)
+
         def _do_build():
             with _quiet_stdout(), trace.propagate_into(_trace_ctx):
                 eng = Engineer(founder_context=ctx, prospect=prospect)
-                res = eng.build(on_event=_on_event)
+                res = eng.build(on_event=_on_event, preferences=_prefs)
                 return eng, res
 
         eng, res = await anyio.to_thread.run_sync(_do_build)
@@ -896,6 +902,8 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
 
         _trace_ctx = trace.capture_context()
 
+        _prefs = preferences.for_startup(startup)
+
         def _do_sales():
             with _quiet_stdout(), trace.propagate_into(_trace_ctx):
                 sales = Sales(
@@ -904,7 +912,7 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
                     prototype_url=prototype_url,
                     walkthrough_url=walkthrough_url,
                 )
-                return sales.draft(on_event=_on_event)
+                return sales.draft(on_event=_on_event, preferences=_prefs)
 
         res = await anyio.to_thread.run_sync(_do_sales)
         subject = (res or {}).get("email_subject", "")
@@ -1257,6 +1265,58 @@ def critique_campaign(merchant: str = "") -> str:
     except Exception:
         pass  # history is a bonus record, never blocks the verdict itself
     return f"QA: {verdict}\n\n{score_summary(scored)}"
+
+
+@mcp.tool()
+@_traced_tool("remember_preferences")
+def remember_preferences(startup: str, conversation: str) -> str:
+    """Record what a founder has said about how THEIR campaigns should be built.
+
+    Pass the recent conversation verbatim. Durable preferences (tone, words
+    to avoid, facts about their product, corrections about how artifacts get
+    built) are extracted and saved for this startup, then applied
+    automatically to every future prototype and email built for them.
+
+    Every saved preference must quote the founder's own words verbatim —
+    anything the extractor can't back with a real quote from the
+    conversation is discarded rather than saved, so this cannot invent
+    preferences the founder never expressed.
+
+    Args:
+        startup: Which startup these preferences belong to.
+        conversation: The recent conversation text, verbatim.
+
+    Returns what was remembered (and what was rejected as unverifiable).
+    """
+    _log_call("remember_preferences", startup)
+    if not startup.strip():
+        return "I need to know which startup these preferences belong to."
+    if not conversation.strip():
+        return "No conversation text to learn from."
+
+    tenant = tenancy.resolve(startup)
+    found, rejected = preferences.extract(conversation, source="console conversation")
+    added = preferences.add(tenant, found)
+
+    lines = []
+    if added:
+        lines.append(f"Remembered {len(added)} new preference(s) for {startup}:")
+        lines += [f"  - {p.text}" for p in added]
+    elif found:
+        lines.append(f"Nothing new — already knew all {len(found)} of those for {startup}.")
+    else:
+        lines.append(f"Nothing durable to remember from that conversation for {startup}.")
+
+    # Surfaced, not swallowed: if the extractor claimed something it
+    # couldn't back with a real quote, the founder should know it was
+    # dropped rather than silently assume it was saved.
+    if rejected:
+        lines.append(f"\nDiscarded {len(rejected)} unverifiable claim(s):")
+        lines += [f"  - {r}" for r in rejected]
+
+    total = len(preferences.load(tenant))
+    lines.append(f"\n{total} preference(s) stored for {startup} in total.")
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":
