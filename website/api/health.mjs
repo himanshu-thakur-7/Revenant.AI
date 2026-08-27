@@ -16,8 +16,8 @@ export default async function handler(req, res) {
     return;
   }
 
-  const code = await verifyCookie(req.headers.cookie, secret);
-  if (!code) {
+  const session = await verifyCookie(req.headers.cookie, secret);
+  if (!session) {
     res.status(401).json({ error: "unauthorized" });
     return;
   }

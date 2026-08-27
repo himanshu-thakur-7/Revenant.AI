@@ -545,6 +545,9 @@ async def build_prototype(startup: str, merchant: str, merchant_domain: str = ""
         startup_summary: what `startup` does — only needed for non-Razorpay startups.
     """
     _log_call("build_prototype", f"{startup} -> {merchant}")
+    _allowed, _why = tenancy.assert_allowed(startup)
+    if not _allowed:
+        return _why
 
     # Progress heartbeat helper — surface stage narration through MCP so the
     # caller (Hermes/console) has something to render instead of ~75s of dead
@@ -696,6 +699,9 @@ async def film_walkthrough(prototype_url: str, merchant: str, startup: str = "Ra
         startup_summary: what `startup` does — only for non-Razorpay startups.
     """
     _log_call("film_walkthrough", f"{startup} -> {merchant} @ {prototype_url}")
+    _allowed, _why = tenancy.assert_allowed(startup)
+    if not _allowed:
+        return _why
 
     async def _tick(msg: str) -> None:
         if mcp_ctx is None:
@@ -829,6 +835,9 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
         contact_title: optional buyer title.
     """
     _log_call("draft_outreach", f"{startup} -> {merchant}")
+    _allowed, _why = tenancy.assert_allowed(startup)
+    if not _allowed:
+        return _why
 
     async def _tick(msg: str) -> None:
         if mcp_ctx is None:
@@ -1031,6 +1040,9 @@ async def build_full_outreach(startup: str, merchant: str,
     never sends.
     """
     _log_call("build_full_outreach", f"{startup} -> {merchant}")
+    _allowed, _why = tenancy.assert_allowed(startup)
+    if not _allowed:
+        return _why
 
     async def _tick(msg: str) -> None:
         if mcp_ctx is None:
@@ -1289,6 +1301,9 @@ def remember_preferences(startup: str, conversation: str) -> str:
     Returns what was remembered (and what was rejected as unverifiable).
     """
     _log_call("remember_preferences", startup)
+    _allowed, _why = tenancy.assert_allowed(startup)
+    if not _allowed:
+        return _why
     if not startup.strip():
         return "I need to know which startup these preferences belong to."
     if not conversation.strip():

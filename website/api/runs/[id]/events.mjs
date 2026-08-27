@@ -20,8 +20,8 @@ export default async function handler(req) {
     });
   }
 
-  const code = await verifyCookie(req.headers.get("cookie"), secret);
-  if (!code) {
+  const session = await verifyCookie(req.headers.get("cookie"), secret);
+  if (!session) {
     return new Response(JSON.stringify({ error: "unauthorized — enter your invite code" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },

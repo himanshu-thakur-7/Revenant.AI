@@ -37,11 +37,44 @@ function timingSafeEqual(a, b) {
   return diff === 0;
 }
 
-export function validCodes() {
+// INVITE_CODES entries are either `code` or `code:tenant`.
+//
+// The tenant is the authoritative customer identity for that code, and it is
+// looked up SERVER-SIDE from the code on every request — it is deliberately
+// not stored in the cookie and never read from the request body. A tenant the
+// client could supply would be a tenant the client could change.
+//
+// A bare `code` maps to the "default" tenant, so existing single-tenant
+// deployments keep working unchanged.
+const DEFAULT_TENANT = "default";
+
+function parseEntry(entry) {
+  const i = entry.indexOf(":");
+  if (i === -1) return { code: entry, tenant: DEFAULT_TENANT };
+  return {
+    code: entry.slice(0, i).trim(),
+    tenant: entry.slice(i + 1).trim() || DEFAULT_TENANT,
+  };
+}
+
+/** [{code, tenant}] for every configured invite code. */
+export function inviteEntries() {
   return (process.env.INVITE_CODES || "")
     .split(",")
     .map((c) => c.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(parseEntry)
+    .filter((e) => e.code);
+}
+
+export function validCodes() {
+  return inviteEntries().map((e) => e.code);
+}
+
+/** The tenant a code belongs to, or null if the code isn't configured. */
+export function tenantForCode(code) {
+  const hit = inviteEntries().find((e) => e.code === code);
+  return hit ? hit.tenant : null;
 }
 
 /** Build a Set-Cookie header value for a freshly-validated invite code. */
@@ -67,13 +100,26 @@ export function readCookie(cookieHeader) {
   return null;
 }
 
-/** Returns the invite code string if the cookie is valid + still active, else null. */
+/**
+ * Returns {code, tenant} if the cookie is valid + still active, else null.
+ *
+ * Parsing note: this used to require exactly 3 dot-separated parts, which
+ * silently and permanently locked out any invite code CONTAINING a dot —
+ * auth.mjs would accept the code and set a 200 cookie, then every later
+ * request 401'd with no explanation. The signature and timestamp are both
+ * dot-free by construction, so the code is now everything before the last
+ * two segments and may itself contain dots.
+ */
 export async function verifyCookie(cookieHeader, secret) {
   const raw = readCookie(cookieHeader);
   if (!raw) return null;
   const parts = raw.split(".");
-  if (parts.length !== 3) return null;
-  const [code, issuedAt, sig] = parts;
+  if (parts.length < 3) return null;
+
+  const sig = parts[parts.length - 1];
+  const issuedAt = parts[parts.length - 2];
+  const code = parts.slice(0, -2).join(".");
+  if (!code) return null;
 
   const age = Math.floor(Date.now() / 1000) - Number(issuedAt);
   if (!Number.isFinite(age) || age < 0 || age > MAX_AGE_SECONDS) return null;
@@ -83,7 +129,8 @@ export async function verifyCookie(cookieHeader, secret) {
 
   // Re-check against the CURRENT list every request — this is what makes
   // revocation instant (edit INVITE_CODES + redeploy) without a session store.
-  if (!validCodes().includes(code)) return null;
+  const tenant = tenantForCode(code);
+  if (tenant === null) return null;
 
-  return code;
+  return { code, tenant };
 }

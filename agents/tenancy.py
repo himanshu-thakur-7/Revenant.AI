@@ -49,6 +49,7 @@ separation here as "prevents accidental cross-contamination", NOT as
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import time
@@ -131,16 +132,70 @@ def get_active() -> str:
     return DEFAULT_TENANT
 
 
+def pinned_tenant() -> str:
+    """Phase 4 enforcement. When REVENANT_PINNED_TENANT is set, this
+    process serves exactly ONE customer and every tool call resolves to
+    them regardless of what `startup` argument was passed.
+
+    This is the control that turns Phases 1-3's isolation into real
+    authorization, and it is deliberately an ENVIRONMENT variable rather
+    than anything derived from request data: the whole problem is that
+    request data (the `startup` tool argument) travels through an LLM
+    that we cannot trust to faithfully preserve it. A value set in the
+    process environment at spawn time cannot be talked out of the model.
+
+    Deployment model this enables: one MCP server process per customer,
+    each pinned, each with its own Hermes profile. Cross-tenant access
+    then requires compromising the process, not persuading a model.
+
+    Read fresh each call rather than cached at import so a test (or a
+    supervisor restarting a worker) can change it without reimporting.
+    """
+    raw = os.getenv("REVENANT_PINNED_TENANT", "").strip()
+    return slug(raw) if raw else ""
+
+
 def resolve(startup: str = "") -> str:
     """The one place tenant identity is decided.
 
-    An explicit startup name always wins — that's the caller telling us
-    exactly who this is for. Only when a tool carries no startup at all
-    do we fall back to whoever was last active.
+    Precedence, highest first:
+      1. REVENANT_PINNED_TENANT — this process serves one customer only.
+         Overrides everything, including an explicit startup argument.
+      2. An explicit startup name — the caller saying who this is for.
+      3. Whoever was last active (for tools that carry no startup).
     """
+    pinned = pinned_tenant()
+    if pinned:
+        return pinned
     if startup and startup.strip():
         return slug(startup)
     return get_active()
+
+
+def assert_allowed(startup: str = "") -> tuple[bool, str]:
+    """Check whether a caller-supplied startup is permitted in this
+    process. Returns (allowed, message).
+
+    Only meaningful when pinned: an unpinned process is multi-tenant by
+    design and allows anything (that is Phases 1-3's documented
+    isolation-not-authorization posture). When pinned, a request naming a
+    DIFFERENT tenant is refused rather than silently redirected — a
+    silent redirect would let a caller believe it had acted on customer
+    A while it actually acted on customer B, which is worse than an
+    error.
+    """
+    pinned = pinned_tenant()
+    if not pinned:
+        return True, ""
+    if not (startup and startup.strip()):
+        return True, ""           # no claim made; the pin applies
+    if slug(startup) == pinned:
+        return True, ""
+    return False, (
+        f"This deployment serves '{pinned}' only; refusing a request for "
+        f"'{slug(startup)}'. (Set REVENANT_PINNED_TENANT differently, or "
+        f"use an unpinned deployment, if this is not what you intended.)"
+    )
 
 
 def migrate_legacy_state(tenant: str = DEFAULT_TENANT) -> list[str]:
