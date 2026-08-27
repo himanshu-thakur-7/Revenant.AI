@@ -11,7 +11,19 @@ from pathlib import Path
 from evals.checks import Check
 
 _PLACEHOLDER_MARKERS = ("Lorem ipsum", "TODO", "{{", "<company>", "<merchant>", "[COMPANY]")
-_CTA_VERBS = ("book", "schedule", "start", "try", "get", "let's", "reply", "connect", "talk")
+# Live-caught false negative: two real decks (Meesho, PhonePe) both have a
+# genuine, on-brief closing-ask slide ("THE ASK" heading, "Next Steps:",
+# concrete action bullets) but PhonePe's failed this check anyway -- its
+# ask used "Explore"/"See"/"Enhance", none of which were in the original
+# 9-word list. Meesho only passed by the luck of also containing "Let's"
+# and "Schedule" alongside the exact same "Explore"/"See" language. A
+# narrow, high-precision-but-low-recall verb list makes this check's
+# pass/fail closer to random than to a real signal. Broadened to the
+# realistic range of how a closing ask actually gets phrased, plus the
+# structural marker both real decks use regardless of which verb they pick.
+_CTA_VERBS = ("book", "schedule", "start", "try", "get", "let's", "reply", "connect", "talk",
+             "explore", "see", "discuss", "chat", "walk", "dive", "meet", "discover", "learn",
+             "join", "next steps", "the ask")
 
 
 def _open(pptx_path: str):
