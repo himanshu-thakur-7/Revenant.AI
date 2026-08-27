@@ -34,7 +34,22 @@ from .tools import Tool, ToolRegistry
 # ``<tool_call>{"name":"…","arguments":{…}}</tool_call>`` instead of using
 # the OpenAI-native ``tool_calls`` field. When we see this, we synthesise a
 # ``ToolCall``-shaped object so the rest of the loop is unchanged.
-_INLINE_TOOL_RX = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
+# The `(?:(?!</tool_call>).)*` is a tempered dot: it matches any character
+# EXCEPT where a `</tool_call>` begins, so a block can never extend past its
+# own closing tag.
+#
+# The obvious `(\{.*?\})` does not hold that line. When a block is truncated
+# without its closing brace — a mid-generation cutoff, which happens — the
+# lazy `.*?` keeps expanding through `</tool_call>` looking for a `}` and
+# finds one inside the NEXT block, consuming that block's closing tag too.
+# One malformed call therefore SWALLOWED the following valid call and both
+# were lost: the agent looked like it had decided not to call the tool, when
+# it had in fact emitted the call and we dropped it. Indistinguishable from a
+# reasoning failure from the outside, so it would be misattributed to the
+# model. Now the truncated block simply fails to match and its neighbour
+# survives.
+_INLINE_TOOL_RX = re.compile(
+    r"<tool_call>\s*(\{(?:(?!</tool_call>).)*\})\s*</tool_call>", re.DOTALL)
 
 
 @dataclass
