@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Revenant.AI — Engineering Status</title>
+<style>
+  @page { size: A4; margin: 18mm 15mm 16mm 15mm;
+          @bottom-center { content: counter(page) " / " counter(pages);
+                           font-family: -apple-system, sans-serif; font-size: 8pt; color: #94a3b8; } }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+         font-size: 9.2pt; line-height: 1.48; color: #1e293b; margin: 0; }
+  h1 { font-size: 20pt; margin: 0 0 2mm; letter-spacing: -0.4pt; color: #0f172a; }
+  .sub { color: #64748b; font-size: 8.8pt; margin-bottom: 5mm; }
+  h2 { font-size: 12pt; margin: 6.5mm 0 2.2mm; padding-bottom: 1.2mm;
+       border-bottom: 1.6pt solid #0d9488; color: #0f172a; }
+  h3 { font-size: 9.6pt; margin: 3.5mm 0 1.2mm; color: #334155; }
+  p { margin: 0 0 2mm; }
+  ul { margin: 0 0 2.2mm; padding-left: 4.5mm; }
+  li { margin-bottom: 1mm; }
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 3.2mm; font-size: 8.3pt; }
+  th { background: #f1f5f9; text-align: left; padding: 1.6mm 1.8mm; font-weight: 600;
+       border-bottom: 1.2pt solid #cbd5e1; color: #0f172a; }
+  td { padding: 1.5mm 1.8mm; border-bottom: 0.5pt solid #e2e8f0; vertical-align: top; }
+  code { font-family: "SF Mono", Menlo, monospace; font-size: 8pt;
+         background: #f1f5f9; padding: 0.3mm 1mm; border-radius: 0.8mm; }
+  .box { background: #f0fdfa; border-left: 2.5pt solid #0d9488;
+         padding: 2.5mm 3mm; margin: 2.5mm 0 3.2mm; }
+  .warn { background: #fffbeb; border-left-color: #f59e0b; }
+  .danger { background: #fef2f2; border-left-color: #dc2626; }
+  .box p { margin: 0 0 1.2mm; } .box p:last-child { margin: 0; }
+  .arch { background: #0f172a; color: #e2e8f0; padding: 3mm; border-radius: 1.5mm;
+          font-family: "SF Mono", Menlo, monospace; font-size: 7.6pt; line-height: 1.6;
+          margin: 2.5mm 0 3.2mm; white-space: pre; }
+  .arch b { color: #5eead4; font-weight: 600; }
+  .kpi { display: flex; gap: 2.5mm; margin: 3mm 0 4mm; }
+  .kpi div { flex: 1; background: #f8fafc; border: 0.5pt solid #e2e8f0;
+             border-radius: 1.5mm; padding: 2.2mm; text-align: center; }
+  .kpi .n { font-size: 14pt; font-weight: 700; color: #0d9488; display: block; }
+  .kpi .l { font-size: 7pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.3pt; }
+  .muted { color: #64748b; font-size: 8.2pt; }
+  .avoid { page-break-inside: avoid; }
+  .tick { color: #059669; font-weight: 600; }
+  .cross { color: #dc2626; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>Revenant.AI — Engineering Status</h1>
+<div class="sub">Architecture, guarantees, known gaps, and the reasoning behind the non-obvious
+decisions.<br>Prepared for engineering review · 27 August 2026 · <code>main</code> @ <code>ac649cc</code></div>
+
+<div class="kpi">
+  <div><span class="n">21k</span><span class="l">Lines Python</span></div>
+  <div><span class="n">176</span><span class="l">Tests (~1.3s)</span></div>
+  <div><span class="n">8</span><span class="l">MCP tools</span></div>
+  <div><span class="n">35</span><span class="l">T1 checks</span></div>
+  <div><span class="n">125</span><span class="l">Commits</span></div>
+</div>
+
+<h2>Architecture</h2>
+<div class="arch">Browser (console.html)
+   │  signed invite-code cookie → tenant resolved SERVER-SIDE
+   ▼
+<b>Vercel proxy</b> (website/api/*.mjs)   holds HERMES_API_KEY; browser never sees it
+   ▼
+<b>Hermes gateway</b>                     LLM manager; spawns specialist sub-agents
+   ▼  MCP over stdio
+<b>agents/mcp_server.py</b>                8 tools, tenant guard at each entry point
+   ▼
+<b>Agent fleet</b>  Engineer · Director · Sales · Research · Orchestrator
+   │              each an Agent subclass with its own prompt + tool loop
+   ▼
+<b>ghost/</b>       llm · trace · config        <b>evals/</b>  bundle · checks · judge · runner</div>
+
+<p><strong>Two layers of sub-agent, deliberately.</strong> The Hermes manager never calls a
+build tool itself — it spawns a <code>delegate_task</code> sub-agent per role ("You are the
+Engineer…"). That sub-agent calls one MCP tool, which instantiates the real Python
+<code>Engineer</code>/<code>Director</code>/<code>Sales</code> class — each running its own
+multi-step LLM tool-calling loop. The outer layer is orchestration; the inner is the actual work.</p>
+
+<h2 class="avoid">The guarantee that shapes everything</h2>
+<div class="box">
+  <p><strong>Never trust a tool's self-report.</strong> The dominant bug class in this codebase
+  is "the tool returned success and the artifact is dead". It recurred often enough that the
+  entire eval framework is built around structurally preventing it rather than catching it by review.</p>
+  <p>Concretely: every check re-fetches or re-opens the <em>real</em> artifact. Deterministic
+  checks are hard gates — the LLM judge is never invoked on an artifact that already failed
+  them, because a judge cannot rescue a dead link.</p>
+</div>
+
+<h3>Verification tiers</h3>
+<table>
+<tr><th style="width:8%">Tier</th><th style="width:24%">What</th><th style="width:12%">LLM?</th><th>Guarantee</th></tr>
+<tr><td><strong>T0</strong></td><td>Unit / contract tests</td><td>No</td><td>176 tests, offline, ~1.3s. Runs in CI.</td></tr>
+<tr><td><strong>T1</strong></td><td>35 deterministic checks</td><td>No</td><td>Live URL, real audio+video streams, non-silent audio, working demo click, deck structure, email grounding. Hard gate.</td></tr>
+<tr><td><strong>T2</strong></td><td>LLM judge</td><td>Yes</td><td>Rubric-scored, gated behind T1, every score requires a verified quote.</td></tr>
+<tr><td><strong>T3</strong></td><td>Live end-to-end</td><td>Yes</td><td>Real campaigns against real prospects.</td></tr>
+</table>
+
+<h3>Why the judge can't fool itself</h3>
+<p>An LLM judge that hallucinates evidence is worse than no judge — it produces confident,
+unfounded numbers. Every criterion score must cite exact substrings from the real artifact.
+Citations are verified by literal substring match (whitespace/case normalised, deliberately
+<em>not</em> fuzzy). <strong>An unverified citation forces that criterion to zero</strong>,
+regardless of the score claimed. The same mechanism is reused for learned preferences.</p>
+
+<h2 class="avoid">Multi-tenancy (4 phases)</h2>
+<table>
+<tr><th style="width:9%">Phase</th><th style="width:26%">Delivers</th><th>Design note</th></tr>
+<tr><td><strong>1</strong></td><td>State isolation<br><code>agents/tenancy.py</code></td><td>Tenant key = <code>slug(startup)</code>, derived from an argument the tools already carry — no new plumbing. Path traversal contained by re-slugging; 7 hostile inputs tested.</td></tr>
+<tr><td><strong>2</strong></td><td>Per-tenant briefing cache</td><td>Tenant derived from ingested <code>product_name</code>, so all 14 <code>summary()</code> call sites benefit without change. Invalidated by a sha256 over ingested content.</td></tr>
+<tr><td><strong>3</strong></td><td>Learned preferences</td><td>Quote-verified extraction (see above). Capped at 40 and deduped so prompts can't grow unbounded.</td></tr>
+<tr><td><strong>4</strong></td><td>Authorization</td><td><code>REVENANT_PINNED_TENANT</code>. Refuses cross-tenant calls rather than silently redirecting.</td></tr>
+</table>
+
+<div class="box danger">
+  <p><strong>Read this before assuming the system is multi-tenant-safe.</strong> The tenant
+  reaches the tools as an argument that travels <em>through an LLM</em>. An LLM can be talked out
+  of an instruction. The console-side tenant injection is defence in depth, <strong>not</strong>
+  a security boundary.</p>
+  <p>The real boundary is <code>REVENANT_PINNED_TENANT</code>: an environment variable set at
+  process spawn, which cannot be argued with. The intended deployment is <strong>one pinned MCP
+  server per customer</strong>. Verified over real MCP stdio: a pinned server refuses a call
+  whose argument explicitly names another tenant.</p>
+  <p><span class="cross">Currently unpinned in the running deployment</span> — safe today
+  (single operator, single authenticated gateway), must be enabled before customer #2.</p>
+</div>
+
+<h2 class="avoid">Observability</h2>
+<p>Pluggable tracing behind one shim (<code>ghost/trace.py</code>): <code>jsonl</code> by default,
+<code>langfuse</code> when configured — and jsonl keeps writing alongside it, so a misbehaving
+backend never loses tracing.</p>
+<p><strong>Verified live</strong> against a real Langfuse project. Traces carry:
+<code>user_id</code> = tenant, <code>session_id</code> = <code>tenant:merchant</code> (one campaign),
+tags, environment, git-sha release, specific observation types (agent / generation / retriever /
+evaluator), model and token usage for cost attribution.</p>
+<p><strong>Sensitive data is masked before leaving the process</strong> — emails, API-key shapes,
+bearer credentials. Confirmed on real data: a prospect address arrived as
+<code>&lt;email-redacted&gt;</code>. Masking is regex-over-payload rather than field-aware, because
+a field-aware masker only redacts the keys someone remembered to list.</p>
+
+<h2 class="avoid">Bugs worth knowing about</h2>
+<p class="muted">All found by <em>running</em> the system, not by reading it. Listed because each
+represents a class, not a one-off.</p>
+<table>
+<tr><th style="width:30%">Bug</th><th>Why it mattered</th></tr>
+<tr><td>Judge ran in offline mode</td><td>Returned a canned stub; the zero-score path skips citation checks by design, so a fake <code>0.0/100</code> was indistinguishable from a real harsh verdict. Real score was 22.5.</td></tr>
+<tr><td>Score with no anchor</td><td>Every eval score silently 400'd into Langfuse — SDK logged it, the never-raise contract swallowed it. Found on the first live run.</td></tr>
+<tr><td>Masking regex leak</td><td><code>Authorization: Bearer &lt;token&gt;</code> matched only through "Bearer"; the token survived in clear text. Caught by its own test.</td></tr>
+<tr><td>Cross-thread span nesting</td><td>Every span inside a worker thread started a new root trace. 14 spans → 14 traces; now 1.</td></tr>
+<tr><td>Dotted invite code</td><td>Accepted at login with a 200, then 401'd forever. Silent permanent lockout.</td></tr>
+<tr><td>Gateway outlived its MCP subprocess</td><td>Live console reported "tool not available". <strong>Operational failure mode — worth alerting on.</strong></td></tr>
+<tr><td>Deck CTA check was a coin-flip</td><td>Two near-identical decks landed on opposite sides purely by synonym choice. A bad check is worse than none — it would have fed the improvement loop false signal.</td></tr>
+<tr><td>Tests read real user state</td><td>Two tests passed against the developer's actual <code>~/.revenant</code> instead of their fixtures.</td></tr>
+</table>
+
+<h2 class="avoid">Known gaps</h2>
+<table>
+<tr><th style="width:30%">Gap</th><th style="width:14%">Severity</th><th>Detail</th></tr>
+<tr><td>Hosting = temporary tunnel</td><td class="cross">High</td><td>Free-tier single-tunnel limit; links expire. Detected correctly by T1, but not durable. Blocks launch.</td></tr>
+<tr><td>Pinning not enabled</td><td class="cross">High</td><td>Supported and tested; not deployed. Required before multi-customer.</td></tr>
+<tr><td>Self-heal retries</td><td>Medium</td><td><code>extra_instruction</code> plumbing exists; retry orchestration not built.</td></tr>
+<tr><td>CI is T0-only</td><td>Medium</td><td>No browser/network in CI by design. T1 runs locally via <code>make eval</code>.</td></tr>
+<tr><td>Trace timestamps</td><td>Low</td><td>Batch-emitted at flush; real timings preserved in metadata, not on the UI timeline.</td></tr>
+<tr><td>Lint debt</td><td>Low</td><td>~400 pre-existing findings, mostly <code>ISC004</code>. Ruff non-blocking in CI.</td></tr>
+</table>
+
+<h2 class="avoid">Operational notes</h2>
+<ul>
+  <li><strong>Secrets</strong>: <code>.env</code> (gitignored, mode 600). Browser never receives
+      a key — the Vercel proxy holds them. <span class="cross">The current Langfuse key pair was
+      pasted into a chat transcript and should be rotated.</span></li>
+  <li><strong>Gateway health</strong>: it can outlive its MCP subprocess and report tools as
+      missing. A restart fixes it; this deserves monitoring.</li>
+  <li><strong>Degraded mode is normal</strong>: missing enrichment keys degrade gracefully
+      (guessed emails, macOS voice, no payment link) rather than failing — check
+      <code>status</code> before assuming a feature is broken.</li>
+  <li><strong>Prompt changes</strong>: bump <code>PROMPT_VERSION</code> and regenerate the
+      baseline; a T0 guard enforces this.</li>
+</ul>
+
+<h2 class="avoid">Where to start reading</h2>
+<table>
+<tr><th style="width:34%">Path</th><th>Why</th></tr>
+<tr><td><code>docs/evals-observability-design.md</code></td><td>The architecture rationale. Read first.</td></tr>
+<tr><td><code>agents/tenancy.py</code></td><td>Multi-tenancy + the trust boundary, stated plainly.</td></tr>
+<tr><td><code>evals/judge.py</code></td><td>Citation verification (M1–M6).</td></tr>
+<tr><td><code>agents/mcp_server.py</code></td><td>All 8 tools; the API surface.</td></tr>
+<tr><td><code>ghost/trace.py</code></td><td>Tracing shim + cross-thread propagation.</td></tr>
+</table>
+<p class="muted">Code comments explain <em>why</em>, and frequently cite the specific bug that
+motivated the decision — they are the primary documentation for non-obvious choices.</p>
+
+</body>
+</html>

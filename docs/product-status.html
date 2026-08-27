@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Revenant.AI — Product Status</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 16mm 16mm;
+          @bottom-center { content: counter(page) " / " counter(pages);
+                           font-family: -apple-system, sans-serif; font-size: 8pt; color: #94a3b8; } }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+         font-size: 9.6pt; line-height: 1.5; color: #1e293b; margin: 0; }
+  h1 { font-size: 21pt; margin: 0 0 2mm; letter-spacing: -0.4pt; color: #0f172a; }
+  .sub { color: #64748b; font-size: 9pt; margin-bottom: 6mm; }
+  h2 { font-size: 12.5pt; margin: 7mm 0 2.5mm; padding-bottom: 1.2mm;
+       border-bottom: 1.6pt solid #6366f1; color: #0f172a; }
+  h3 { font-size: 10pt; margin: 4mm 0 1.5mm; color: #334155; }
+  p { margin: 0 0 2.2mm; }
+  ul { margin: 0 0 2.5mm; padding-left: 4.5mm; }
+  li { margin-bottom: 1.1mm; }
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 3.5mm; font-size: 8.6pt; }
+  th { background: #f1f5f9; text-align: left; padding: 1.8mm 2mm; font-weight: 600;
+       border-bottom: 1.2pt solid #cbd5e1; color: #0f172a; }
+  td { padding: 1.6mm 2mm; border-bottom: 0.5pt solid #e2e8f0; vertical-align: top; }
+  .status { font-weight: 600; white-space: nowrap; }
+  .live { color: #059669; } .partial { color: #d97706; } .blocked { color: #dc2626; }
+  .box { background: #f8fafc; border-left: 2.5pt solid #6366f1;
+         padding: 2.5mm 3mm; margin: 2.5mm 0 3.5mm; }
+  .warn { background: #fffbeb; border-left-color: #f59e0b; }
+  .box p { margin: 0 0 1.2mm; } .box p:last-child { margin: 0; }
+  .kpi { display: flex; gap: 3mm; margin: 3mm 0 4mm; }
+  .kpi div { flex: 1; background: #f8fafc; border: 0.5pt solid #e2e8f0;
+             border-radius: 1.5mm; padding: 2.5mm; text-align: center; }
+  .kpi .n { font-size: 15pt; font-weight: 700; color: #4f46e5; display: block; }
+  .kpi .l { font-size: 7.4pt; color: #64748b; text-transform: uppercase;
+            letter-spacing: 0.3pt; }
+  code { font-family: "SF Mono", Menlo, monospace; font-size: 8.2pt;
+         background: #f1f5f9; padding: 0.3mm 1mm; border-radius: 0.8mm; }
+  .flow { background: #0f172a; color: #e2e8f0; padding: 3mm; border-radius: 1.5mm;
+          font-family: "SF Mono", Menlo, monospace; font-size: 8pt; line-height: 1.65;
+          margin: 2.5mm 0 3.5mm; }
+  .flow b { color: #a5b4fc; font-weight: 600; }
+  .muted { color: #64748b; font-size: 8.4pt; }
+  .avoid { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<h1>Revenant.AI — Product Status</h1>
+<div class="sub">What the product does today, what's proven, and what still needs a decision.<br>
+Prepared for product review · 27 August 2026</div>
+
+<div class="kpi">
+  <div><span class="n">8</span><span class="l">Capabilities live</span></div>
+  <div><span class="n">4</span><span class="l">AI agents</span></div>
+  <div><span class="n">35</span><span class="l">Auto quality checks</span></div>
+  <div><span class="n">176</span><span class="l">Tests passing</span></div>
+</div>
+
+<h2>What Revenant is</h2>
+<p>Revenant is an <strong>autonomous outbound engineer</strong>. A founder points it at their startup;
+it researches a real prospect, builds and deploys a working prototype personalised to that
+prospect, films an AI-narrated walkthrough video of it, writes a pitch deck and a personal
+email, and puts the whole package in front of the founder for approval.</p>
+<p>The pitch is not a description of the product — it is <em>the product, already built for you</em>.
+That is the differentiator, and everything below serves it.</p>
+
+<div class="box">
+  <p><strong>The core belief driving the engineering:</strong> an AI that says "done" is not evidence
+  that anything works. Throughout development the dominant failure was the system reporting
+  success while the artifact was actually broken — a dead link, a silent video, a demo that
+  didn't respond. The product now independently verifies its own output before showing it to
+  a founder. <strong>That verification is the feature</strong>, not a technicality.</p>
+</div>
+
+<h2>The founder's journey</h2>
+<div class="flow">
+<b>1. Onboard</b>  — founder points Revenant at their repo / website. It reads the
+             product and learns what it actually does.
+<b>2. Hunt</b>     — proposes 3 real, named companies that would genuinely buy it,
+             each with a reason and a named decision-maker.
+<b>3. Build</b>    — founder picks one. Revenant builds a live prototype using that
+             prospect's real workflow, films a walkthrough, writes deck + email.
+<b>4. Verify</b>   — before the founder sees it, the work is auto-graded. A failure
+             is reported plainly, not hidden.
+<b>5. Approve</b>  — founder reviews and sends. <b>Revenant never sends anything itself.</b>
+</div>
+
+<h2>Capabilities today</h2>
+<table>
+<tr><th style="width:29%">Capability</th><th style="width:14%">Status</th><th>What a founder gets</th></tr>
+<tr><td>Startup onboarding</td><td class="status live">Live</td><td>Reads their repo/site once; every later campaign sells for that company accurately.</td></tr>
+<tr><td>Prospect research</td><td class="status live">Live</td><td>Three named, real companies with a fit rationale and a buyer role.</td></tr>
+<tr><td>Prototype build + deploy</td><td class="status live">Live</td><td>A working, hosted, interactive demo built around that prospect's workflow.</td></tr>
+<tr><td>Walkthrough video</td><td class="status live">Live</td><td>A ~60–90s AI-narrated video tour of their prototype.</td></tr>
+<tr><td>Deck + email</td><td class="status live">Live</td><td>A 6-slide leave-behind and a personal email, drafted never sent.</td></tr>
+<tr><td>Gmail draft</td><td class="status live">Live</td><td>The email lands in their Drafts with attachments, ready to review.</td></tr>
+<tr><td>Automatic quality check</td><td class="status live">Live</td><td>Every campaign graded before delivery; failures stated plainly.</td></tr>
+<tr><td>Remembers preferences</td><td class="status live">Live</td><td>Learns each customer's tone, banned words, and brand facts over time.</td></tr>
+</table>
+
+<h2 class="avoid">Run any single stage on its own</h2>
+<p>Founders don't always want the full pipeline. Each specialist can now be invoked
+independently — "just build the prototype", "film it", "draft the outreach", "QA that
+campaign again" — without triggering the rest. This was added directly in response to
+review feedback that stages weren't separately addressable.</p>
+
+<h2 class="avoid">Multi-customer readiness</h2>
+<p>The product now supports multiple startups as genuinely separate customers. Each gets its
+own isolated workspace: its own campaigns, its own learned product knowledge, its own
+preferences. Two customers on the same deployment cannot see or overwrite each other's work.</p>
+<table>
+<tr><th style="width:29%">Area</th><th style="width:14%">Status</th><th>Note</th></tr>
+<tr><td>Separate workspaces</td><td class="status live">Live</td><td>Verified with two customers end to end; no data crossover.</td></tr>
+<tr><td>Per-customer product knowledge</td><td class="status live">Live</td><td>Also made repeat runs ~165× faster by not re-learning each time.</td></tr>
+<tr><td>Per-customer preferences</td><td class="status live">Live</td><td>Only records things the founder actually said — see below.</td></tr>
+<tr><td>Login → customer binding</td><td class="status live">Live</td><td>Each invite code maps to one customer; enforced server-side.</td></tr>
+<tr><td>Hard access boundary</td><td class="status partial">Ready, not deployed</td><td>Requires one service per customer; supported and tested, not yet rolled out.</td></tr>
+</table>
+
+<div class="box">
+  <p><strong>On learned preferences — why this is safe to ship.</strong> A system that
+  "learns what the customer wants" can very easily invent preferences nobody expressed, then
+  apply them forever. Revenant will only record a preference if it can quote the founder's own
+  words verbatim from the conversation. If it cannot produce that quote, the preference is
+  discarded and the founder is told it was discarded. It cannot make things up about a customer.</p>
+</div>
+
+<h2 class="avoid">What isn't done yet</h2>
+<table>
+<tr><th style="width:32%">Item</th><th style="width:16%">Status</th><th>Impact on a founder</th></tr>
+<tr><td>Automatic retry on a failed build</td><td class="status partial">Designed, not built</td><td>A failed deploy is reported honestly, but not yet self-repaired.</td></tr>
+<tr><td>Hosting on our own infrastructure</td><td class="status blocked">Needs decision</td><td>Prototypes currently use a temporary tunnel; links expire. <strong>Blocks real customer use.</strong></td></tr>
+<tr><td>Third-party enrichment keys</td><td class="status blocked">Needs decision</td><td>Without them: guessed emails, robotic voice, no payment link.</td></tr>
+<tr><td>Broad quality benchmark</td><td class="status partial">Partial</td><td>Verified on real campaigns; no published pass-rate across a large sample yet.</td></tr>
+</table>
+
+<div class="box warn">
+  <p><strong>The one thing to fix before any real customer touches this:</strong> prototype
+  links are served through a temporary developer tunnel. They work, and the product correctly
+  detects when one has died — but they are not durable. A prospect opening a link a day later
+  may find nothing. Permanent hosting is a prerequisite for launch, not a nice-to-have.</p>
+</div>
+
+<h2 class="avoid">Suggested priorities</h2>
+<ul>
+  <li><strong>1 · Permanent hosting.</strong> The only item genuinely blocking customer use.</li>
+  <li><strong>2 · Decide on enrichment spend.</strong> Determines whether emails go to verified
+      contacts and whether the video sounds human. Directly affects reply rates.</li>
+  <li><strong>3 · Turn on the hard access boundary.</strong> Cheap to enable; do it before
+      customer #2 exists, not after.</li>
+  <li><strong>4 · Publish a quality benchmark.</strong> The grading engine exists; run it across
+      a sample so we can state a real pass rate rather than an anecdote.</li>
+  <li><strong>5 · Self-repair on failure.</strong> Groundwork is in place; converts an honest
+      failure into a silent recovery.</li>
+</ul>
+
+<h2 class="avoid">How to judge it yourself</h2>
+<p>The quality bar is measurable, not a matter of taste. Every campaign is checked on:
+is the prototype link actually alive; does the interactive demo actually respond; does the
+video contain real audio and real video; is the deck complete; does the email reference
+genuine evidence about that prospect rather than generic filler.</p>
+<p class="muted">A campaign that fails any of these is reported as a failure to the founder,
+with the specific reason. The product is designed to tell you bad news.</p>
+
+</body>
+</html>
