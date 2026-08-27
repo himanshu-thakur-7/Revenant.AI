@@ -429,6 +429,13 @@ def build_campaign(choice: str = "1") -> str:
         "domain": art.domain,
         "recipient_email": art.recipient_email,
         "contact_name": art.contact_name,
+        # Same gap as build_full_outreach's write below (fixed alongside
+        # it) -- both fields were already on CampaignArtifacts and simply
+        # never made it into this file, degrading evals.bundle.from_disk()
+        # reconstruction the same way. This path is REVENANT_MCP_LEGACY-
+        # gated (off by default) but kept consistent regardless.
+        "pain": art.fit_rationale,
+        "contact_title": art.contact_title,
         "prototype_url": art.prototype_url,
         "walkthrough_url": art.walkthrough_url,
         "walkthrough_mp4": art.walkthrough_mp4,
