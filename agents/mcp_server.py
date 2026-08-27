@@ -897,6 +897,15 @@ async def draft_outreach(startup: str, merchant: str, prototype_url: str,
         "domain": dom,
         "recipient_email": recipient_email,
         "contact_name": contact_name,
+        # pain/contact_title were never persisted here even though both
+        # are already in scope — caught live via evals.bundle.from_disk(),
+        # which reconstructs a Bundle from exactly this file when a saved
+        # eval bundle is unavailable: without `pain`, evidence_grounding()
+        # and specificity_lint() lose most of their real clue source (a
+        # real 4-clue PhonePe email collapsed to 1 clue under --from-disk,
+        # purely from this gap, not because the email was worse).
+        "pain": pain,
+        "contact_title": contact_title,
         "prototype_url": prototype_url,
         "walkthrough_url": walkthrough_url,
         "walkthrough_mp4": "",

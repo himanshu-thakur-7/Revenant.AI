@@ -177,6 +177,27 @@ def from_disk(merchant: str, *, startup: str = "Razorpay") -> Bundle:
                     "email_subject": camp.get("email_subject", ""),
                     "recipient_email": camp.get("recipient_email", ""),
                     "contact_name": camp.get("contact_name", ""),
+                    # "domain" WAS present in last_campaign.json all along
+                    # and simply never got read into merchant_domain here.
+                    # pain/contact_title needed a matching fix on the
+                    # WRITE side too (agents/mcp_server.py's
+                    # build_full_outreach) -- they were never persisted to
+                    # last_campaign.json at all, even though both were
+                    # already in scope where the file gets written.
+                    #
+                    # Caught live: evidence_grounding()/specificity_lint()
+                    # both draw most of their real clues from `pain` (a
+                    # real 4-clue PhonePe email -- phonepe, settlement,
+                    # reconciliation, friction -- collapsed to a single
+                    # clue, just the company name, under --from-disk).
+                    # `evals-cli score --merchant PhonePe` (the real saved
+                    # eval bundle, with pain intact) correctly scored 4/4
+                    # present; the --from-disk reconstruction of the SAME
+                    # email scored 1/1 and failed the >=2 gate purely from
+                    # this missing data, not because the email was worse.
+                    "merchant_domain": camp.get("domain", ""),
+                    "pain": camp.get("pain", ""),
+                    "contact_title": camp.get("contact_title", ""),
                 }
         except Exception:
             pass

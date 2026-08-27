@@ -77,6 +77,41 @@ def test_from_disk_no_artifacts_is_all_false():
     assert not any(b.artifacts().values())
 
 
+def test_from_disk_recovers_domain_pain_and_contact_title(tmp_path, monkeypatch):
+    # Live-caught gap: from_disk() only ever mapped a handful of
+    # last_campaign.json fields into the Bundle. "domain" was present in
+    # the file all along and simply never got read; pain/contact_title
+    # needed a matching write-side fix (agents/mcp_server.py's
+    # build_full_outreach) since they weren't persisted to the file at
+    # all. Without pain especially, evidence_grounding()/specificity_lint()
+    # lose most of their real clue source under --from-disk.
+    import evals.bundle as bundle_mod
+
+    monkeypatch.setattr(bundle_mod, "REVENANT_HOME", tmp_path)
+    (tmp_path / "last_campaign.json").write_text(json.dumps({
+        "company": "Acme", "domain": "acme.com",
+        "pain": "checkout abandonment on mobile",
+        "contact_title": "Head of Growth",
+    }))
+    b = from_disk("Acme")
+    assert b.merchant_domain == "acme.com"
+    assert b.pain == "checkout abandonment on mobile"
+    assert b.contact_title == "Head of Growth"
+
+
+def test_from_disk_missing_new_fields_defaults_cleanly(tmp_path, monkeypatch):
+    # An OLDER last_campaign.json (written before this fix) has neither
+    # key -- must default to "" rather than raise.
+    import evals.bundle as bundle_mod
+
+    monkeypatch.setattr(bundle_mod, "REVENANT_HOME", tmp_path)
+    (tmp_path / "last_campaign.json").write_text(json.dumps({"company": "Acme"}))
+    b = from_disk("Acme")
+    assert b.merchant_domain == ""
+    assert b.pain == ""
+    assert b.contact_title == ""
+
+
 def test_bundle_new_id_is_slug_based():
     bid = Bundle.new_id("Bombay Shaving Company")
     assert bid.endswith("bombay-shaving-company")
