@@ -475,7 +475,16 @@ def _walk_text_files(root: Path) -> Iterable[Path]:
                 continue
             p = Path(dirpath) / fn
             ext = p.suffix.lower()
-            if ext in _TEXT_EXT or fn in _PRIORITY_NAMES or fn.lower() in {"dockerfile", "makefile"}:
+            # `.env.example` needs naming here as well as in the dotfile
+            # check above: it passes that one, then its ".example" suffix
+            # fails the extension test, so the exception carved out for it
+            # was dead and the file was never actually ingested. It is worth
+            # having — a product's configuration surface says a lot about
+            # what it does (a STRIPE_ var means payments, a TWILIO_ one means
+            # messaging) and it is the documented, secret-free counterpart of
+            # `.env`, which the dotfile check above still correctly excludes.
+            if (ext in _TEXT_EXT or fn in _PRIORITY_NAMES
+                    or fn.lower() in {"dockerfile", "makefile", ".env.example"}):
                 yield p
 
 
